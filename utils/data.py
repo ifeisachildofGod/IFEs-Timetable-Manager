@@ -53,6 +53,6 @@ class Settings:
     TEACHER_rsma_mapping: dict[ID, Optional[int]]
     TEACHER_default_max_classes: int
     TIMETABLE_breakperiod: int
-    TIMETABLE_weekdays: list[str]
+    TIMETABLE_weekdays: dict[str, int]
 
 

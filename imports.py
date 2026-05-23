@@ -95,4 +95,4 @@ SUBJECTS = Subjects()
 TEACHERS = Teachers()
 CLASS_LEVELS = ClassLevels()
 
-SETTINGS = Settings(10, {}, 3, 7, ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"])
+SETTINGS = Settings(10, {}, 3, 7, {"Monday": 10, "Tuesday": 10, "Wednesday": 10, "Thursday": 10, "Friday": 10})

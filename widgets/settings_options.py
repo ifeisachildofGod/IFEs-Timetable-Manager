@@ -34,7 +34,7 @@ class SelectionList(BaseSettingDialog):
     
     def go_to(self, widget: "_SL_SelectedWidget"):
         def func():
-            self.scroll_area.verticalScrollBar().setValue(widget.y())
+            self.widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
             
             widget.setFocus()
         
@@ -76,7 +76,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                 self.class_check_box_tracker["icon"][lvl_id].mouseclicked.emit()
             
             def func():
-                self.scroll_area.verticalScrollBar().setValue(self.class_check_box_tracker["widget"][lvl_id].y())
+                self.widget.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker["widget"][lvl_id].y())
                 
                 self.class_check_box_tracker["widget"][lvl_id].setFocus()
             
@@ -85,7 +85,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             if not self.class_check_box_tracker["widget"][lvl_id].isVisible():
                 self.class_check_box_tracker["icon"][lvl_id].mouseclicked.emit()
             
-            self.scroll_area.verticalScrollBar().setValue(self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id].y())
+            self.widget.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id].y())
             
             self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id].setFocus()
     
@@ -239,7 +239,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                     self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
                 
                 def in_func():
-                    self.scroll_area.verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y())
+                    self.widget.getScrollWidget().verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y())
                     
                     self.subject_check_box_tracker[subj_id]["widget"].setFocus()
             
@@ -256,7 +256,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                         self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
                     
                     def inner_func():
-                        self.scroll_area.verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
+                        self.widget.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
                         
                         self.class_check_box_tracker[subj_id]["widget"][lvl_id].setFocus()
                 
@@ -275,7 +275,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                         self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
                     
                     def inner_func():
-                        self.scroll_area.verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].y())
+                        self.widget.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].y())
                         
                         self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].setFocus()
             
@@ -403,53 +403,28 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         return checkbox_func
 
 class SubjectSelection(BaseSettingDialog):
-    def __init__(
-        self,
-        title: str,
-        info: dict[
-            str,
-            dict[
-                str,
-                str | dict[str, list[str | None] | dict[int, str]]
-            ] | dict[int, str] | dict[str, list[str | None]]
-        ],
-        index: int,
-        main_subjects_info: dict[str, tuple[str, dict[str, tuple[int, int, dict]]]],
-        week_total: int
-    ):
-        super().__init__(title, info)
+    def __init__(self, id: ID, title: str):
+        super().__init__(title)
+        
+        self.id = id
         
         self.setFixedSize(600, 400)
         
-        self.week_total = week_total
+        self.focuses_ids = {}
+        self.week_total = sum(SETTINGS.TIMETABLE_weekdays.values())
         
         self.subject_widgets: dict[str, QWidget] = {}
         self.number_edits: dict[str, tuple[NumberLineEdit, NumberLineEdit]] = {}
         
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        
         self.setSpacing(20)
         
-        self.main_subjects_info = {s_id: set(data[2]) for s_id, (_, values) in main_subjects_info.items() if (data := values.get(str(index)))}
-        
-        self.focuses_ids = {
-            subject_id: list (
-                    s_id
-                    for s_id
-                    in self.info
-                    if (
-                        s_id in self.main_subjects_info and
-                        subject_id in self.main_subjects_info and
-                        self.main_subjects_info[subject_id].intersection(self.main_subjects_info[s_id])
-                    )
-                )
-            for subject_id
-            in self.info
-        }
-        
-        for subject_id, (subject_name, subject_info) in self.info.items():
-            self.add_subject(subject_id, subject_name, subject_info) # type: ignore
+        subjects = []
+        for cls in CLASS_LEVELS[self.id].classes.values():
+            for subject_id, subject in cls.subjects.items():
+                if subject_id not in subjects:
+                    subjects.append(subject_id)
+                    
+                    self.add_subject(subject)
         
         for subject_id, (per_day_edit, per_week_edit) in self.number_edits.items():
             per_day_edit.textChanged.emit(self.info[subject_id][1]["per_day"])
@@ -461,88 +436,86 @@ class SubjectSelection(BaseSettingDialog):
         for subject_id, widget in self.subject_widgets.items():
             if subject_id == _id:
                 def func():
-                    self.scroll_area.verticalScrollBar().setValue(widget.y())
+                    self.widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
                     widget.setFocus()
                 
                 QTimer.singleShot(200, func)
                 
                 break
     
-    def add_subject(self, subject_id: str, subject_name: str, info: dict):
-        selection_widget = QWidget()
+    def add_subject(self, subject: Subject):
+        selection_widget = BaseWidget(QHBoxLayout)
         selection_widget.setProperty("class", "SubjectClassViewEntry")
         
-        layout = QHBoxLayout()
-        selection_widget.setLayout(layout)
-        
         metrics = QFontMetrics(self.font())
-        subjects_label = QLabel(metrics.elidedText(subject_name, Qt.TextElideMode.ElideRight, 100))
+        subjects_label = QLabel(metrics.elidedText(subject.name, Qt.TextElideMode.ElideRight, 100))
         subjects_label.setFont(self.font())
-        subjects_label.setToolTip(subject_name)
+        subjects_label.setToolTip(subject.name)
         subjects_label.setProperty("class", "SubjectClassViewEntryName")
         
-        sub_widget = QWidget()
+        sub_widget = BaseWidget()
         sub_widget.setProperty("class", "SubjectClassViewEntryEdits")
         
-        sub_layout = QVBoxLayout()
-        sub_widget.setLayout(sub_layout)
+        selection_widget.addWidget(subjects_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        selection_widget.addWidget(sub_widget, alignment=Qt.AlignmentFlag.AlignRight)
         
-        layout.addWidget(subjects_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(sub_widget, alignment=Qt.AlignmentFlag.AlignRight)
-        
-        per_day_edit = NumberLineEdit(info["per_day"], 1, info["per_week"])
+        per_day_edit = NumberLineEdit(subject.occurance.day_max, 1, subject.occurance.week_max)
         # per_day_edit.edit.setFixedWidth(50)
         per_day_edit.setPlaceholderText("Per day")
-        per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject_id, per_day_edit))
+        per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject.id, per_day_edit))
         
-        per_week_edit = NumberLineEdit(info["per_week"], 1, info["per_week"] + self.week_total - sum(self.info[s_id][1]["per_week"] for s_id in self.focuses_ids[subject_id]))
+        subjects = set([])
+        for cls in CLASS_LEVELS[self.id].classes.values():
+            for s_id, subject in cls.subjects.items():
+                if subject.id == s_id:
+                    subjects = subjects.union(set(cls.subjects.values()))
+        
+        self.focuses_ids[subject.id] = subjects
+        
+        per_week_edit = NumberLineEdit(subject.occurance.week_max, 1, subject.occurance.week_max + self.week_total - sum(SUBJECTS[s_id].occurence.week_max for s_id in self.focuses_ids[subject.id]))
         # per_week_edit.edit.setFixedWidth(54)
         per_week_edit.setPlaceholderText("Per week")
-        per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject_id, per_day_edit, per_week_edit))
+        per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject.id, per_day_edit, per_week_edit))
         
-        per_day_widget = QWidget()
-        per_day_layout = QHBoxLayout()
+        per_day_widget = BaseWidget(QHBoxLayout)
         per_day_widget.setProperty("class", "Edit")
         per_day_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
-        per_day_widget.setLayout(per_day_layout)
         
-        per_day_layout.addWidget(QLabel("<b>Per day</b>"))
-        per_day_layout.addWidget(per_day_edit)
+        per_day_widget.addWidget(QLabel("<b>Per day</b>"))
+        per_day_widget.addWidget(per_day_edit)
         
-        per_week_widget = QWidget()
-        per_week_layout = QHBoxLayout()
+        per_week_widget = BaseWidget(QHBoxLayout)
         per_week_widget.setProperty("class", "Edit")
         per_week_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
-        per_week_widget.setLayout(per_week_layout)
         
-        per_week_layout.addWidget(QLabel("<b>Per week</b>"))
-        per_week_layout.addWidget(per_week_edit)
+        per_week_widget.addWidget(QLabel("<b>Per week</b>"))
+        per_week_widget.addWidget(per_week_edit)
         
-        sub_layout.addWidget(per_day_widget)
-        sub_layout.addWidget(per_week_widget)
+        sub_widget.addWidget(per_day_widget)
+        sub_widget.addWidget(per_week_widget)
         
         self.addWidget(selection_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
-        self.number_edits[subject_id] = per_day_edit, per_week_edit
-        self.subject_widgets[subject_id] = selection_widget
+        self.number_edits[subject.id] = per_day_edit, per_week_edit
+        self.subject_widgets[subject.id] = selection_widget
     
-    def make_per_day_text_changed_func(self, subject_id: str, input_edit: 'NumberLineEdit'):
+    def make_per_day_text_changed_func(self, subject: Subject, input_edit: 'NumberLineEdit'):
         def text_changed_func():
-            self.info[subject_id][1]["per_day"] = input_edit.number() # type: ignore
+            SUBJECTS[subject.id].occurence.day_max = input_edit.number()
         
         return text_changed_func
     
-    def make_per_week_text_changed_func(self, subject_id: str, per_day_edit: 'NumberLineEdit', per_week_edit: 'NumberLineEdit'):
+    def make_per_week_text_changed_func(self, subject: Subject, per_day_edit: 'NumberLineEdit', per_week_edit: 'NumberLineEdit'):
         def text_changed_func(number):
-            diff = self.week_total - sum((self.info[s_id][1]["per_week"] if s_id != subject_id else number) for s_id in self.focuses_ids[subject_id])
+            diff = self.week_total - sum((SUBJECTS[s_id].occurence.week_max if s_id != subject.id else number) for s_id in self.focuses_ids[subject.id])
             
             print()
-            print("---", self.info[subject_id][0], diff)
-            for s_id in self.focuses_ids[subject_id]:
-                print(self.info[s_id][0], self.number_edits[s_id][1].number(), self.number_edits[s_id][1].max_num, self.number_edits[s_id][1].number() + diff)
-                self.number_edits[s_id][1].max_num = self.number_edits[s_id][1].number() + diff
+            print("---", self.info[subject.id][0], diff)
+            for s_id in self.focuses_ids[subject.id]:
+                print(self.info[s_id][0], per_week_edit.number(), per_week_edit.max_num, per_week_edit.number() + diff)
+                per_week_edit.max_num = per_week_edit.number() + diff
             
-            per_day_edit.max_num = self.info[subject_id][1]["per_week"] = number
+            per_day_edit.max_num = SUBJECTS[subject.id].occurence.week_max = number
         
         return text_changed_func
 
@@ -575,7 +548,7 @@ class ClassOptionsMaker(BaseSettingDialog):
     
     def go_to(self, widget: QWidget):
         def func():
-            self.scroll_area.verticalScrollBar().setValue(widget.y())
+            self.widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
             widget.setFocus()
         
         QTimer.singleShot(200, func)
