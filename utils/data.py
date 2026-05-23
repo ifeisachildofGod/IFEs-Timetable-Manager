@@ -1,22 +1,10 @@
 
-from dataclasses import dataclass
-from enum import Enum
 import random
+
 from typing import Optional
+from dataclasses import dataclass
 
-
-class ID(str):
-    def __init__(self):
-        super().__init__()
-    
-    def __add__(self, value):
-        return ID(f"{self}->{value}")
-    
-    @staticmethod
-    def generate_new():
-        tmp = random.randint()
-        
-        return ID(id(tmp))
+from core import ID
 
 
 @dataclass
@@ -30,6 +18,7 @@ class Class:
     id: ID
     name: str
     
+    level: "ClassLevel"
     subjects: dict[ID, "Subject"]
 
 
@@ -53,27 +42,17 @@ class Teacher(Entry):
 @dataclass
 class ClassLevel(Entry):
     classes: dict[ID, Class]
-
+    
+    def add(self, cls: Class):
+        self.classes[cls.id] = cls
 
 
 @dataclass
 class Settings:
     GENERAL_periodamt: int
     TEACHER_rsma_mapping: dict[ID, Optional[int]]
+    TEACHER_default_max_classes: int
     TIMETABLE_breakperiod: int
-    TIMETABLE_weekdays: int
+    TIMETABLE_weekdays: list[str]
 
-
-class Signal(Enum):
-    SubjectAdd = "SubjectAdd"
-    TeacherAdd = "TeacherAdd"
-    ClassLevelAdd = "ClassLevelAdd"
-    
-    SubjectRemove = "SubjectRemove"
-    TeacherRemove = "TeacherRemove"
-    ClassLevelRemove = "ClassLevelRemove"
-
-class SignalType(Enum):
-    SOURCE = "SOURCE"
-    RECIEVER = "RECIEVER"
 

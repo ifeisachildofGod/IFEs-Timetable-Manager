@@ -1,12 +1,29 @@
 
-from copy import deepcopy
+from enum import Enum
 
-from data import ID, Signal, SignalType
+from copy import deepcopy
 from typing import Any, Callable
 
+from core import ID
 
-class HooksManagerError(TypeError):
-    pass
+
+class HooksManagerError(TypeError): pass
+
+class Signal(Enum):
+    SubjectAdd = "SubjectAdd"
+    TeacherAdd = "TeacherAdd"
+    ClassLevelAdd = "ClassLevelAdd"
+    ClassAdd = "ClassAdd"
+    
+    SubjectRemove = "SubjectRemove"
+    TeacherRemove = "TeacherRemove"
+    ClassLevelRemove = "ClassLevelRemove"
+    ClassRemove = "ClassRemove"
+
+class SignalType(Enum):
+    SOURCE = "SOURCE"
+    RECIEVER = "RECIEVER"
+
 
 class _ConnectionsManager:
     def __init__(self):
@@ -24,7 +41,7 @@ class _ConnectionsManager:
     def setDynamicID(self, id: ID):
         self.dynamicID = id
     
-    def useDynamicID(self):
+    def _useDynamicID(self):
         dyID = self.dynamicID
         self.dynamicID = None
         
@@ -66,7 +83,7 @@ class Hook:
             def wrapper(*args, **kwargs):
                 func_output = self.func(*args, **kwargs)
                 
-                CONNECTIONS_MANAGER._doMasterConnection(self.name + (CONNECTIONS_MANAGER.useDynamicID() if self.is_dynamic else ""), func_output)
+                CONNECTIONS_MANAGER._doMasterConnection(self.name + (CONNECTIONS_MANAGER._useDynamicID() if self.is_dynamic else ""), func_output)
                 
                 return func_output
             
@@ -88,7 +105,7 @@ class Hook:
             if self.signal_type == SignalType.RECIEVER:
                 name = self.name
                 
-                if self.is_dynamic and (id := CONNECTIONS_MANAGER.useDynamicID()) is not None:
+                if self.is_dynamic and (id := CONNECTIONS_MANAGER._useDynamicID()) is not None:
                     name = self.name + id
                     
                     CONNECTIONS_MANAGER._addConnection(name, self.func)
@@ -112,32 +129,36 @@ class Hook:
             connections[connections.index(self.func)] = func
         
         return func
+    
+    @staticmethod
+    def setDynamicID(id: ID):
+        CONNECTIONS_MANAGER.setDynamicID(id)
 
 
 CONNECTIONS_MANAGER = _ConnectionsManager()
 
 
-class Test:
-    @Hook("FirstTest", SignalType.SOURCE, True)
-    def test_source(self):
-        return "ife"
+# class Test:
+#     @Hook("FirstTest", SignalType.SOURCE, True)
+#     def test_source(self):
+#         return "ife"
 
-class Test2:
-    def __init__(self, name: str):
-        self.name = name
+# class Test2:
+#     def __init__(self, name: str):
+#         self.name = name
     
-    @Hook("FirstTest", SignalType.RECIEVER, True)
-    def test_connection(self, expectation):
-        print(self.name, expectation)
+#     @Hook("FirstTest", SignalType.RECIEVER, True)
+#     def test_connection(self, expectation):
+#         print(self.name, expectation)
 
-b = Test()
+# b = Test()
 
-CONNECTIONS_MANAGER.setDynamicID("123")
-a = Test2("Ify")
-CONNECTIONS_MANAGER.setDynamicID("123")
-c = Test2("Mama")
+# Hook.setDynamicID("123")
+# a = Test2("Ify")
+# Hook.setDynamicID("123")
+# c = Test2("Mama")
 
 
-CONNECTIONS_MANAGER.setDynamicID("123")
-b.test_source()
+# Hook.setDynamicID("123")
+# b.test_source()
 

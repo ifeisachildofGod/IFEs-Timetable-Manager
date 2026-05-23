@@ -26,50 +26,73 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtPrintSupport import QPrinter
 
-from utils.core import *
+from utils.hooking import *
 from utils.data import *
 
 
-class _Global:
+class Global:
     def __init__(self):
         self.data = {}
     
-    def add(self, entry: Subject | Teacher | ClassLevel):
+    def get(self):
+        return self.data
+    
+    def add(self, entry):
         self.data[entry.id] = entry
     
-    def remove(self, id: ID):
+    def remove(self, id):
         self.data.pop(id)
+    
+    def __len__(self):
+        return self.data.__len__()
+    
+    def __iter__(self):
+        return ((k, v) for k, v in self.data.items())
+    
+    def __getitem__(self, key):
+        return self.data.__getitem__(key)
+    
+    # def __setitem__(self, key, value):
+    #     return self.data.__setitem__(key, value)
+    
+    # def __delitem__(self, key):
+    #     return self.data.__delitem__(key)
 
 
-class _Subjects(_Global):
+class Subjects(Global):
     @Hook(Signal.SubjectAdd, SignalType.RECIEVER)
-    def add(self, entry):
+    def add(self, entry: Subject):
         return super().add(entry)
     
     @Hook(Signal.SubjectRemove, SignalType.RECIEVER)
-    def remove(self, entry):
-        return super().remove(entry)
+    def remove(self, id: ID):
+        return super().remove(id)
 
-class _Teachers(_Global):
+class Teachers(Global):
     @Hook(Signal.TeacherAdd, SignalType.RECIEVER)
-    def add(self, entry):
+    def add(self, entry: Teacher):
         return super().add(entry)
     
     @Hook(Signal.TeacherRemove, SignalType.RECIEVER)
-    def remove(self, entry):
-        return super().remove(entry)
+    def remove(self, id: ID):
+        return super().remove(id)
 
-class _ClassLevels(_Global):
+class ClassLevels(Global):
     @Hook(Signal.ClassLevelAdd, SignalType.RECIEVER)
-    def add(self, entry):
+    def add(self, entry: ClassLevel):
+        SETTINGS.TEACHER_rsma_mapping[entry.id] = None
+        
         return super().add(entry)
     
     @Hook(Signal.ClassLevelRemove, SignalType.RECIEVER)
-    def remove(self, entry):
-        return super().remove(entry)
+    def remove(self, id: ID):
+        SETTINGS.TEACHER_rsma_mapping.pop(id)
+        
+        return super().remove(id)
 
 
-SUBJECTS = _Subjects()
-TEACHERS = _Teachers()
-CLASS_LEVELS = _ClassLevels()
+SUBJECTS = Subjects()
+TEACHERS = Teachers()
+CLASS_LEVELS = ClassLevels()
 
+SETTINGS = Settings(10, {}, 3, 7, ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"])

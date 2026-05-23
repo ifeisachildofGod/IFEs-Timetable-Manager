@@ -6,15 +6,33 @@ from widgets.settings_options import *
 
 class SubjectsSettingEntry(BaseSettingEntry):
     def __init__(self, simple_placeholder, extended_placeholders, option_dialogs, entry=None):
-        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry or Subject(ID.generate_new(), "", None, {}, None))
+        if entry is None:
+            id = ID.generate_new()
+            
+            Hook.setDynamicID(id)
+            entry = Subject(id, "", None, {}, None)
+        
+        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry)
 
 class TeachersSettingEntry(BaseSettingEntry):
     def __init__(self, simple_placeholder, extended_placeholders, option_dialogs, entry=None):
-        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry or Teacher(ID.generate_new(), "", {}))
+        if entry is None:
+            id = ID.generate_new()
+            
+            Hook.setDynamicID(id)
+            entry = Teacher(id, "", {})
+        
+        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry)
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, simple_placeholder, extended_placeholders, option_dialogs, entry=None):
-        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry or ClassLevel(ID.generate_new(), "", {}))
+        if entry is None:
+            id = ID.generate_new()
+            
+            Hook.setDynamicID(id)
+            entry = ClassLevel(id, "", {})
+        
+        super().__init__(simple_placeholder, extended_placeholders, option_dialogs, entry)
 
 
 
@@ -52,7 +70,7 @@ class Teachers(BaseSettingWidget):
 
 class Classes(BaseSettingWidget):
     def __init__(self, main_window: QMainWindow):
-        super().__init__(main_window, "Class", "Enter Class Level Name", None, {"Sub Classes": ("Make and Edit Classes", OptionsMaker), "Subject Occurence": ("Edit Subject Occurence", SubjectSelection)})
+        super().__init__(main_window, "Class", "Enter Class Level Name", None, {"Sub Classes": ("Make and Edit Classes", ClassOptionsMaker), "Subject Occurence": ("Edit Subject Occurence", SubjectSelection)})
     
     def get_widget_type(self):
         return ClassLevelsSettingEntry
