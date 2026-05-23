@@ -18,21 +18,21 @@ class SubjectSelectionList(BaseSettingDialog):
         
         # Add selected items
         for item_id, item_name in selected_items:
-            CONNECTIONS_MANAGER.setVar(id + item_id)
+            CONNECTIONS_MANAGER.setDynamicID(id + item_id)
             widget = _SL_SelectedWidget(item_id, item_name, self.getLayout())
+            
             self.addWidget(widget)
         
         # Add unselected items
         for item_id, item_name in unselected_items:
-            CONNECTIONS_MANAGER.setVar(id + item_id)
+            CONNECTIONS_MANAGER.setDynamicID(id + item_id)
             widget = _SL_UnSelectedWidget(item_id, item_name, self.getLayout())
+            
             self.addWidget(widget)
-        
-        CONNECTIONS_MANAGER.resetVar()
         
         self.addStretch()
     
-    def go_to(self, widget: _SL_SelectedWidget, _SL_UnSelectedWidget):
+    def go_to(self, widget: "_SL_SelectedWidget", _SL_UnSelectedWidget):
         def func():
             self.scroll_area.verticalScrollBar().setValue(widget.y())
             widget.setFocus()
@@ -1161,7 +1161,7 @@ class _SL_SelectedWidget(BaseWidget):
         
         return super().mousePressEvent(a0)
     
-    @Hook(CONNECTIONS_MANAGER.getVar(), SignalType.SOURCE)
+    @Hook(CONNECTIONS_MANAGER.getVar(), SignalType.SOURCE, True)
     def delete_self(self):
         self.host_container_layout.removeWidget(self)
         
@@ -1201,7 +1201,7 @@ class _SL_UnSelectedWidget(BaseWidget):
         
         return super().mousePressEvent(a0)
     
-    @Hook(CONNECTIONS_MANAGER.getVar(), SignalType.SOURCE)
+    @Hook(CONNECTIONS_MANAGER.getVar(), SignalType.SOURCE, True)
     def add_self(self):
         self.host_container_layout.removeWidget(self)
         

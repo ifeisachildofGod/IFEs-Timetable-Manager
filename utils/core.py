@@ -1,6 +1,7 @@
 
-# from imports import *
-from utils.data import Signal, SignalType
+from copy import deepcopy
+
+from data import ID, Signal, SignalType
 from typing import Any, Callable
 
 
@@ -9,6 +10,7 @@ class HooksManagerError(TypeError):
 
 class _ConnectionsManager:
     def __init__(self):
+        self.dynamicID = None
         self.connections_blocked = False
         
         self.connections_tracker = {}
@@ -19,11 +21,14 @@ class _ConnectionsManager:
     def blockConnection(self, name: str, state: bool):
         self.connections_tracker[name][1] = state
     
-    def setVar(self, var: Any):
-        self.var = var
+    def setDynamicID(self, id: ID):
+        self.dynamicID = id
     
-    def resetVar(self):
-        del self.var
+    def useDynamicID(self):
+        dyID = self.dynamicID
+        self.dynamicID = None
+        
+        return dyID
     
     def _doMasterConnection(self, name: str, func_output):
         if not self.connections_blocked and name in self.connections_tracker:
@@ -48,9 +53,10 @@ class _ConnectionsManager:
 
 
 class Hook:
-    def __init__(self, name: Signal | str, signal_type: SignalType):
+    def __init__(self, name: Signal | str, signal_type: SignalType, is_dynamic: bool | None = None):
         self.name = name
         self.signal_type = signal_type
+        self.is_dynamic = is_dynamic if is_dynamic is not None else False
     
     def __call__(self, func):
         self.func = func
@@ -60,7 +66,7 @@ class Hook:
             def wrapper(*args, **kwargs):
                 func_output = self.func(*args, **kwargs)
                 
-                CONNECTIONS_MANAGER._doMasterConnection(self.name, func_output)
+                CONNECTIONS_MANAGER._doMasterConnection(self.name + (CONNECTIONS_MANAGER.useDynamicID() if self.is_dynamic else ""), func_output)
                 
                 return func_output
             
@@ -74,11 +80,29 @@ class Hook:
         return self
     
     def __set_name__(self, owner, name):
-        if self.signal_type == SignalType.RECIEVER:
-            connections = CONNECTIONS_MANAGER.connections_tracker[self.name][0]
+        prev_init = deepcopy(owner.__init__)
+        
+        def new_init(instance, *args, **kwargs):
+            prev_init(instance, *args, **kwargs)
             
-            func = connections[connections.index(self.func)]
-            connections[connections.index(self.func)] = lambda *args, **kwargs: func(owner, *args, **kwargs)
+            if self.signal_type == SignalType.RECIEVER:
+                name = self.name
+                
+                if self.is_dynamic and (id := CONNECTIONS_MANAGER.useDynamicID()) is not None:
+                    name = self.name + id
+                    
+                    CONNECTIONS_MANAGER._addConnection(name, self.func)
+                
+                connections = CONNECTIONS_MANAGER.connections_tracker[name][0]
+                
+                new_func = lambda *args, **kwargs: self.func(instance, *args, **kwargs)
+                
+                if self.func in connections:
+                    connections[connections.index(self.func)] = new_func
+                else:
+                    connections.append(new_func)
+        
+        owner.__init__ = new_init
     
     def __get__(self, instance, owner):
         func = lambda *args, **kwargs: self.wrapper(instance, *args, **kwargs)
@@ -86,38 +110,34 @@ class Hook:
         if self.signal_type == SignalType.RECIEVER:
             connections = CONNECTIONS_MANAGER.connections_tracker[self.name][0]
             connections[connections.index(self.func)] = func
-            
+        
         return func
-    
-    def _process_conn_params(self, conn_params: str):
-        signal_type, signal_name = conn_params.strip().split(">")
-        signal_type = signal_type.strip().lower() ; signal_name = signal_name.strip()
-        
-        match signal_type:
-            case "source":
-                signal_type = SignalType.SOURCE
-            case "recv":
-                signal_type = SignalType.RECIEVER
-            case _:
-                raise HooksManagerError(f"Invalid signal type: {signal_type}")
-        
-        return signal_type, signal_name
 
 
 CONNECTIONS_MANAGER = _ConnectionsManager()
 
 
-# class Test:
-#     @Hook("FirstTest", SignalType.SOURCE)
-#     def test_source(self):
-#         return "ife"
+class Test:
+    @Hook("FirstTest", SignalType.SOURCE, True)
+    def test_source(self):
+        return "ife"
 
-# class Test2:
-#     @Hook("FirstTest", SignalType.RECIEVER)
-#     def test_connection(self, expectation):
-#         print(expectation)
+class Test2:
+    def __init__(self, name: str):
+        self.name = name
+    
+    @Hook("FirstTest", SignalType.RECIEVER, True)
+    def test_connection(self, expectation):
+        print(self.name, expectation)
+
+b = Test()
+
+CONNECTIONS_MANAGER.setDynamicID("123")
+a = Test2("Ify")
+CONNECTIONS_MANAGER.setDynamicID("123")
+c = Test2("Mama")
 
 
-# Test().test_source()
+CONNECTIONS_MANAGER.setDynamicID("123")
+b.test_source()
 
-# a = Test2()
