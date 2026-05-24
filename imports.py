@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import pickle
 from copy import deepcopy
@@ -16,7 +17,8 @@ from PyQt6.QtWidgets import (
     QFileDialog, QApplication, QMenuBar, QStyle, QStatusBar
 )
 from PyQt6.QtGui import (
-    QAction, QFontMetrics, QIntValidator, QPainter,
+    QAction, QActionGroup, QIcon,
+    QFontMetrics, QIntValidator, QPainter,
     QColor, QMouseEvent, QDrag, QDragEnterEvent,
     QDragMoveEvent, QDropEvent, QPixmap
 )
@@ -26,9 +28,8 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtPrintSupport import QPrinter
 
-from utils.hooking import *
+from utils.func_connection import *
 from utils.data import *
-
 
 class Global:
     def __init__(self):
@@ -43,56 +44,55 @@ class Global:
     def remove(self, id):
         self.data.pop(id)
     
+    def set(self, value):
+        self.__dict__ = value.__dict__
+    
     def __len__(self):
         return self.data.__len__()
     
     def __iter__(self):
         return ((k, v) for k, v in self.data.items())
     
-    def __getitem__(self, key):
+    def __getitem__(self, key: ID):
         return self.data.__getitem__(key)
-    
-    # def __setitem__(self, key, value):
-    #     return self.data.__setitem__(key, value)
-    
-    # def __delitem__(self, key):
-    #     return self.data.__delitem__(key)
 
-
-class Subjects(Global):
-    @Hook(Signal.SubjectAdd, SignalType.RECIEVER)
+class GlobalSubjects(Global):
+    def __getitem__(self, key) -> Subject:
+        return super().__getitem__(key)
+    
     def add(self, entry: Subject):
         return super().add(entry)
     
-    @Hook(Signal.SubjectRemove, SignalType.RECIEVER)
     def remove(self, id: ID):
         return super().remove(id)
 
-class Teachers(Global):
-    @Hook(Signal.TeacherAdd, SignalType.RECIEVER)
+class GlobalTeachers(Global):
+    def __getitem__(self, key) -> Teacher:
+        return super().__getitem__(key)
+    
     def add(self, entry: Teacher):
         return super().add(entry)
     
-    @Hook(Signal.TeacherRemove, SignalType.RECIEVER)
     def remove(self, id: ID):
         return super().remove(id)
 
-class ClassLevels(Global):
-    @Hook(Signal.ClassLevelAdd, SignalType.RECIEVER)
+class GlobalClassLevels(Global):
+    def __getitem__(self, key) -> ClassLevel:
+        return super().__getitem__(key)
+    
     def add(self, entry: ClassLevel):
         SETTINGS.TEACHER_rsma_mapping[entry.id] = None
         
         return super().add(entry)
     
-    @Hook(Signal.ClassLevelRemove, SignalType.RECIEVER)
     def remove(self, id: ID):
         SETTINGS.TEACHER_rsma_mapping.pop(id)
         
         return super().remove(id)
 
 
-SUBJECTS = Subjects()
-TEACHERS = Teachers()
-CLASS_LEVELS = ClassLevels()
+SUBJECTS = GlobalSubjects()
+TEACHERS = GlobalTeachers()
+CLASS_LEVELS = GlobalClassLevels()
 
-SETTINGS = Settings(10, {}, 3, 7, {"Monday": 10, "Tuesday": 10, "Wednesday": 10, "Thursday": 10, "Friday": 10})
+SETTINGS = Settings(10, {}, 3, 7, {"Monday": 10, "Tuesday": 10, "Wednesday": 10, "Thursday": 10, "Friday": 10}, "dark-blue")

@@ -444,10 +444,10 @@ class CustomTitleBar(BaseWidget):
         self.setContentsMargins(0, 0, 0, 0)
         self.setSpacing(0)
         
-        left_widget = BaseWidget(QHBoxLayout)
-        left_widget.setProperty("class", "TitleBar")
-        left_widget.setContentsMargins(0, 0, 60, 0)
-        left_widget.setSpacing(0)
+        self.left_widget = BaseWidget(QHBoxLayout)
+        self.left_widget.setProperty("class", "TitleBar")
+        self.left_widget.setContentsMargins(0, 0, 60, 0)
+        self.left_widget.setSpacing(0)
         
         self.center_widget = BaseWidget(QHBoxLayout)
         self.center_widget.setProperty("class", "TitleBar")
@@ -471,7 +471,7 @@ class CustomTitleBar(BaseWidget):
         # Right widget
         # Nothing here
         
-        self.addWidget(left_widget, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.addWidget(self.left_widget, alignment=Qt.AlignmentFlag.AlignLeft)
         self.addWidget(self.center_widget)
         self.addWidget(right_widget, alignment=Qt.AlignmentFlag.AlignRight)
     
@@ -487,7 +487,8 @@ class MainTitleBar(CustomTitleBar):
         
         menu_bar.setFixedHeight(40)
         menu_bar.setStyleSheet("QMenuBar {background-color: transparent; border: none;}")
-        self.left_layout.addWidget(menu_bar)
+        
+        self.left_widget.addWidget(menu_bar)
         
         self.go_back_button = QPushButton("<")
         self.go_forward_button = QPushButton(">")
@@ -498,8 +499,8 @@ class MainTitleBar(CustomTitleBar):
         self.go_back_button.clicked.connect(go_back_func)
         self.go_forward_button.clicked.connect(go_forward_func)
         
-        self.center_layout.insertWidget(0, self.go_back_button)
-        self.center_layout.insertWidget(1, self.go_forward_button)
+        self.center_widget.insertWidget(0, self.go_back_button)
+        self.center_widget.insertWidget(1, self.go_forward_button)
 
 
 class EditableCancelableEntry(BaseWidget):

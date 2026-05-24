@@ -13,12 +13,19 @@ class Signal(Enum):
     SubjectAdd = "SubjectAdd"
     TeacherAdd = "TeacherAdd"
     ClassLevelAdd = "ClassLevelAdd"
-    ClassAdd = "ClassAdd"
+    SW_Add = "SW_Add"
     
     SubjectRemove = "SubjectRemove"
     TeacherRemove = "TeacherRemove"
     ClassLevelRemove = "ClassLevelRemove"
     ClassRemove = "ClassRemove"
+    SW_Remove = "SW_Remove"
+    
+    def __add__(self, other):
+        return Signal(self.value + (other.value if isinstance(other, Signal) else str(other)), self.name + (other.name if isinstance(other, Signal) else str(other)))
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
 class SignalType(Enum):
     SOURCE = "SOURCE"
@@ -69,7 +76,7 @@ class _ConnectionsManager:
         self.connections_tracker[name][0].append(func)
 
 
-class Hook:
+class Hyperlink:
     def __init__(self, name: Signal | str, signal_type: SignalType, is_dynamic: bool | None = None):
         self.name = name
         self.signal_type = signal_type
@@ -139,7 +146,7 @@ CONNECTIONS_MANAGER = _ConnectionsManager()
 
 
 # class Test:
-#     @Hook("FirstTest", SignalType.SOURCE, True)
+#     @Hyperlink("FirstTest", SignalType.SOURCE, True)
 #     def test_source(self):
 #         return "ife"
 
@@ -147,18 +154,18 @@ CONNECTIONS_MANAGER = _ConnectionsManager()
 #     def __init__(self, name: str):
 #         self.name = name
     
-#     @Hook("FirstTest", SignalType.RECIEVER, True)
+#     @Hyperlink("FirstTest", SignalType.RECIEVER, True)
 #     def test_connection(self, expectation):
 #         print(self.name, expectation)
 
 # b = Test()
 
-# Hook.setDynamicID("123")
+# Hyperlink.setDynamicID("123")
 # a = Test2("Ify")
-# Hook.setDynamicID("123")
+# Hyperlink.setDynamicID("123")
 # c = Test2("Mama")
 
 
-# Hook.setDynamicID("123")
+# Hyperlink.setDynamicID("123")
 # b.test_source()
 

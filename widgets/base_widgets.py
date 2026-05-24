@@ -204,10 +204,10 @@ class BaseDialogWidget(QDialog):
         self.widget.addWidget(widget, stretch, alignment)
     
     def insertWidget(self, index: int, widget: Optional[QWidget], stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
-        self.widget.insertWidget(widget, stretch, alignment)
+        self.widget.insertWidget(index, widget, stretch, alignment)
     
     def addStretch(self, stretch: Optional[int] = None):
-        self.widget.insertWidget(stretch)
+        self.widget.addStretch(stretch)
     
     def insertStretch(self, index: int, stretch: Optional[int] = None):
         self.widget.insertStretch(index, stretch)
@@ -293,15 +293,19 @@ class BaseSettingDialog(BaseDialogWidget):
         super().__init__(title, BaseScrollWidget)
     
     def go_to(self, widget: BaseWidget):
-        self.getWidget().getScrollWidget().verticalScrollBar().setValue(widget.y())
+        self.getScrollWidget().verticalScrollBar().setValue(widget.y())
         
         widget.setFocus()
+    
+    def getScrollWidget(self):
+        return self.getWidget().getScrollWidget()
 
 
 class BaseSettingEntry(BaseWidget):
-    def __init__(self, simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]]], entry: Entry):
+    def __init__(self, i_parent: "BaseSettingWidget", simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]]], entry: Entry):
         super().__init__()
         
+        self.i_parent = i_parent
         self.entry = entry
         self.option_dialogs = option_dialogs
         
@@ -315,6 +319,7 @@ class BaseSettingEntry(BaseWidget):
             dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         
         delete_button = QPushButton("x")
+        delete_button.clicked.connect(lambda: self.i_parent.remove(self))
         
         menu_area.addWidget(options_button, alignment=Qt.AlignmentFlag.AlignLeft)
         menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -322,24 +327,36 @@ class BaseSettingEntry(BaseWidget):
                 
         # ----------------------------------------------------------------------------------------
         
+        simple, extended = self.get_init_text()
+        
         edits_area = BaseWidget(QHBoxLayout)
         
         simple_line_edit = QLineEdit()
+        simple_line_edit.textChanged.connect(self.simple_name_changed)
+        simple_line_edit.setText(simple)
         simple_line_edit.setPlaceholderText(simple_placeholder)
         
-        extended_edits_widget = BaseWidget()
-        for placeholder in extended_placeholders:
-            line_edit = QLineEdit()
-            line_edit.setPlaceholderText(placeholder)
+        if extended_placeholders:
+            extended_edits_widget = BaseWidget()
+            for i, placeholder in enumerate(extended_placeholders):
+                def ext(t: str):
+                    self.extended_name_changed(t, i)
+                
+                line_edit = QLineEdit()
+                line_edit.textChanged.connect(ext)
+                line_edit.setText(extended[i])
+                line_edit.setPlaceholderText(placeholder)
+                
+                extended_edits_widget.addWidget(line_edit)
             
-            extended_edits_widget.addWidget(line_edit)
+            extended_edits_widget.setVisible(False)
+            
+            edits_area.addWidget(extended_edits_widget)
         
-        extended_edits_widget.setVisible(False)
+        edits_area.addWidget(simple_line_edit)
         
         self.nominal_info_widget = BaseWidget()
         
-        edits_area.addWidget(simple_line_edit)
-        edits_area.addWidget(extended_edits_widget)
         edits_area.addWidget(self.nominal_info_widget)
         
         # ----------------------------------------------------------------------------------------
@@ -357,23 +374,27 @@ class BaseSettingEntry(BaseWidget):
     def get_dialog_buttons(self):
         for name, (title, cls) in self.option_dialogs.items():
             def open_func():
-                dialog_obj = cls(title, self.id)
+                dialog_obj = cls(self.entry.id, title)
                 dialog_obj.exec()
             
             button = QPushButton(name)
             button.clicked.connect(open_func)
             
             yield button
+    
+    def get_init_text(self):
+        raise NotImplementedError()
+    
+    def simple_name_changed(self, text: str):
+        raise NotImplementedError()
+    
+    def extended_name_changed(self, text: str, index: int):
+        raise NotImplementedError()
 
 
 class BaseSettingWidget(BaseWidget):
-    def __init__(self, main_window: QMainWindow, name: str, simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]]]):
+    def __init__(self, name: str):
         super().__init__()
-        
-        self.main_window = main_window
-        self.simple_placeholder = simple_placeholder
-        self.extended_placeholders = extended_placeholders
-        self.option_dialogs = option_dialogs
         
         self.add_button = QPushButton()
         self.add_button.clicked.connect(lambda: self.add())
@@ -401,13 +422,16 @@ class BaseSettingWidget(BaseWidget):
         return super().keyPressEvent(a0)
     
     def add(self, entry: Optional[Entry] = None, index: Optional[int] = None):
-        widget = self.get_widget_type()(self.simple_placeholder, self.extended_placeholders, self.option_dialogs, entry)
+        widget = self.get_widget_type()(self, entry)
         
-        self.insertWidget(index or len(self.info) - 1, widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
+        if index is None:
+            self.scroll_widget.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
+        else:
+            self.scroll_widget.insertWidget(index, widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
         
         QTimer.singleShot(
             100,
-            lambda: self.scroll_widget.verticalScrollBar().setValue(self.scroll_widget.verticalScrollBar().maximum())
+            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(self.scroll_widget.getScrollWidget().verticalScrollBar().maximum())
         )
         
         return widget.entry

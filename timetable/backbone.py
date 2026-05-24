@@ -2,12 +2,12 @@
 import json
 import math
 import random
+from core import ID
+from pathlib import Path
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
-from pathlib import Path
 
-
-class PeriodAssignmentException(Exception):
+class BGTimetableError(Exception):
     pass
 
 
@@ -78,14 +78,14 @@ class CombinedTeacherFW:
 
 @dataclass
 class ClassFW:
-    section_id: str
-    specifier_id: str
+    section_id: ID
+    specifier_id: ID
     
     section_name: str
     specifier_name: str
     
-    #                Period Amount  Break Period
-    dotw_data: dict[str, tuple[int, int]]
+    #                    Period Amount  Break Period
+    weekdays_data: dict[str, tuple[int, int]]
     
     #           SubjectID
     subjects: dict[str, SubjectPeriodFW | CombinedSubjectPeriodFW]
@@ -95,7 +95,7 @@ class ClassFW:
     
     def init(self):
         if self.timetable is None:
-            self.timetable = {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in self.dotw_data.items()}
+            self.timetable = {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in self.weekdays_data.items()}
         
         if self.timetable_remains is None:
             self.timetable_remains = flatten([[s for _ in range(s.freq_info[1])] for s in self.subjects])
@@ -104,12 +104,7 @@ class ClassFW:
         return f"{self.section_name} {self.specifier_name}"
     
     def id(self):
-        return str(self.specifier_id) + str(int(self.section_id) + 1)
-        # return self.get_id(self.section_id, self.specifier_id)
-    
-    @staticmethod
-    def get_id(se_id: str, sp_id: str):
-        return f"{se_id}--{sp_id}"
+        return self.specifier_id + self.section_id
 
 @dataclass
 class SchoolFrameWork:
@@ -132,11 +127,11 @@ class SchoolFrameWork:
             cls = self.classes[cls_id]
             
             if cls.timetable is None:
-                cls.timetable = {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.dotw_data.items()}
+                cls.timetable = {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.weekdays_data.items()}
             
             week_amt_data = {s_id: s.freq_info[1] for s_id, s in cls.subjects.items()} # type: ignore
             
-            total_available_periods = sum(amt for amt, _ in cls.dotw_data.values())
+            total_available_periods = sum(amt for amt, _ in cls.weekdays_data.values())
             total_subj_amt = sum(list(week_amt_data.values()))
             
             assert total_available_periods > total_subj_amt, "Period slots are not enough for the amount of subjects"
@@ -180,7 +175,7 @@ class SchoolFrameWork:
                             print(cls.subjects[s_id].name)
                             print(json.dumps(self._log_data[cls_id][s_id], indent=2))
                             
-                            raise PeriodAssignmentException("No valid periods available")
+                            raise BGTimetableError("No valid periods available")
                         
                         day, index = selected_period
                         
@@ -221,18 +216,6 @@ class SchoolFrameWork:
                                 
                                 day_marker_mapping[marker].append((cls, subject_period.id))
             
-            # u_day_markers = set(day_markers)
-            
-            # if len(u_day_markers) != len(day_markers):
-            #     for marker in u_day_markers:
-            #         day_markers.remove(marker)
-            
-            #     for marker in day_markers:
-            #         day, p_index = marker
-                    
-            #         for cls in day_marker_mapping[marker]:
-            #             cls.timetable[day][p_index]
-            
             t_clashes = {}
             
             l_dmm = list(day_marker_mapping.values())
@@ -267,7 +250,7 @@ class SchoolFrameWork:
         return clashes
     
     def _sps(self, s_id: str, cls: ClassFW):
-        period_scores: dict[str, list[int | float]] = {day: [] for day in cls.dotw_data}
+        period_scores: dict[str, list[int | float]] = {day: [] for day in cls.weekdays_data}
         
         assert cls.timetable
         
@@ -288,7 +271,6 @@ class SchoolFrameWork:
             r_operate: int = False,
             default_score = -50
         ):
-        
         if cls.id() not in self._log_data:
             self._log_data[cls.id()] = {}
         if s_id not in self._log_data[cls.id()]:
@@ -429,7 +411,7 @@ class SchoolFrameWork:
             if l_operate or r_operate:
                 return l_operate + r_operate
             
-            period_amt, break_period = cls.dotw_data[day]
+            period_amt, break_period = cls.weekdays_data[day]
             
             # l_p = [p.id for p_i, p in enumerate(periods) if p.id not in (FreePeriodFW.id, BreakPeriodFW.id) and (p_i < break_period - 1 if p_index < break_period else p_i > break_period - 1)]
             
@@ -515,7 +497,7 @@ class SchoolFrameWork:
                         TeacherFW(t_id, name.strip())
                     ), tuple(int(v) - 1 for v in value.strip().split())
         
-        dotw_data = []
+        weekdays_data = []
         for dw_string in dotw_string.split("_"):
             s_dotw_data = {}
             
@@ -530,7 +512,7 @@ class SchoolFrameWork:
                     
                     s_dotw_data[day] = int(p_amt), int(b_p)
             
-            dotw_data.append(s_dotw_data)
+            weekdays_data.append(s_dotw_data)
         
         _cls_id_trackers = {}
         sc_classes = {}
@@ -591,7 +573,7 @@ class SchoolFrameWork:
             if sp_key not in _cls_id_trackers:
                 _cls_id_trackers[sp_key] = id_mappings["classes"][c_index][1] if id_mappings["classes"] else id(sp_name)
             
-            cls = ClassFW(_cls_id_trackers[se_key], _cls_id_trackers[sp_key], se_name, sp_name, dotw_data[c_index], subject_mapping)
+            cls = ClassFW(_cls_id_trackers[se_key], _cls_id_trackers[sp_key], se_name, sp_name, weekdays_data[c_index], subject_mapping)
             sc_classes[cls.id()] = cls
             
             for subj in subject_mapping.values():
@@ -616,7 +598,7 @@ class SchoolFrameWork:
                         s_ttbl_string = s_ttbl_string.strip()
                         
                         if s_ttbl_string:
-                            sc_classes[cls.id].timetable[list(dotw_data[cls_i])[s_ttbl_i]] = [
+                            sc_classes[cls.id].timetable[list(weekdays_data[cls_i])[s_ttbl_i]] = [
                                 (
                                     FreePeriodFW()
                                     if int(s.strip()) == 0 else
