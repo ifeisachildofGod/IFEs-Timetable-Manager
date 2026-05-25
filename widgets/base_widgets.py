@@ -1,7 +1,6 @@
 
 from imports import *
 from theme import THEME_MANAGER
-from utils.data import ID
 
 
 class BaseWidget(QWidget):

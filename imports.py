@@ -27,5 +27,6 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtPrintSupport import QPrinter
 
+from core import *
+
 from utils.func_connection import *
-from utils.data import *
