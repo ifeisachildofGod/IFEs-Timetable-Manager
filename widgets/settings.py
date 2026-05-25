@@ -6,7 +6,7 @@ from widgets.settings_options import *
 
 class SubjectsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject] = None):
-        entry = entry or Subject(ID.generate_new(), SubjectName("", ""), None, {}, None)
+        entry = entry or Subject(ID.generate_new(), SubjectName("", ""), None, {})
         
         super().__init__(
             parent,
@@ -19,16 +19,16 @@ class SubjectsSettingEntry(BaseSettingEntry):
         self.entry = entry
     
     def get_init_text(self):
-        return self.entry.name.full, (self.entry.name.full, self.entry.name.abbrev)
+        return self.entry.name.full_name, (self.entry.name.full_name, self.entry.name.abbrev)
     
     def simple_name_changed(self, text):
         self.entry.name.abbrev = text
-        self.entry.name.full = text
+        self.entry.name.full_name = text
     
     def extended_name_changed(self, text, index):
         match index:
             case 0:
-                self.entry.name.full = text
+                self.entry.name.full_name = text
             case 1:
                 self.entry.name.abbrev = text
 
@@ -66,13 +66,13 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel] = None):
-        entry = entry or ClassLevel(ID.generate_new(), "", {})
+        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {})
         
         super().__init__(
             parent,
             "Enter Class Level Name",
             None,
-            {"Sub Classes": ("Make and Edit Classes", ClassOptionsMaker), "Subject Occurence": ("Edit Subject Occurence", SubjectSelection)},
+            {"Sub Classes": ("Make and Edit Classes", ClassOptionsMaker), "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor)},
             entry
         )
         
@@ -82,7 +82,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
         return self.entry.name, None
     
     def simple_name_changed(self, text):
-        self.entry.name = text
+        self.entry.name = ClassLevelName(text)
 
 
 
@@ -103,10 +103,6 @@ class SubjectsMainWidget(BaseSettingWidget):
         id = super().remove(widget)
         
         SUBJECTS.remove(id)
-        
-        for _, teacher in TEACHERS:
-            if id in teacher.subjects:
-                teacher.subjects.pop(id)
 
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self):

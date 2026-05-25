@@ -9,6 +9,8 @@ class BaseWidget(QWidget):
         super().__init__()
         
         self.layout_type = layout_type or QVBoxLayout
+        self._children = []
+        
         self._init()
     
     def _init(self):
@@ -88,6 +90,13 @@ class BaseWidget(QWidget):
     
     def removeWidget(self, a0: Optional[QWidget]):
         self.getLayout().removeWidget(a0)
+        
+        self._children.remove(a0)
+    
+    def popWidget(self, index: int):
+        self.getLayout().removeWidget(self.getChildren()[index])
+        
+        self._children.pop(index)
     
     def addWidget(self, widget: QWidget, stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
         kwargs = {}
@@ -97,7 +106,8 @@ class BaseWidget(QWidget):
         if alignment is not None:
             kwargs["alignment"] = alignment
         
-        self.main_layout.addWidget(widget, **kwargs)
+        self.getLayout().addWidget(widget, **kwargs)
+        self._children.append(widget)
     
     def insertWidget(self, index: int, widget: Optional[QWidget], stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
         kwargs = {}
@@ -107,7 +117,8 @@ class BaseWidget(QWidget):
         if alignment is not None:
             kwargs["alignment"] = alignment
         
-        self.main_layout.insertWidget(index, widget, **kwargs)
+        self.getLayout().insertWidget(index, widget, **kwargs)
+        self._children.insert(index, widget)
     
     def addStretch(self, stretch: Optional[int] = None):
         args = []
@@ -115,7 +126,9 @@ class BaseWidget(QWidget):
         if stretch is not None:
             args.append(stretch)
         
-        self.main_layout.addStretch(*args)
+        self.getLayout().addStretch(*args)
+        
+        self._children.append({"stretch": stretch})
     
     def insertStretch(self, index: int, stretch: Optional[int] = None):
         args = [index]
@@ -123,13 +136,19 @@ class BaseWidget(QWidget):
         if stretch is not None:
             args.append(stretch)
         
-        self.main_layout.insertStretch(*args)
+        self.getLayout().insertStretch(*args)
+        
+        self._children.insert(index, {"stretch": stretch})
     
     def addSpacing(self, size: int):
         self.getLayout().addSpacing(size)
+        
+        self._children.append({"space": size})
     
     def insertSpacing(self, index: int, size: int):
         self.getLayout().insertSpacing(index, size)
+        
+        self._children.insert(index, {"space": size})
     
     def getWidget(self):
         return self.container
@@ -139,6 +158,9 @@ class BaseWidget(QWidget):
     
     def getLayout(self):
         return self.main_layout
+    
+    def getChildren(self):
+        return self._children
 
 class BaseScrollWidget(BaseWidget):
     def __init__(self, layout_type = None):
@@ -218,7 +240,6 @@ class BaseDialogWidget(QDialog):
     def getLayout(self):
         return self.widget.getLayout()
 
-
 class BaseGridWidget(BaseScrollWidget):
     def __init__(self, row_max: int):
         super().__init__()
@@ -229,16 +250,19 @@ class BaseGridWidget(BaseScrollWidget):
         self.widget_count = 0
     
     def addWidget(self, widget, stretch = None, alignment = None):
-        self.widget_count += 1
-        
-        if len(self.all_widgets) % self.row_max == 0:
+        if self.widget_count % self.row_max == 0:
             bg_widget = BaseWidget(QHBoxLayout)
+            bg_widget.setSpacing(2)
+            bg_widget.setContentsMargins(0, 0, 0, 0)
+            bg_widget.addStretch()
             
             super().addWidget(bg_widget)
             
             self.widgets.append(bg_widget)
         
-        self.widgets[-1].addWidget(widget, stretch, alignment)
+        self.widget_count += 1
+        
+        self.widgets[-1].insertWidget((self.widget_count - 1) % self.row_max, widget, stretch, alignment)
     
     def insertWidget(self, row: int, col: int, widget: QWidget, stretch: int = None, alignment: Qt.AlignmentFlag = None):
         self.widgets[col].insertWidget(row, widget, stretch, alignment)
@@ -263,7 +287,7 @@ class BaseGridWidget(BaseScrollWidget):
         coord = None
         
         for col, row_widget in enumerate(self.widgets):
-            for row, widget in enumerate(row_widget.getLayout().children()):
+            for row, widget in enumerate(row_widget.getChildren()):
                 if a0 == widget:
                     row_widget.removeWidget(a0)
                     coord = row, col
@@ -299,7 +323,6 @@ class BaseSettingDialog(BaseDialogWidget):
     
     def getScrollWidget(self):
         return self.getWidget().getScrollWidget()
-
 
 class BaseSettingEntry(BaseWidget):
     def __init__(self, i_parent: "BaseSettingWidget", simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]]], entry: Entry):
@@ -373,14 +396,17 @@ class BaseSettingEntry(BaseWidget):
     
     def get_dialog_buttons(self):
         for name, (title, cls) in self.option_dialogs.items():
-            def open_func():
-                dialog_obj = cls(self.entry.id, title)
-                dialog_obj.exec()
-            
             button = QPushButton(name)
-            button.clicked.connect(open_func)
+            button.clicked.connect(self.make_open_dialogs_func(title, cls))
             
             yield button
+    
+    def make_open_dialogs_func(self, title, cls: type[BaseSettingDialog]):
+        def open_dialog():
+            dialog_obj = cls(self.entry.id, title)
+            dialog_obj.exec()
+        
+        return open_dialog
     
     def get_init_text(self):
         raise NotImplementedError()
@@ -390,7 +416,6 @@ class BaseSettingEntry(BaseWidget):
     
     def extended_name_changed(self, text: str, index: int):
         raise NotImplementedError()
-
 
 class BaseSettingWidget(BaseWidget):
     def __init__(self, name: str):

@@ -55,7 +55,7 @@ class NumberLineEdit(BaseWidget):
     textChanged = pyqtSignal(int)
     
     def __init__(self, number: int, min_validatorAmt: int = 0, max_validatorAmt: int = 10):
-        super().__init__()
+        super().__init__(QHBoxLayout)
         
         self._min_num = min_validatorAmt
         self._max_num = max_validatorAmt
@@ -68,16 +68,13 @@ class NumberLineEdit(BaseWidget):
         self.min_num = self._min_num
         self.max_num = self._max_num
         
-        buttons_widget = QWidget()
-        buttons_layout = QVBoxLayout()
-        
+        buttons_widget = BaseWidget()
         buttons_widget.setStyleSheet("background: none;")
-        buttons_widget.setLayout(buttons_layout)
         
         self.addWidget(self.edit, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignRight)
         self.addWidget(buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
         
-        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_widget.setContentsMargins(0, 0, 0, 0)
         
         increment_button = ArrowWidget(180)
         increment_button.setContentsMargins(0, 0, 0, 0)
@@ -87,8 +84,8 @@ class NumberLineEdit(BaseWidget):
         increment_button.setContentsMargins(0, 0, 0, 0)
         decrement_button.mouseclicked.connect(lambda: self._incDecNumber(-1))
         
-        buttons_layout.addWidget(increment_button, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
-        buttons_layout.addWidget(decrement_button, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
+        buttons_widget.addWidget(increment_button, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
+        buttons_widget.addWidget(decrement_button, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
         
         self.setFixedHeight(50)
         self.edit.setFixedHeight(30)

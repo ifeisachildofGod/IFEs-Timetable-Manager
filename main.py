@@ -138,13 +138,16 @@ class Window(QMainWindow):
             current_display_widget.scroll_area.verticalScrollBar().setValue(sw.y())
     
     def _get_search_scope(self):
+        display_data = SUBJECTS, TEACHERS, CLASS_LEVELS
+        
+        current_display_index = self.stack.currentIndex()
         current_display_widget = self.stack.currentWidget()
         
         if isinstance(current_display_widget, BaseSettingWidget):
             return (
                 sorted(
                     [
-                        (sw, " ".join(current_display_widget.info[sw_id]["text"]), (None, sw_id, None), [])
+                        (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (None, sw_id, None), [])
                         for sw_id, sw in
                         current_display_widget.widgets.items()
                     ],
