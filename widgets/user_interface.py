@@ -1,6 +1,6 @@
 
 from imports import *
-from widgets.base_widgets import *
+from widgets.base import *
 
 import math
 from typing import TypeVar

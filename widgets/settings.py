@@ -1,6 +1,6 @@
 from imports import *
 
-from widgets.base_widgets import *
+from widgets.base import *
 from widgets.settings_options import *
 
 
@@ -66,7 +66,7 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel] = None):
-        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, deepcopy(SETTINGS.TIMETABLE_weekdays))
+        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, deepcopy(SCHOOL.settings.TIMETABLE_weekdays))
         
         super().__init__(
             parent,
@@ -97,12 +97,12 @@ class SubjectsMainWidget(BaseSettingWidget):
         new_entry = super().add(entry, index)
         
         if entry is None:
-            SUBJECTS.add(new_entry)
+            SCHOOL.subjects.add(new_entry)
     
     def remove(self, widget):
         id = super().remove(widget)
         
-        SUBJECTS.remove(id)
+        SCHOOL.subjects.remove(id)
 
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self):
@@ -115,12 +115,12 @@ class TeachersMainWidget(BaseSettingWidget):
         new_entry = super().add(entry, index)
         
         if entry is None:
-            TEACHERS.add(new_entry)
+            SCHOOL.teachers.add(new_entry)
     
     def remove(self, widget):
         id = super().remove(widget)
         
-        TEACHERS.remove(id)
+        SCHOOL.teachers.remove(id)
 
 class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self):
@@ -133,11 +133,11 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         new_entry = super().add(entry, index)
         
         if entry is None:
-            CLASS_LEVELS.add(new_entry)
+            SCHOOL.class_levels.add(new_entry)
     
     def remove(self, widget):
         id = super().remove(widget)
         
-        CLASS_LEVELS.remove(id)
+        SCHOOL.class_levels.remove(id)
 
 

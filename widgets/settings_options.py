@@ -3,7 +3,7 @@ from typing import Generator
 
 from imports import *
 
-from widgets.base_widgets import *
+from widgets.base import *
 from widgets.user_interface import *
 
 
@@ -49,34 +49,34 @@ class BaseSelectionList(BaseSettingDialog):
 
 class SubjectSelectionList(BaseSelectionList):
     def __init__(self, id, title):
-        super().__init__(id, title, ((t_id, teacher) for t_id, teacher in TEACHERS if id in teacher.subjects), TEACHERS)
+        super().__init__(id, title, ((t_id, teacher) for t_id, teacher in SCHOOL.teachers if id in teacher.subjects), SCHOOL.teachers)
         
-        self.subject = SUBJECTS[self.id]
+        self.subject = SCHOOL.subjects[self.id]
     
     def item_removed(self, id: ID):
-        TEACHERS[id].subjects.pop(self.id)
+        SCHOOL.teachers[id].subjects.pop(self.id)
     
     def item_selected(self, id: ID):
-        TEACHERS[id].subjects[self.id] = self.subject
+        SCHOOL.teachers[id].subjects[self.id] = self.subject
 
 class TeacherSelectionList(BaseSelectionList):
     def __init__(self, id, title):
-        self.teacher = TEACHERS[id]
+        self.teacher = SCHOOL.teachers[id]
         
-        super().__init__(id, title, iter(self.teacher.subjects.items()), SUBJECTS)
+        super().__init__(id, title, iter(self.teacher.subjects.items()), SCHOOL.subjects)
     
     def item_removed(self, id: ID):
         self.teacher.subjects.pop(id)
     
     def item_selected(self, id: ID):
-        self.teacher.subjects[id] = SUBJECTS[id]
+        self.teacher.subjects[id] = SCHOOL.subjects[id]
 
 class SubjectDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, id: ID, title: str):
         super().__init__(title)
         
         self.id = id
-        self.subject = SUBJECTS[self.id]
+        self.subject = SCHOOL.subjects[self.id]
         
         self.setFixedSize(400, 300)
         
@@ -115,7 +115,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         widgets: list[QWidget] = []
         all_clicked_checkboxes: list[QCheckBox] = []
         
-        for lvl_id, cls_lvl in CLASS_LEVELS:
+        for lvl_id, cls_lvl in SCHOOL.class_levels:
             check_box = QCheckBox()
             check_box.clicked.connect(self.make_main_checkbox_func(lvl_id))
             
@@ -199,7 +199,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                 self.mini_guy_is_clicked = True
                 
                 if on:
-                    lvl_set = set(CLASS_LEVELS[lvl_id].classes)
+                    lvl_set = set(SCHOOL.class_levels[lvl_id].classes)
                     intersect_set = set(self.subject.classes).intersection(lvl_set)
                     
                     if len(lvl_set) == len(intersect_set) and not self.class_check_box_tracker["main_cb"][lvl_id].isChecked():
@@ -214,27 +214,27 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
     
     def sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: ID):
         if on:
-            self.subject.classes[cls_id] = CLASS_LEVELS[lvl_id].classes[cls_id]
-            CLASS_LEVELS[lvl_id].classes[cls_id].subjects[self.id] = self.subject.passCopy()
+            self.subject.classes[cls_id] = SCHOOL.class_levels[lvl_id].classes[cls_id]
+            SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[self.id] = self.subject.passCopy()
             
-            if self.id not in CLASS_LEVELS[lvl_id].subjects_occurence:
-                CLASS_LEVELS[lvl_id].subjects_occurence[self.id] = SubjectOccurrance(*SETTINGS.DEFAULT_occurance_data)
+            if self.id not in SCHOOL.class_levels[lvl_id].subjects_occurence:
+                SCHOOL.class_levels[lvl_id].subjects_occurence[self.id] = SubjectOccurrance(*SCHOOL.settings.DEFAULT_occurance_data)
         else:
             self.subject.classes.pop(cls_id)
-            CLASS_LEVELS[lvl_id].classes[cls_id].subjects.pop(self.id)
+            SCHOOL.class_levels[lvl_id].classes[cls_id].subjects.pop(self.id)
             
-            for cls in CLASS_LEVELS[lvl_id].classes.values():
+            for cls in SCHOOL.class_levels[lvl_id].classes.values():
                 if self.id in cls.subjects:
                     break
             else:
-                CLASS_LEVELS[lvl_id].subjects_occurence.pop(self.id)
+                SCHOOL.class_levels[lvl_id].subjects_occurence.pop(self.id)
 
 class TeacherDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, id: ID, title: str):
         super().__init__(title)
         
         self.id = id
-        self.teacher = TEACHERS[self.id]
+        self.teacher = SCHOOL.teachers[self.id]
         
         self.setFixedSize(400, 300)
         
@@ -323,9 +323,9 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 cls_lvls.append(cls.level)
                 
                 def rsma_func(number: Optional[int]):
-                    SETTINGS.TEACHER_rsma_mapping[cls.level.id] = number
+                    SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] = number
                 
-                max_random_text_input = NumberLineEdit(SETTINGS.TEACHER_rsma_mapping[cls.level.id] if SETTINGS.TEACHER_rsma_mapping[cls.level.id] is not None else 1, 1, len(cls.level.classes))
+                max_random_text_input = NumberLineEdit(SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] is not None else 1, 1, len(cls.level.classes))
                 max_random_text_input.edit.setToolTip("Maximum Classes Taught")
                 max_random_text_input.setVisible(False)
                 max_random_text_input.textChanged.connect(rsma_func)
@@ -336,7 +336,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 select_all_check_box = QCheckBox("All")
                 select_all_check_box.clicked.connect(self.make_select_all_checkbox_func(subject, cls.level.id))
                 
-                if SETTINGS.TEACHER_rsma_mapping[cls.level.id]:
+                if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id]:
                     random_on_checkboxes.append(is_random_check_box)
                 
                 self.class_check_box_tracker[subject.id]["sub_cbs"][cls.level.id] = {}
@@ -381,7 +381,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
             optionState = next((True for subj in cls.subjects.values() if subj.teacher and self.id == subj.teacher.id), False)
             
             option_widget = BaseWidget(QHBoxLayout)
-            option_widget.setDisabled(CLASS_LEVELS[lvl.id].classes[cls_id].subjects[subject.id].teacher is not None)
+            option_widget.setDisabled(SCHOOL.class_levels[lvl.id].classes[cls_id].subjects[subject.id].teacher is not None)
             
             dp_title = QLabel(cls.name)
             
@@ -391,7 +391,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
             
             dp_checkbox.clicked.connect(self.make_sub_checkbox_func(subject, lvl.id, cls_id))
             
-            if optionState and SETTINGS.TEACHER_rsma_mapping[lvl.id] is None:
+            if optionState and SCHOOL.settings.TEACHER_rsma_mapping[lvl.id] is None:
                 clicked_cbs.append(dp_checkbox)
             
             option_widget.addSpacing(50)
@@ -416,7 +416,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                     self.class_check_box_tracker[subject.id]["icon"][class_id].mouseclicked.emit()
                 
                 if self.class_check_box_tracker[subject.id]["max_random"][class_id].number() == -1:
-                    self.class_check_box_tracker[subject.id]["max_random"][class_id].setNumber(SETTINGS.DEFAULT_max_classes)
+                    self.class_check_box_tracker[subject.id]["max_random"][class_id].setNumber(SCHOOL.settings.DEFAULT_max_classes)
                 
                 rsma_func(None)
             
@@ -453,9 +453,9 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 self.mini_guy_is_clicked = True
                 
                 if on:
-                    CLASS_LEVELS[lvl_id].classes[cls_id].subjects[subject.id].teacher = self.teacher
+                    SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[subject.id].teacher = self.teacher
                 else:
-                    CLASS_LEVELS[lvl_id].classes[cls_id].subjects[subject.id].teacher = None
+                    SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[subject.id].teacher = None
                 
                 if on:
                     for c_id, cb in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
@@ -476,12 +476,12 @@ class OccuranceEditor(BaseSettingDialog):
         super().__init__(title)
         
         self.id = id
-        self.class_level = CLASS_LEVELS[self.id]
+        self.class_level = SCHOOL.class_levels[self.id]
         
         self.setFixedSize(600, 400)
         
         self.focuses_ids = {}
-        self.week_total = sum(week_amt for week_amt, _ in SETTINGS.TIMETABLE_weekdays.values())
+        self.week_total = sum(week_amt for week_amt, _ in SCHOOL.settings.TIMETABLE_weekdays.values())
         
         self.subject_widgets: dict[str, QWidget] = {}
         self.number_edits: dict[str, tuple[NumberLineEdit, NumberLineEdit]] = {}
@@ -489,7 +489,7 @@ class OccuranceEditor(BaseSettingDialog):
         self.setSpacing(20)
         
         for subject_id in self.class_level.subjects_occurence:
-            self.add_subject(SUBJECTS[subject_id])
+            self.add_subject(SCHOOL.subjects[subject_id])
         
         for subject_id, (per_day_edit, per_week_edit) in self.number_edits.items():
             per_day_edit.textChanged.emit(self.class_level.subjects_occurence[subject_id].day_max)
@@ -594,7 +594,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         super().__init__(title)
         
         self.id = id
-        self.class_level = CLASS_LEVELS[self.id]
+        self.class_level = SCHOOL.class_levels[self.id]
         
         self.max_cols = 4  # Maximum number of columns before wrapping
         
@@ -634,7 +634,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         if is_new:
             id = ID.generate_new()
             
-            cls = Class(id, "", self.class_level, {})
+            cls = Class(id, "", self.class_level, {}, SCHOOL)
             self.class_level.classes[id] = cls
         
         def update_option():

@@ -1,7 +1,11 @@
 from imports import *
 
 from utils import *
-from widgets.settings import *
+
+from widgets.base import *
+from widgets.settings import SubjectsMainWidget, TeachersMainWidget, ClassLevelsMainWidget
+from widgets.timetable import SchoolTimetableEditor
+from widgets.user_interface import MainTitleBar
 
 
 class Window(QMainWindow):
@@ -9,7 +13,6 @@ class Window(QMainWindow):
     
     def __init__(self, arguments: list[str]):
         super().__init__()
-        self._disable_unsave = False
         
         path = len(arguments) > 1 and arguments[1] or None
         
@@ -50,40 +53,30 @@ class Window(QMainWindow):
         self.teachers_widget = TeachersMainWidget()
         self.classes_widget = ClassLevelsMainWidget()
         
-        # self.timetable_widget = TimeTableEditor()
+        self.timetable_widget = BaseWidget()
         
         # Create viewing container
-        main_container = QWidget()
-        main_container_layout = QVBoxLayout()
-        main_container_layout.setContentsMargins(0, 0, 5, 5)
-        main_container.setLayout(main_container_layout)
+        main_container = BaseWidget()
+        main_container.setContentsMargins(0, 0, 5, 5)
         
         self.title_bar = MainTitleBar(self, menu_bar, self._get_search_scope, self._goto_search, self.go_back, self.go_forward)
-        main_container_layout.addWidget(self.title_bar)
+        main_container.addWidget(self.title_bar)
         
         # Create viewing container
-        viewing_container = QWidget()
-        viewing_container_layout = QHBoxLayout()
-        viewing_container_layout.setContentsMargins(0, 10, 5, 5)
-        viewing_container.setLayout(viewing_container_layout)
-        main_container_layout.addWidget(viewing_container)
+        viewing_container = BaseWidget(QHBoxLayout)
+        viewing_container.setContentsMargins(0, 10, 5, 5)
+        main_container.addWidget(viewing_container)
         
         # Create sidebar
-        main_sidebar_widget = QWidget()
-        main_sidebar_layout = QHBoxLayout()
-        
-        main_sidebar_widget.setLayout(main_sidebar_layout)
+        main_sidebar_widget = BaseWidget(QHBoxLayout)
         main_sidebar_widget.setProperty("class", "Sidebar")
         
-        self.sub_sidebar_widget = QWidget()
-        sub_sidebar_layout = QVBoxLayout()
-        
+        self.sub_sidebar_widget = BaseWidget()
         self.sub_sidebar_widget.setFixedWidth(200)
-        self.sub_sidebar_widget.setLayout(sub_sidebar_layout)
         self.sub_sidebar_widget.setProperty("class", "SubSidebar")
         
-        sub_sidebar_layout.setSpacing(0)
-        sub_sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        self.sub_sidebar_widget.setSpacing(0)
+        self.sub_sidebar_widget.setContentsMargins(0, 0, 0, 0)
         
         # Create stacked widget for content
         self.stack = QStackedWidget()
@@ -100,25 +93,25 @@ class Window(QMainWindow):
         self.stack.addWidget(self.subjects_widget)
         self.stack.addWidget(self.teachers_widget)
         self.stack.addWidget(self.classes_widget)
-        # self.stack.addWidget(self.timetable_widget)
+        self.stack.addWidget(self.timetable_widget)
         
         # Connect buttons
         for index, button in enumerate(self.option_buttons):
             button.setCheckable(True)
             button.clicked.connect(self.make_option_button_func(button.text(), index))
-            sub_sidebar_layout.addWidget(button)
+            self.sub_sidebar_widget.addWidget(button)
             
             self.display_index = index
         
-        sub_sidebar_layout.insertStretch(3)
+        self.sub_sidebar_widget.insertStretch(3)
         
         # Add sub sidebar widgets to main sidebar layout
-        main_sidebar_layout.addWidget(self.sub_sidebar_widget)
-        # main_sidebar_layout.addWidget(self.toggle_sidebar_button)
+        main_sidebar_widget.addWidget(self.sub_sidebar_widget)
+        # main_sidebar_widget.addWidget(self.toggle_sidebar_button)
         
         # Add widgets to main layout
-        viewing_container_layout.addWidget(main_sidebar_widget)
-        viewing_container_layout.addWidget(self.stack)
+        viewing_container.addWidget(main_sidebar_widget)
+        viewing_container.addWidget(self.stack)
         
         self.setCentralWidget(main_container)
         subjects_btn.click()  # Start with subjects page selected
@@ -139,7 +132,7 @@ class Window(QMainWindow):
             current_display_widget.scroll_area.verticalScrollBar().setValue(sw.y())
     
     def _get_search_scope(self):
-        display_data = SUBJECTS, TEACHERS, CLASS_LEVELS
+        display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.clasS_levels
         
         current_display_index = self.stack.currentIndex()
         current_display_widget = self.stack.currentWidget()
@@ -160,24 +153,22 @@ class Window(QMainWindow):
         self.saved = True
         
         if self.file.path is not None:
-            subjects, teachers, class_levels, settings = self.file.get_data()
-            
-            SUBJECTS.set(subjects) ; TEACHERS.set(teachers) ; CLASS_LEVELS.set(class_levels) ; SETTINGS.set(settings)
+            school = self.file.get_data()
+            SCHOOL.set(school)
             
             self.saved_callback()
         else:
             self.setWindowTitle(self.title)
         
-        THEME_MANAGER.apply_theme(SETTINGS.THEME)
+        THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
     
     def unsaved_callback(self):
-        if not self._disable_unsave:
-            self.saved = False
-            
-            if self.file.path is not None:
-                self.setWindowTitle(f"{self.title} - {Path(self.file.path).as_posix()} *Unsaved")
-            else:
-                self.setWindowTitle(self.title)
+        self.saved = False
+        
+        if self.file.path is not None:
+            self.setWindowTitle(f"{self.title} - {Path(self.file.path).as_posix()} *Unsaved")
+        else:
+            self.setWindowTitle(self.title)
     
     def saved_callback(self):
         self.saved = True
@@ -201,7 +192,7 @@ class Window(QMainWindow):
         self.file.path = path
         
         with open(self.file.path, "wb") as file:
-            pickle.dump(file, (SUBJECTS, TEACHERS, CLASS_LEVELS, SETTINGS))
+            pickle.dump(file, SCHOOL)
         
         self.saved_callback()
     
@@ -545,8 +536,8 @@ class Window(QMainWindow):
     
     def make_palette_action_func(self, main_color: str, accent_color: str):
         def palette_action_func():
-            SETTINGS.THEME = f"{main_color}-{accent_color}"
-            THEME_MANAGER.apply_theme(SETTINGS.THEME)
+            SCHOOL.settings.THEME = f"{main_color}-{accent_color}"
+            THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
         
         return palette_action_func
     

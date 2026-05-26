@@ -27,8 +27,5 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtPrintSupport import QPrinter
 
-
-from core.general import *
-from core.settings import *
-from core.timetable import *
+from core.main import *
 
