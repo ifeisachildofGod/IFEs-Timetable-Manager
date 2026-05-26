@@ -1,10 +1,33 @@
 
+import random
+
 from enum import Enum
-
 from copy import deepcopy
-from typing import Any, Callable
+from typing import Callable
 
-from core import ID
+
+class ID(str):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        
+        self.parents = []
+    
+    def __add__(self, value):
+        id = ID(value)
+        
+        id.parents = self.parents.copy()
+        id.parents.append(self)
+        
+        return id
+    
+    def __radd__(self, other):
+        return self.__add__(other)
+    
+    @staticmethod
+    def generate_new():
+        tmp = random.randint(0, 500000)
+        
+        return ID(id(tmp))
 
 
 class HooksManagerError(TypeError): pass
@@ -145,27 +168,28 @@ class Hyperlink:
 CONNECTIONS_MANAGER = _ConnectionsManager()
 
 
-# class Test:
-#     @Hyperlink("FirstTest", SignalType.SOURCE, True)
-#     def test_source(self):
-#         return "ife"
+if __name__ == "__main__":
+    class Obj1:
+        @Hyperlink("FirstTest", SignalType.SOURCE, True)
+        def test_source(self):
+            return "ife"
 
-# class Test2:
-#     def __init__(self, name: str):
-#         self.name = name
-    
-#     @Hyperlink("FirstTest", SignalType.RECIEVER, True)
-#     def test_connection(self, expectation):
-#         print(self.name, expectation)
+    class Obj2:
+        def __init__(self, name: str):
+            self.name = name
+        
+        @Hyperlink("FirstTest", SignalType.RECIEVER, True)
+        def test_connection(self, expectation):
+            print(self.name, expectation)
 
-# b = Test()
+    b = Obj1()
 
-# Hyperlink.setDynamicID("123")
-# a = Test2("Ify")
-# Hyperlink.setDynamicID("123")
-# c = Test2("Mama")
+    Hyperlink.setDynamicID("123")
+    a = Obj2("Ify")
+    Hyperlink.setDynamicID("123")
+    c = Obj2("Mama")
 
 
-# Hyperlink.setDynamicID("123")
-# b.test_source()
+    Hyperlink.setDynamicID("123")
+    b.test_source()
 

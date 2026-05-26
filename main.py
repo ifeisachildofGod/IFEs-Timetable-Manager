@@ -1,7 +1,8 @@
 from imports import *
 
-from utils.functionals import *
+from utils import *
 from widgets.settings import *
+
 
 class Window(QMainWindow):
     saved_state_changed = pyqtSignal()
@@ -555,7 +556,6 @@ class Window(QMainWindow):
         
         if self.display_index != index:
             self.stack.setCurrentIndex(index)
-
 
 
 

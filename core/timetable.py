@@ -2,10 +2,11 @@
 import json
 import math
 import random
-from core import *
 from pathlib import Path
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
+
+from core.settings import *
 
 class BGTimetableError(Exception):
     pass

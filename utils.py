@@ -1,6 +1,8 @@
 from imports import *
 
+
 EXTENSION_NAME = "ttbl"
+
 
 class Thread(QThread):
     crashed = pyqtSignal(Exception)
