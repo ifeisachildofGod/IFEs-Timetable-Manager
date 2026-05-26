@@ -2,7 +2,6 @@
 import json
 import math
 import random
-# from temp_core import *
 from core import *
 from pathlib import Path
 from dataclasses import dataclass
@@ -140,7 +139,34 @@ class SchoolFrameWork:
             timetable_remains.extend(list(flatten([[self.subjects[s_id] for _ in range(amt)] for s_id, amt in week_amt_data.items()])))
     
     def detect_clashes(self):
+        """
+        Returns {
+            (Day, Period Index): [Class IDs that clash at that point, ...]
+        }
+        """
+        
         clashes = {}
+        
+        days_uid_tracker = {}
+        
+        for c_id, (timetable, _) in self.timetables_data.items():
+            for day, periods in timetable.items():
+                if day not in days_uid_tracker:
+                    days_uid_tracker[day] = [[(s.id + s.teacher.id) if s.id not in (FreePeriodFW.id, BreakPeriodFW.id) else None] for s in periods]
+                    continue
+                
+                for i, subj in enumerate(periods):
+                    if subj.id not in (FreePeriodFW.id, BreakPeriodFW.id):
+                        s_uid = subj.id + subj.teacher.id
+                        
+                        if i < len(days_uid_tracker[day]):
+                            if s_uid in days_uid_tracker[day][i]:
+                                if s_uid not in clashes:
+                                    clashes[(day, i)] = []
+                                
+                                clashes[(day, i)].append(c_id)
+                            else:
+                                days_uid_tracker[day][i].append(s_uid)
         
         return clashes
     
@@ -540,27 +566,26 @@ class SchoolFrameWork:
 
 
 
-def _display_school(sch: SchoolFrameWork):
-    for cls_lvl in sch.class_lvls.values():
-        for cls in cls_lvl.classes.values():
-            timetable, timetable_remains = sch.timetables_data[cls.id]
-            
-            assert timetable
-            
-            print(cls_lvl.name.full(), cls.name)
-            for day, periods in timetable.items():
-                print(day, end=": ")
-                print(*[(p.name.full() if not isinstance(p, CombinedSubject) else "/".join([s.name for s in p.subjects])) for p in periods], sep=", ")
-            
-            if timetable_remains:
-                print()
-                print("Remainders:", ", ".join([s.name.full() for s in timetable_remains]))
-                print()
-            print()
-
-
 if __name__ == "__main__":
-    with open(r"C:\Users\User\Documents\GitHub\IFEs Timetable Manager\timetable\test\test-frmwk.txt") as file:
+    def display_school(sch: SchoolFrameWork):
+        for cls_lvl in sch.class_lvls.values():
+            for cls in cls_lvl.classes.values():
+                timetable, timetable_remains = sch.timetables_data[cls.id]
+                
+                assert timetable
+                
+                print(cls_lvl.name.full(), cls.name)
+                for day, periods in timetable.items():
+                    print(day, end=": ")
+                    print(*[(p.name.full() if not isinstance(p, CombinedSubject) else "/".join([s.name for s in p.subjects])) for p in periods], sep=", ")
+                
+                if timetable_remains:
+                    print()
+                    print("Remainders:", ", ".join([s.name.full() for s in timetable_remains]))
+                    print()
+                print()
+    
+    with open(r"timetable\test-frmwk.txt") as file:
         data = file.read()
     
     sch = SchoolFrameWork.school_from_text(data)
@@ -572,5 +597,5 @@ if __name__ == "__main__":
     print("Ended")
     print()
     
-    _display_school(sch)
+    display_school(sch)
 
