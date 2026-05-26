@@ -29,8 +29,13 @@ class GeneratingData:
 class FreePeriodFW:
     id: str = "FreePeriodID"
     
-    name: str = "Free"
+    name: SubjectName = "Free"
     teacher: "Teacher | None" = None
+    
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        
+        self.name = SubjectName("Free", "Free")
 
 @dataclass
 class BreakPeriodFW:
@@ -38,6 +43,11 @@ class BreakPeriodFW:
     
     name: str = "Break"
     teacher: "Teacher | None" = None
+    
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        
+        self.name = SubjectName("Break", "Break")
 
 
 # Objects
@@ -45,9 +55,9 @@ TimetableFW = dict[str, list[Subject | CombinedSubject | BreakPeriodFW | FreePer
 
 @dataclass
 class SchoolFrameWork:
-    subjects: dict[str, Subject | CombinedSubject]
-    teachers: dict[str, Teacher]
-    class_lvls: dict[str, ClassLevel]
+    subjects: dict[ID, Subject | CombinedSubject]
+    teachers: dict[ID, Teacher | CombinedTeacher]
+    class_lvls: dict[ID, ClassLevel]
     timetables_data: dict[ID, tuple[Optional[TimetableFW], list[Subject]]]
     
     gen_data: GeneratingData
@@ -131,73 +141,6 @@ class SchoolFrameWork:
     
     def detect_clashes(self):
         clashes = {}
-        
-        # Making the teacher-to-classes mapping
-        teachers_c = {}
-        for cls_lvl in self.class_lvls.values():
-            for cls in cls_lvl.classes.values():
-                for subj in cls.subjects.values():
-                    if subj.teacher.id not in teachers_c:
-                        teachers_c[subj.teacher.id] = []
-                    
-                    teachers_c[subj.teacher.id].append(cls)
-        
-        for teacher_id, classes in teachers_c.items():
-            teacher = self.teachers[teacher_id]
-            
-            day_markers = []
-            day_marker_mapping = {}
-            
-            for cls in classes:
-                timetable = self.timetables_data[cls.id][0]
-                
-                assert timetable
-                
-                for day, periods in timetable.items():
-                    for p_index, subject_period in enumerate(periods):
-                        if subject_period.id not in (FreePeriodFW.id, BreakPeriodFW.id):
-                            assert subject_period.teacher
-                            
-                            if teacher.id == subject_period.teacher.id:
-                                marker = day, p_index
-                                
-                                day_markers.append(marker)
-                                
-                                if marker not in day_marker_mapping:
-                                    day_marker_mapping[marker] = []
-                                
-                                day_marker_mapping[marker].append((cls, subject_period.id))
-            
-            t_clashes = {}
-            
-            l_dmm = list(day_marker_mapping.values())
-            
-            for marker, classes in day_marker_mapping.items():
-                if len(classes) > 1:
-                    for cls, sp_id in classes:
-                        combined = next(
-                            (
-                                True 
-                                for s_cls, s_sp_id in
-                                l_dmm
-                                if next(
-                                    (
-                                        True
-                                        for s_list, c_list in
-                                        self.gen_data.combined_subjects.items()
-                                        if (sp_id in s_list and s_sp_id in s_list) and (cls.id in c_list and s_cls.id in c_list)
-                                        ),
-                                    False
-                                    )
-                                ),
-                            False
-                            )
-                        
-                        if not combined:
-                            t_clashes[marker] = cls.id
-            
-            if t_clashes:
-                clashes[teacher.id] = t_clashes
         
         return clashes
     
@@ -439,10 +382,11 @@ class SchoolFrameWork:
             if s_info.strip():
                 s_name, s_id = SchoolFrameWork.id_name_from_text(s_info)
                 
+                s_id = ID(s_id)
                 subjects[s_id] = (
                     CombinedSubject(s_id, [subjects[int(s.strip()) - 1] for s in s_name.strip().split("/")], None, {})
                     if "/" in s_name else
-                    Subject(s_id, s_name, None, {})
+                    Subject(s_id, SubjectName(s_name.strip(), s_name.strip()), None, {})
                 )
         
         l_subjects = list(subjects.values())
@@ -460,7 +404,7 @@ class SchoolFrameWork:
                 teachers[t_id] = (
                         CombinedTeacher(t_id, [list([t for t, _ in teachers.values()])[int(s.strip()) - 1] for s in t_name.strip().split("/")])
                         if "/" in t_name else
-                        Teacher(t_id, t_name, {})
+                        Teacher(t_id, TeacherName(t_name.strip(), None, None, t_name.strip()), {})
                     )
                 teacher_subject_indices[t_id] = tuple(int(v) - 1 for v in value.strip().split())
                 
@@ -509,7 +453,7 @@ class SchoolFrameWork:
             classes = {}
             
             lvl_id = ID(lvl_id)
-            cls_lvl = class_levels[lvl_id] = ClassLevel(lvl_id, cls_lvl_name, classes, subject_occurence, weekdays_data[cls_lvl_index])
+            cls_lvl = class_levels[lvl_id] = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subject_occurence, weekdays_data[cls_lvl_index])
             
             for c_string in cls_data:
                 c_string = c_string.strip()
@@ -523,7 +467,7 @@ class SchoolFrameWork:
                 cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping)
                 all_classes.append(cls)
                 
-                timetables_data[cls.id] = (
+                timetables_data[cls_id] = (
                     {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
                     list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects]))
                 )
@@ -597,20 +541,20 @@ class SchoolFrameWork:
 
 
 def _display_school(sch: SchoolFrameWork):
-    for cls_lvl in sch.classes.values():
+    for cls_lvl in sch.class_lvls.values():
         for cls in cls_lvl.classes.values():
             timetable, timetable_remains = sch.timetables_data[cls.id]
             
             assert timetable
             
-            print(cls.name())
+            print(cls_lvl.name.full(), cls.name)
             for day, periods in timetable.items():
                 print(day, end=": ")
-                print(*[(p.name if not isinstance(p, CombinedSubject) else "/".join([s.name for s in p.subjects])) for p in periods], sep=", ")
+                print(*[(p.name.full() if not isinstance(p, CombinedSubject) else "/".join([s.name for s in p.subjects])) for p in periods], sep=", ")
             
             if timetable_remains:
                 print()
-                print("Remainders:", ", ".join([s.name for s in timetable_remains]))
+                print("Remainders:", ", ".join([s.name.full() for s in timetable_remains]))
                 print()
             print()
 
