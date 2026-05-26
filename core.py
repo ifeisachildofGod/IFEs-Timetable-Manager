@@ -57,6 +57,15 @@ class Subject(Entry):
     
     def passCopy(self):
         return Subject(self.id, self.name, None, self.classes)
+@dataclass
+class CombinedSubject:
+    id: ID
+    
+    subjects: list[Subject]
+    teacher: Optional["CombinedTeacher"]
+    
+    def passCopy(self):
+        return CombinedSubject(self.id, self.subjects, None)
 
 
 @dataclass
@@ -76,6 +85,11 @@ class Teacher(Entry):
     name: TeacherName
     
     subjects: dict[ID, Subject]
+@dataclass
+class CombinedTeacher:
+    id: ID
+    
+    teachers: list[Teacher]
 
 
 
@@ -107,6 +121,8 @@ class ClassLevel(Entry):
     
     classes: dict[ID, Class]
     subjects_occurence: dict[ID, SubjectOccurrance]
+    
+    weekdays: dict[str, tuple[int, int]]
 
 
 @dataclass

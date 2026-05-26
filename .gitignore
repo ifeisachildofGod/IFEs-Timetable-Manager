@@ -182,3 +182,6 @@ cython_debug/
 
 # Editor
 .vscode
+
+# Others
+temp_core.py

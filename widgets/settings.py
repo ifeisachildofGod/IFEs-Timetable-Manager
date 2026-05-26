@@ -66,7 +66,7 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel] = None):
-        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {})
+        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, deepcopy(SETTINGS.TIMETABLE_weekdays))
         
         super().__init__(
             parent,
