@@ -52,8 +52,7 @@ class Window(QMainWindow):
         self.subjects_widget = SubjectsMainWidget()
         self.teachers_widget = TeachersMainWidget()
         self.classes_widget = ClassLevelsMainWidget()
-        
-        self.timetable_widget = BaseWidget()
+        self.timetable_widget = SchoolTimetableEditor()
         
         # Create viewing container
         main_container = BaseWidget()

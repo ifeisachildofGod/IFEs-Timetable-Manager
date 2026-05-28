@@ -103,7 +103,7 @@ class GlobalClassLevels(Global):
     def add_class(self, id: ID, cls: Class):
         self.data[id].classes[cls.id] = cls
         
-        self.school.add_timetable(cls)
+        self.school.fresh_timetable(cls)
     
     def remove_class(self, id: ID, cls_id: Class):
         self.data[id].classes[cls_id].delete()
@@ -134,14 +134,21 @@ class SchoolFrameWork:
     _log_data: Optional[dict[str, dict[str, list[str]]]] = None
     
     def _init(self):
-        self.subjects = self.subjects or GlobalSubjects(self)
-        self.teachers = self.teachers or GlobalTeachers(self)
-        self.class_levels = self.class_levels or GlobalClassLevels(self)
-        self.timetables_data = self.timetables_data or {}
+        if self.subjects is None:
+            self.subjects = GlobalSubjects(self)
+        if self.teachers is None:
+            self.teachers = GlobalTeachers(self)
+        if self.class_levels is None:
+            self.class_levels = GlobalClassLevels(self)
+        if self.timetables_data is None:
+            self.timetables_data = {}
         
-        self._log_data = self._log_data or {}
-        self.gen_data = self.gen_data or GeneratingData(False, {}, {}, {})
-        self.settings = self.settings or Settings(3, (2, 3), {},
+        if self._log_data is None:
+            self._log_data = {}
+        if self.gen_data is None:
+            self.gen_data = GeneratingData(False, {}, {}, {})
+        if self.settings is None:
+            self.settings = Settings(3, (2, 3), {},
             {
                 "Monday": (10, 7),
                 "Tuesday": (10, 7),
@@ -164,9 +171,9 @@ class SchoolFrameWork:
         
         self.gen_data.__dict__ = school.gen_data.__dict__
     
-    def add_timetable(self, cls: Class):
+    def fresh_timetable(self, cls: Class):
         self.timetables_data[cls.id] = (
-            {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
+            {d: [FreePeriod() if i + 1 != b else BreakPeriod() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
             list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
         )
     
@@ -181,10 +188,19 @@ class SchoolFrameWork:
         for cls_lvl_id, cls_id in cls_ids:
             cls = self.class_levels[cls_lvl_id].classes[cls_id]
             
-            if self.timetables_data[cls.id][0] is None:
-                self.timetables_data[cls.id][0] = {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()}
-            
             timetable, timetable_remains = self.timetables_data[cls.id]
+            
+            for s_id, (day, period) in cls.locked_subjects.items():
+                subj = cls.subjects[s_id]
+                
+                assert timetable[day][period - 1].id in (FreePeriod.id, subj.id)
+                
+                if timetable[day][period - 1].id != subj.id:
+                    timetable[day][period - 1] = subj
+                    timetable_remains.remove(subj)
+            
+            assert timetable is not None
+            assert timetable_remains is not None
             
             week_amt_data = {s_id: cls.level.subjects_occurence[s_id].week_max for s_id in cls.subjects}
             
@@ -195,7 +211,7 @@ class SchoolFrameWork:
             
             for s_list in timetable.values():
                 for s in s_list:
-                    if s.id not in (FreePeriodFW.id, BreakPeriodFW.id):
+                    if s.id not in (FreePeriod.id, BreakPeriod.id):
                         week_amt_data[s.id] -= 1
             
             completed_ones = []
@@ -224,6 +240,7 @@ class SchoolFrameWork:
                                 max_score = max(score)
                                 
                                 selected_period = day, score.index(max_score)
+                        
                         if not selected_period:
                             print(cls.subjects[s_id].name)
                             print(json.dumps(self._log_data[cls_id][s_id], indent=2))
@@ -232,7 +249,7 @@ class SchoolFrameWork:
                         
                         day, index = selected_period
                         
-                        assert timetable[day][index].id == FreePeriodFW.id
+                        assert timetable[day][index].id == FreePeriod.id
                         
                         timetable[day][index] = cls.subjects[s_id]
                         week_amt_data[s_id] -= 1
@@ -257,11 +274,11 @@ class SchoolFrameWork:
         for c_id, (timetable, _) in self.timetables_data.items():
             for day, periods in timetable.items():
                 if day not in days_uid_tracker:
-                    days_uid_tracker[day] = [[(s.id + s.teacher.id) if s.id not in (FreePeriodFW.id, BreakPeriodFW.id) else None] for s in periods]
+                    days_uid_tracker[day] = [[(s.id + s.teacher.id) if s.id not in (FreePeriod.id, BreakPeriod.id) else None] for s in periods]
                     continue
                 
                 for i, subj in enumerate(periods):
-                    if subj.id not in (FreePeriodFW.id, BreakPeriodFW.id):
+                    if subj.id not in (FreePeriod.id, BreakPeriod.id):
                         s_uid = subj.id + subj.teacher.id
                         
                         if i < len(days_uid_tracker[day]):
@@ -293,7 +310,7 @@ class SchoolFrameWork:
             s_id: str,
             cls: Class,
             day: str,
-            period: Subject | CombinedSubject | FreePeriodFW | BreakPeriodFW,
+            period: Subject | CombinedSubject | FreePeriod | BreakPeriod,
             p_index: int,
             l_operate: int = False,
             r_operate: int = False,
@@ -323,14 +340,14 @@ class SchoolFrameWork:
         assert isinstance(avg_day_freq, int)
         
         if (
-                period.id != FreePeriodFW.id or
-                period.id == BreakPeriodFW.id or
+                period.id != FreePeriod.id or
+                period.id == BreakPeriod.id or
                 [p.id for p in periods].count(s_id) >= cls.level.subjects_occurence[subject.id].day_max or
                 abs(p_index - next((p_i for p_i, p in enumerate(periods) if p.id == s_id), p_index + 1)) != 1
                 ):
-            if period.id == BreakPeriodFW.id:
+            if period.id == BreakPeriod.id:
                 self._log_data[cls.id][s_id].append(((day, p_index + 1), "Break period"))
-            elif period.id != FreePeriodFW.id:
+            elif period.id != FreePeriod.id:
                 self._log_data[cls.id][s_id].append(((day, p_index + 1), f"Period is occupied by {period.name}"))
             elif [p.id for p in periods].count(s_id) >= cls.level.subjects_occurence[subject.id].day_max:
                 self._log_data[cls.id][s_id].append(((day, p_index + 1), f"Per day max reached: {[p.id for p in periods].count(s_id)}"))
@@ -348,7 +365,7 @@ class SchoolFrameWork:
                 if timetable is not None:
                     s_subject = timetable[day][p_index]
                     
-                    if s_cls.id != cls.id and s_subject.id not in (FreePeriodFW.id, BreakPeriodFW.id):
+                    if s_cls.id != cls.id and s_subject.id not in (FreePeriod.id, BreakPeriod.id):
                         s_teacher = s_subject.teacher
                         
                         assert s_teacher
@@ -437,14 +454,14 @@ class SchoolFrameWork:
                 if score == orig:
                     score -= 20
                 
-                score += sum((p_index - s_p_index) - (cls.level.subjects_occurence[s_period.id].day_max - periods.count(s_period)) for s_p_index, s_period in enumerate(periods) if not s_period.id in (FreePeriodFW.id, BreakPeriodFW.id)) # type: ignore
+                score += sum((p_index - s_p_index) - (cls.level.subjects_occurence[s_period.id].day_max - periods.count(s_period)) for s_p_index, s_period in enumerate(periods) if not s_period.id in (FreePeriod.id, BreakPeriod.id)) # type: ignore
             
             if l_operate or r_operate:
                 return l_operate + r_operate
             
             period_amt, break_period = cls.level.weekdays[day]
             
-            # l_p = [p.id for p_i, p in enumerate(periods) if p.id not in (FreePeriodFW.id, BreakPeriodFW.id) and (p_i < break_period - 1 if p_index < break_period else p_i > break_period - 1)]
+            # l_p = [p.id for p_i, p in enumerate(periods) if p.id not in (FreePeriod.id, BreakPeriod.id) and (p_i < break_period - 1 if p_index < break_period else p_i > break_period - 1)]
             
             # space_left = len(set(l_p)) - (
             #     (break_period - 1) // avg_day_freq + (((break_period - 1) % avg_day_freq) != 0)
@@ -492,7 +509,7 @@ class SchoolFrameWork:
         
         sep_index = text.rfind("-")
         
-        return text[:sep_index], text[sep_index + 1:]
+        return text[:sep_index].strip(), text[sep_index + 1:].strip()
     
     @staticmethod
     def school_from_text(text: str):
@@ -518,11 +535,24 @@ class SchoolFrameWork:
                 s_name, s_id = SchoolFrameWork.id_name_from_text(s_info)
                 
                 s_id = ID(s_id)
-                school_framework.subjects.add(
-                    CombinedSubject(s_id, [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_name.strip().split("/")], None, {})
-                    if "/" in s_name else
-                    Subject(s_id, SubjectName(s_name.strip(), s_name.strip()), None, {})
-                )
+                
+                if "/" in s_name:
+                    if s_name.count("(") == 1 and s_name.count(")") == 1:
+                        n, s_str = SchoolFrameWork.id_name_from_text(s_name)
+                        
+                        s_name = SubjectName(n.strip(), n.strip())
+                        subjs = [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_str.strip().split("/")]
+                    else:
+                        subjs = [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_name.strip().split("/")]
+                        s_name = None
+                    
+                    subject = CombinedSubject(s_id, s_name, subjs, None, {})
+                else:
+                    s_name = SubjectName(s_name.strip(), s_name.strip())
+                    
+                    subject = Subject(s_id, s_name, None, {})
+                
+                school_framework.subjects.add(subject)
         
         l_subjects = [s for _, s in school_framework.subjects]
         
@@ -596,7 +626,7 @@ class SchoolFrameWork:
                 subject_mapping = {}
                 
                 cls_id = ID(cls_id.strip())
-                cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, school_framework)
+                cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, {}, school_framework)
                 all_classes.append(cls)
                 
                 for v in value.strip().split():
@@ -653,10 +683,10 @@ class SchoolFrameWork:
                         if s_ttbl_string:
                             timetable[l_weekdays[s_ttbl_i]] = [
                                 (
-                                    FreePeriodFW()
+                                    FreePeriod()
                                     if int(s.strip()) == 0 else
                                     (
-                                        BreakPeriodFW()
+                                        BreakPeriod()
                                         if int(s.strip()) == -1 else
                                         list(cls.subjects.values())[int(s.strip()) - 1]
                                     )
@@ -668,7 +698,10 @@ class SchoolFrameWork:
         return school_framework
 
 
-SCHOOL = SchoolFrameWork() ; SCHOOL._init()
+with open(r"test_files\test-frmwk.txt") as file:
+    data = file.read()
+
+SCHOOL = SchoolFrameWork.school_from_text(data)
 
 
 if __name__ == "__main__":

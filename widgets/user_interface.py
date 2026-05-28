@@ -185,7 +185,7 @@ class MenuFrame(QFrame):
         super().__init__()
         
         self.setProperty("class", "Menu")
-        self.setStyleSheet("QFrame.Menu { border: 1px solid "+ THEME_MANAGER.parse_stylesheet("{border2}") +"; }")
+        self.setStyleSheet("QFrame.Menu { border: 1px solid "+ THEME_MANAGER.pallete_get("border2") +"; }")
         self.setWindowFlags(Qt.WindowType.Popup)
         self.setFrameShape(QFrame.Shape.Box)
         

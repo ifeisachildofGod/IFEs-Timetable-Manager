@@ -34,8 +34,8 @@ class Subject(Entry):
     def passCopy(self):
         return Subject(self.id, self.name, None, self.classes)
 @dataclass
-class CombinedSubject:
-    id: ID
+class CombinedSubject(Entry):
+    name: Optional[SubjectName]
     
     subjects: list[Subject]
     teacher: Optional["CombinedTeacher"]
@@ -62,9 +62,7 @@ class Teacher(Entry):
     
     subjects: dict[ID, Subject]
 @dataclass
-class CombinedTeacher:
-    id: ID
-    
+class CombinedTeacher(Entry):
     teachers: list[Teacher]
 
 
@@ -76,6 +74,8 @@ class Class:
     
     level: "ClassLevel"
     subjects: dict[ID, "Subject | CombinedSubject"]
+    
+    locked_subjects: dict[ID, tuple[str, int]]
     
     school: Any
     

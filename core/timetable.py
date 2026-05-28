@@ -21,7 +21,7 @@ class GeneratingData:
 
 
 @dataclass
-class FreePeriodFW:
+class FreePeriod:
     id: str = "FreePeriodID"
     
     name: SubjectName = "Free"
@@ -33,7 +33,7 @@ class FreePeriodFW:
         self.name = SubjectName("Free", "Free")
 
 @dataclass
-class BreakPeriodFW:
+class BreakPeriod:
     id: str = "BreakPeriodID"
     
     name: str = "Break"
@@ -46,5 +46,5 @@ class BreakPeriodFW:
 
 
 # Objects
-TimetableFW = dict[str, list[Subject | CombinedSubject | BreakPeriodFW | FreePeriodFW]]
+TimetableFW = dict[str, list[Subject | CombinedSubject | BreakPeriod | FreePeriod]]
 

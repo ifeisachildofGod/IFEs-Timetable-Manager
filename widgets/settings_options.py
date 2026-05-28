@@ -634,7 +634,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         if is_new:
             id = ID.generate_new()
             
-            cls = Class(id, "", self.class_level, {}, SCHOOL)
+            cls = Class(id, "", self.class_level, {}, {}, SCHOOL)
             
             SCHOOL.class_levels.add_class(self.id, cls)
         

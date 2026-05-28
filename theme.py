@@ -4,16 +4,7 @@ from imports import *
 
 
 PALETTES = {
-    "general-palette": {
-        "title_text_teacher": "#c2c2c2",
-        "title_text_prefect": "#c2c2c2",
-        
-        "border_teacher": "#f0f0f0",
-        "border_prefect": "#f0f0f0",
-
-        "text_teacher": "#ffffff",
-        "text_prefect": "#ffffff"
-    },
+    "general-palette": {},
 
     "main-palette":{
         "dark": {
@@ -122,25 +113,28 @@ PALETTES = {
     "accent-palette": {
         "blue": {
             "primary_text": "#ffffff",
-            "fg1": "#32a6ff",
             "primary_hover": "#5db5fd",
+            "fg1": "#32a6ff",
             "fg2": "#1a9cff",
+            "fg3": "#6eb4e9",
             "highlight": "#a3d6ff",
         },
 
         "green": {
             "primary_text": "#f0f0f0",
-            "fg1": "#0e9c15",
             "primary_hover": "#17bb11",
+            "fg1": "#0e9c15",
             "fg2": "#15810b",
+            "fg3": "#064900",
             "highlight": "#00cc00",
         },
 
         "red": {
             "primary_text": "#f0f0f0",
-            "fg1": "#9c0e0e",
             "primary_hover": "#bb1111",
+            "fg1": "#9c0e0e",
             "fg2": "#810b0b",
+            "fg3": "#350000",
             "highlight": "#cc0000",
         }
     }
