@@ -8,7 +8,7 @@ class BaseWidget(QWidget):
         super().__init__()
         
         self.layout_type = layout_type or QVBoxLayout
-        self._children = []
+        self._children: list[QObject] = []
         
         self._init()
     
@@ -148,6 +148,9 @@ class BaseWidget(QWidget):
         self.getLayout().insertSpacing(index, size)
         
         self._children.insert(index, {"space": size})
+    
+    def indexOf(self, a0: QWidget | None):
+        return self.getLayout().indexOf(a0)
     
     def getWidget(self):
         return self.container

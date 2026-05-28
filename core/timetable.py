@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from core.settings import *
 
-class BGTimetableError(Exception):
+class TimetableGeneratorError(Exception):
     pass
 
 

@@ -39,7 +39,7 @@ class Global:
         return self.data.__len__()
     
     def __iter__(self):
-        return ((k, v) for k, v in self.data.items())
+        return self.data.items().__iter__()
     
     def __getitem__(self, key: ID):
         return self.data.__getitem__(key)
@@ -95,7 +95,20 @@ class GlobalClassLevels(Global):
                 if id == cls.level.id:
                     subject.classes.pop(cls.id)
         
+        for cls_id in self[id].classes:
+            self.school.timetables_data.pop(cls_id)
+        
         return super().remove(id)
+    
+    def add_class(self, id: ID, cls: Class):
+        self.data[id].classes[cls.id] = cls
+        
+        self.school.add_timetable(cls)
+    
+    def remove_class(self, id: ID, cls_id: Class):
+        self.data[id].classes[cls_id].delete()
+        
+        self.school.timetables_data.pop(cls_id)
 
 @dataclass
 class Settings:
@@ -107,7 +120,6 @@ class Settings:
     
     def set(self, value):
         self.__dict__ = value.__dict__
-
 
 
 @dataclass
@@ -152,7 +164,13 @@ class SchoolFrameWork:
         
         self.gen_data.__dict__ = school.gen_data.__dict__
     
-    def generate_timetable(self, cls_ids: list[tuple[ID, ID]] | None = None):
+    def add_timetable(self, cls: Class):
+        self.timetables_data[cls.id] = (
+            {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
+            list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
+        )
+    
+    def generate_timetables(self, cls_ids: list[tuple[ID, ID]] | None = None):
         if not cls_ids:
             cls_ids = []
             
@@ -210,7 +228,7 @@ class SchoolFrameWork:
                             print(cls.subjects[s_id].name)
                             print(json.dumps(self._log_data[cls_id][s_id], indent=2))
                             
-                            raise BGTimetableError("No valid periods available")
+                            raise TimetableGeneratorError("No valid periods available")
                         
                         day, index = selected_period
                         
@@ -366,8 +384,8 @@ class SchoolFrameWork:
                             
                             return -math.inf
         else:
-            clump_wieght = (self.gen_data.subject_clumping_weights[cls.id][s_id][day] or 0) if cls.id in self.gen_data.subject_clumping_weights else 1
-            day_weight, period_proclivity = (self.gen_data.subject_positioning_weights[cls.id][s_id][day] if cls.id in self.gen_data.subject_positioning_weights else (None, None))
+            clump_wieght = self.gen_data.subject_clumping_weights.get(cls.id, {}).get(s_id, {}).get(day, 1) or 0
+            day_weight, period_proclivity = self.gen_data.subject_positioning_weights.get(cls.id, {}).get(s_id, {}).get(day, (None, None))
             
             if p_index or p_index != len(periods) - 1:
                 orig = score
@@ -485,7 +503,7 @@ class SchoolFrameWork:
         class_levels = GlobalClassLevels()
         
         school_framework = SchoolFrameWork(subjects, teachers, class_levels) ; school_framework._init()
-        subjects.set_school(school_framework) ; teachers.set_school(school_framework) ; class_levels.set_school(school_framework)
+        school_framework.subjects.set_school(school_framework) ; school_framework.teachers.set_school(school_framework) ; school_framework.class_levels.set_school(school_framework)
         
         subjects_string, teachers_string, classes_string, timetable_string, dotw_string = text.split("---")
         
@@ -500,13 +518,13 @@ class SchoolFrameWork:
                 s_name, s_id = SchoolFrameWork.id_name_from_text(s_info)
                 
                 s_id = ID(s_id)
-                subjects.add(
-                    CombinedSubject(s_id, [[cs_id for cs_id, _ in subjects][int(s.strip()) - 1] for s in s_name.strip().split("/")], None, {})
+                school_framework.subjects.add(
+                    CombinedSubject(s_id, [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_name.strip().split("/")], None, {})
                     if "/" in s_name else
                     Subject(s_id, SubjectName(s_name.strip(), s_name.strip()), None, {})
                 )
         
-        l_subjects = [s for _, s in subjects]
+        l_subjects = [s for _, s in school_framework.subjects]
         
         teacher_subject_indices = {}
         for t_string in teachers_string.splitlines():
@@ -517,15 +535,15 @@ class SchoolFrameWork:
                 t_name, t_id = SchoolFrameWork.id_name_from_text(t_info)
                 
                 t_id = ID(t_id)
-                teachers.add(
-                        CombinedTeacher(t_id, [[t for _, t in teachers][int(s.strip()) - 1] for s in t_name.strip().split("/")])
+                school_framework.teachers.add(
+                        CombinedTeacher(t_id, [[t for _, t in school_framework.teachers][int(s.strip()) - 1] for s in t_name.strip().split("/")])
                         if "/" in t_name else
                         Teacher(t_id, TeacherName(t_name.strip(), None, None, t_name.strip()), {})
                     )
                 teacher_subject_indices[t_id] = tuple(int(v) - 1 for v in value.strip().split())
                 
                 for s_index in teacher_subject_indices[t_id]:
-                    teachers[t_id].subjects[l_subjects[s_index].id] = l_subjects[s_index]
+                    school_framework.teachers[t_id].subjects[l_subjects[s_index].id] = l_subjects[s_index]
         
         weekdays_data = []
         for dw_string in dotw_string.split("_"):
@@ -545,7 +563,7 @@ class SchoolFrameWork:
             weekdays_data.append(s_dotw_data)
         
         all_classes = []
-        l_teachers = [t for _, t in teachers]
+        l_teachers = [t for _, t in school_framework.teachers]
         for cls_lvl_index, cls_lvl_string in enumerate(classes_string.split("_")):
             cls_lvl_data = cls_lvl_string.splitlines()
             cls_lvl_info, cls_data = cls_lvl_data[0], cls_lvl_data[1:]
@@ -567,7 +585,7 @@ class SchoolFrameWork:
             
             lvl_id = ID(lvl_id)
             cls_lvl = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subject_occurence, weekdays_data[cls_lvl_index])
-            class_levels.add(cls_lvl)
+            school_framework.class_levels.add(cls_lvl)
             
             for c_string in cls_data:
                 c_string = c_string.strip()
@@ -577,14 +595,9 @@ class SchoolFrameWork:
                 
                 subject_mapping = {}
                 
-                cls_id = ID(cls_id)
+                cls_id = ID(cls_id.strip())
                 cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, school_framework)
                 all_classes.append(cls)
-                
-                school_framework.timetables_data[cls_id] = (
-                    {d: [FreePeriodFW() if i + 1 != b else BreakPeriodFW() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
-                    list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects]))
-                )
                 
                 for v in value.strip().split():
                     s_list = v.split("/")
@@ -620,8 +633,10 @@ class SchoolFrameWork:
                     subject.teacher = teacher
                     
                     subject_mapping[subject.id] = subject
+                
+                school_framework.class_levels.add_class(lvl_id, cls)
         
-        l_class_levels = [cl_id for cl_id, _ in class_levels]
+        l_class_levels = [cl_id for cl_id, _ in school_framework.class_levels]
         if timetable_string:
             for cls_i, ttbl_string in enumerate(timetable_string.split("_")):
                 cls = all_classes[cls_i]
@@ -655,6 +670,7 @@ class SchoolFrameWork:
 
 SCHOOL = SchoolFrameWork() ; SCHOOL._init()
 
+
 if __name__ == "__main__":
     def display_school(sch: SchoolFrameWork):
         for _, cls_lvl in sch.class_levels:
@@ -678,16 +694,17 @@ if __name__ == "__main__":
         data = file.read()
     
     sch = SchoolFrameWork.school_from_text(data)
+    print(2)
     
     print("Started Generating")
-    sch.generate_timetable()
+    sch.generate_timetables()
     print("Started Clash detection")
     print(sch.detect_clashes())
     print("Ended")
     print()
+    print(11)
     
     display_school(sch)
-
 
 
 

@@ -183,6 +183,7 @@ class ArrowWidget(QLabel):
 class MenuFrame(QFrame):
     def __init__(self):
         super().__init__()
+        
         self.setProperty("class", "Menu")
         self.setStyleSheet("QFrame.Menu { border: 1px solid "+ THEME_MANAGER.parse_stylesheet("{border2}") +"; }")
         self.setWindowFlags(Qt.WindowType.Popup)
@@ -499,6 +500,44 @@ class MainTitleBar(CustomTitleBar):
         self.center_widget.insertWidget(0, self.go_back_button)
         self.center_widget.insertWidget(1, self.go_forward_button)
 
+class WidgetDropdown(BaseWidget):
+    def __init__(self, title: str, widget: QWidget, parent=None):
+        super().__init__(parent)
+        
+        self.widget = widget
+        
+        self.setSpacing(0)
+        
+        self.setProperty("class", "Bordered")
+        self.setProperty("class", "DropdownCheckboxes")
+        
+        self.header = BaseWidget(QHBoxLayout)
+        self.header.setProperty("class", "DPC_Header")
+        self.header.setFixedHeight(50)
+        self.header.setContentsMargins(12, 0, 12, 0)
+        self.header.mousePressEvent = self.tdp_event_func
+        
+        self.toogle_icon = ArrowWidget(270)
+        self.toogle_icon.setProperty("class", "Arrow")
+        self.toogle_icon.mouseclicked.connect(self.toogle_widget)
+        self.toogle_icon.setContentsMargins(0, 0, 10, 0)
+        
+        self.title_label = QLabel(title)
+        
+        self.header.addWidget(self.toogle_icon)
+        self.header.addWidget(self.title_label)
+        self.header.addStretch()
+        
+        self.addWidget(self.header)
+        self.addWidget(self.widget) # type: ignore
+    
+    def tdp_event_func(self, a0: QMouseEvent | None):
+        if a0.button() == Qt.MouseButton.LeftButton: # type: ignore
+            self.toogle_widget()
+    
+    def toogle_widget(self):
+        self.toogle_icon.setAngle(0 if self.toogle_icon.angle != 0 else 270)
+        self.widget.setVisible(not self.widget.isVisible())
 
 class EditableCancelableEntry(BaseWidget):
     deleted = pyqtSignal()

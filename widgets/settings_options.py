@@ -123,7 +123,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             self.class_check_box_tracker["main_cb"][lvl_id] = check_box
             self.class_check_box_tracker["widget"][lvl_id], to_be_clicked = self.make_dp_widget(lvl_id, cls_lvl)
             
-            main_widget = _WidgetDropdown(cls_lvl.name.full(), self.class_check_box_tracker["widget"][lvl_id])
+            main_widget = WidgetDropdown(cls_lvl.name.full(), self.class_check_box_tracker["widget"][lvl_id])
             main_widget.header.addWidget(check_box)
             
             self.class_check_box_tracker["icon"][lvl_id] = main_widget.toogle_icon
@@ -252,7 +252,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
             
             self.subject_check_box_tracker[subject_id]["widget"] = self.make_subject_widget(subject)
             
-            main_widget = _WidgetDropdown(subject.name.full(), self.subject_check_box_tracker[subject_id]["widget"])
+            main_widget = WidgetDropdown(subject.name.full(), self.subject_check_box_tracker[subject_id]["widget"])
             
             self.subject_check_box_tracker[subject_id]["icon"] = main_widget.toogle_icon
             
@@ -344,7 +344,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 self.class_check_box_tracker[subject.id]["max_random"][cls.level.id] = max_random_text_input
                 self.class_check_box_tracker[subject.id]["widget"][cls.level.id], to_be_clicked = self.make_dp_widget(subject, cls.level)
                 
-                main_widget = _WidgetDropdown(cls.level.name.full(), self.class_check_box_tracker[subject.id]["widget"][cls.level.id])
+                main_widget = WidgetDropdown(cls.level.name.full(), self.class_check_box_tracker[subject.id]["widget"][cls.level.id])
                 main_widget.header.addWidget(max_random_text_input)
                 main_widget.header.addWidget(is_random_check_box)
                 main_widget.header.addWidget(select_all_check_box)
@@ -635,7 +635,8 @@ class ClassOptionsMaker(BaseSettingDialog):
             id = ID.generate_new()
             
             cls = Class(id, "", self.class_level, {}, SCHOOL)
-            self.class_level.classes[id] = cls
+            
+            SCHOOL.class_levels.add_class(self.id, cls)
         
         def update_option():
             self.class_level.classes[id].name = option.get_text()
@@ -645,7 +646,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         option.finished_editing_signal.connect(update_option)
         
         def remove_option():
-            self.class_level.classes[id].delete()
+            SCHOOL.class_levels.remove_class(self.id, id)
             
             self.main_area.removeWidget(option)
             
@@ -660,45 +661,6 @@ class ClassOptionsMaker(BaseSettingDialog):
             option.start_editing()
 
 
-
-class _WidgetDropdown(BaseWidget):
-    def __init__(self, title: str, widget: QWidget, parent=None):
-        super().__init__(parent)
-        
-        self.widget = widget
-        
-        self.setSpacing(0)
-        
-        self.setProperty("class", "Bordered")
-        self.setProperty("class", "DropdownCheckboxes")
-        
-        self.header = BaseWidget(QHBoxLayout)
-        self.header.setProperty("class", "DPC_Header")
-        self.header.setFixedHeight(50)
-        self.header.setContentsMargins(12, 0, 12, 0)
-        self.header.mousePressEvent = self.tdp_event_func
-        
-        self.toogle_icon = ArrowWidget(270)
-        self.toogle_icon.setProperty("class", "Arrow")
-        self.toogle_icon.mouseclicked.connect(self.toogle_widget)
-        self.toogle_icon.setContentsMargins(0, 0, 10, 0)
-        
-        title_label = QLabel(title)
-        
-        self.header.addWidget(self.toogle_icon)
-        self.header.addWidget(title_label)
-        self.header.addStretch()
-        
-        self.addWidget(self.header)
-        self.addWidget(self.widget) # type: ignore
-    
-    def tdp_event_func(self, a0: QMouseEvent | None):
-        if a0.button() == Qt.MouseButton.LeftButton: # type: ignore
-            self.toogle_widget()
-    
-    def toogle_widget(self):
-        self.toogle_icon.setAngle(0 if self.toogle_icon.angle != 0 else 270)
-        self.widget.setVisible(not self.widget.isVisible())
 
 class _SL_SelectedWidget(BaseWidget):
     def __init__(self, id: ID, text: str, host_container_layout: QVBoxLayout, on_add: Callable[[ID, ID], None], on_delete: Callable[[ID, ID], None]):
