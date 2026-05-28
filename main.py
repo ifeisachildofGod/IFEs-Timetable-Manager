@@ -99,8 +99,6 @@ class Window(QMainWindow):
             button.setCheckable(True)
             button.clicked.connect(self.make_option_button_func(button.text(), index))
             self.sub_sidebar_widget.addWidget(button)
-            
-            self.display_index = index
         
         self.sub_sidebar_widget.insertStretch(3)
         
@@ -475,23 +473,6 @@ class Window(QMainWindow):
         
         return menubar
     
-    def get_settings_info(self):
-        setting_widgets: dict[str, BaseSettingWidget] = {
-            "subjectsInfo": self.subjects_widget,
-            "teachersInfo": self.teachers_widget,
-            "classesInfo": self.classes_widget,
-            # "timetableInfo": self.timetable_widget
-        }
-        
-        return {
-            widget_name: {
-                "variables": widget.get(),
-                "constants": getattr(widget, "get_constants", lambda: {})()
-            }
-            for widget_name, widget in
-            setting_widgets.items()
-        }
-    
     def keyPressEvent(self, a0):
         if a0.key() == 16777220: # type: ignore
             focus_widget = self.focusWidget()
@@ -546,6 +527,8 @@ class Window(QMainWindow):
         
         if self.display_index != index:
             self.stack.setCurrentIndex(index)
+        
+        self.display_index = index
 
 
 

@@ -75,7 +75,7 @@ class Class:
     level: "ClassLevel"
     subjects: dict[ID, "Subject | CombinedSubject"]
     
-    locked_subjects: dict[ID, tuple[str, int]]
+    locked_subjects: dict[tuple[str, int], ID]
     
     school: Any
     

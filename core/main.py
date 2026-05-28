@@ -172,10 +172,28 @@ class SchoolFrameWork:
         self.gen_data.__dict__ = school.gen_data.__dict__
     
     def fresh_timetable(self, cls: Class):
-        self.timetables_data[cls.id] = (
-            {d: [FreePeriod() if i + 1 != b else BreakPeriod() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
-            list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
-        )
+        if cls.id not in self.timetables_data:
+            self.timetables_data[cls.id] = (
+                {d: [BreakPeriod() if i + 1 == b else FreePeriod() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
+                list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
+            )
+        else:
+            timetable, timetable_remains = self.timetables_data[cls.id]
+            
+            for d, (p, b) in cls.level.weekdays.items():
+                timetable[d].clear()
+                timetable[d].extend([BreakPeriod() if i + 1 == b else FreePeriod() for i in range(p)])
+            
+            timetable_remains.clear()
+            timetable_remains.extend(list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()])))
+        
+        
+        for (day, period), s_id in cls.locked_subjects.items():
+            subject = cls.subjects[s_id]
+            timetable, timetable_remains = self.timetables_data[cls.id]
+            
+            timetable[day][period - 1] = subject
+            timetable_remains.remove(subject)
     
     def generate_timetables(self, cls_ids: list[tuple[ID, ID]] | None = None):
         if not cls_ids:
@@ -189,15 +207,6 @@ class SchoolFrameWork:
             cls = self.class_levels[cls_lvl_id].classes[cls_id]
             
             timetable, timetable_remains = self.timetables_data[cls.id]
-            
-            for s_id, (day, period) in cls.locked_subjects.items():
-                subj = cls.subjects[s_id]
-                
-                assert timetable[day][period - 1].id in (FreePeriod.id, subj.id)
-                
-                if timetable[day][period - 1].id != subj.id:
-                    timetable[day][period - 1] = subj
-                    timetable_remains.remove(subj)
             
             assert timetable is not None
             assert timetable_remains is not None

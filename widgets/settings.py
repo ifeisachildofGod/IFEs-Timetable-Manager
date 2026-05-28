@@ -89,11 +89,19 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
 class SubjectsMainWidget(BaseSettingWidget):
     def __init__(self):
         super().__init__("Subject")
+        
+        for _, subject in SCHOOL.subjects:
+            self.add(subject)
+        
+        QTimer.singleShot(
+            150,
+            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
+        )
     
     def get_widget_type(self):
         return SubjectsSettingEntry
     
-    def add(self, entry = None, index = None):
+    def add(self, entry: Subject = None, index = None):
         new_entry = super().add(entry, index)
         
         if entry is None:
@@ -107,11 +115,19 @@ class SubjectsMainWidget(BaseSettingWidget):
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self):
         super().__init__("Teacher")
+        
+        for _, teacher in SCHOOL.teachers:
+            self.add(teacher)
+        
+        QTimer.singleShot(
+            150,
+            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
+        )
     
     def get_widget_type(self):
         return TeachersSettingEntry
     
-    def add(self, entry = None, index = None):
+    def add(self, entry: Teacher = None, index = None):
         new_entry = super().add(entry, index)
         
         if entry is None:
@@ -125,11 +141,19 @@ class TeachersMainWidget(BaseSettingWidget):
 class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self):
         super().__init__("Class")
+        
+        for _, class_level in SCHOOL.class_levels:
+            self.add(class_level)
+        
+        QTimer.singleShot(
+            150,
+            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
+        )
     
     def get_widget_type(self):
         return ClassLevelsSettingEntry
     
-    def add(self, entry = None, index = None):
+    def add(self, entry: ClassLevel = None, index = None):
         new_entry = super().add(entry, index)
         
         if entry is None:

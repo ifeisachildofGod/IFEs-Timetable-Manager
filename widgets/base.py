@@ -337,13 +337,13 @@ class BaseSettingEntry(BaseWidget):
         # ----------------------------------------------------------------------------------------
         menu_area = BaseWidget(QHBoxLayout)
         
-        options_button = QPushButton(":")
+        options_button = QPushButton("☰")
         
         dialog_buttons_widget = BaseWidget(QHBoxLayout)
         for button in self.get_dialog_buttons():
             dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        delete_button = QPushButton("x")
+        delete_button = QPushButton("×")
         delete_button.clicked.connect(lambda: self.i_parent.remove(self))
         
         menu_area.addWidget(options_button, alignment=Qt.AlignmentFlag.AlignLeft)
@@ -387,8 +387,6 @@ class BaseSettingEntry(BaseWidget):
         # ----------------------------------------------------------------------------------------
         
         status_widget = QStatusBar()
-        
-        status_widget.addWidget(QLabel("Test"))
         
         # ----------------------------------------------------------------------------------------
         
