@@ -1,7 +1,8 @@
 from imports import *
 
 
-EXTENSION_NAME = "ttbl"
+TABLE_EXTENSION_TYPE = "(*.ttbl)"
+TEMPLATE_EXTENSION_TYPE = "(*.template)"
 
 
 class Thread(QThread):
@@ -32,37 +33,38 @@ class Thread(QThread):
             self.exit(-1)
 
 class FileManager:
-    def __init__(self, parent: QWidget, path: Optional[str], file_filter="Text Files (*.txt);;All Files (*)"):
+    def __init__(self, parent: QWidget, path: Optional[str], file_filter: str):
         self.path = path
         self.parent = parent
         self.file_filter = file_filter
         self._from_save = False
         
         # Hooks: user-defined callbacks for file read/write
-        self.save_callback: Optional[Callable[[str | None], str]] = None
-        self.open_callback: Optional[Callable[[], None] | Callable[[str, Any], None]] = None
-        self.load_callback: Optional[Callable[[str], Any]] = None
+        self.save_callback: Optional[Callable[[str, str], str]] = None
+        self.open_callback: Optional[Callable[[str, str], None] | Callable[[str, Any], None]] = None
+        self.load_callback: Optional[Callable[[str, str], Any]] = None
 
-    def set_callbacks(self, save: Callable[[str | None], None], open_: Callable[[], None] | Callable[[str, Any], None], load: Callable[[str], Any], export: Callable[[str, int], None]):
+    def set_callbacks(self, save: Optional[Callable[[str, str], str]], open_: Optional[Callable[[str, str], None] | Callable[[str, Any], None]], load: Optional[Callable[[str, str], Any]], export: Callable[[str, int], None]):
         self.save_callback = save
         self.open_callback = open_
         self.load_callback = load
         self.export_callback = export
     
-    def get_data(self):
+    def get_data(self, file_type: str):
         if self.path:
-            return self.load_callback(self.path)
+            return self.load_callback(self.path, file_type)
     
     def new(self):
         if self.open_callback:
             self.open_callback()
     
     def open(self):
-        file_path, _ = QFileDialog.getOpenFileName(self.parent, "Open File", "", self.file_filter)
+        file_path, file_type = QFileDialog.getOpenFileName(self.parent, "Open File", "", self.file_filter)
+        
         if file_path:
             try:
                 if self.open_callback:
-                    self.open_callback(file_path)
+                    self.open_callback(file_path, file_type)
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
 
@@ -78,13 +80,13 @@ class FileManager:
             self.save_as()
 
     def save_as(self):
-        file_path, _ = QFileDialog.getSaveFileName(self.parent, ("Save File" if self._from_save else "Save File As"), "", self.file_filter)
+        file_path, file_type = QFileDialog.getSaveFileName(self.parent, ("Save File" if self._from_save else "Save File As"), "", self.file_filter)
         
         if file_path:
             try:
                 if self.save_callback:
                     self.path = file_path
-                    self.save_callback(self.path)
+                    self.save_callback(self.path, file_type)
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
         

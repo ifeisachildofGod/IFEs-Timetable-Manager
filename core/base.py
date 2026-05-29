@@ -30,19 +30,17 @@ class ID(str):
         return ID(id(tmp))
 
 
-class HooksManagerError(TypeError): pass
+class HooksManagerError(TypeError):
+    pass
 
 class Signal(Enum):
     SubjectAdd = "SubjectAdd"
-    TeacherAdd = "TeacherAdd"
     ClassLevelAdd = "ClassLevelAdd"
-    SW_Add = "SW_Add"
+    ClassAdd = "ClassRemove"
     
     SubjectRemove = "SubjectRemove"
-    TeacherRemove = "TeacherRemove"
     ClassLevelRemove = "ClassLevelRemove"
     ClassRemove = "ClassRemove"
-    SW_Remove = "SW_Remove"
     
     def __add__(self, other):
         return Signal(self.value + (other.value if isinstance(other, Signal) else str(other)), self.name + (other.name if isinstance(other, Signal) else str(other)))

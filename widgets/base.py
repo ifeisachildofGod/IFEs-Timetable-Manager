@@ -327,12 +327,14 @@ class BaseSettingDialog(BaseDialogWidget):
         return self.getWidget().getScrollWidget()
 
 class BaseSettingEntry(BaseWidget):
-    def __init__(self, i_parent: "BaseSettingWidget", simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]]], entry: Entry):
+    def __init__(self, i_parent: "BaseSettingWidget", simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]], entry: Entry):
         super().__init__()
         
-        self.i_parent = i_parent
         self.entry = entry
+        self.i_parent = i_parent
         self.option_dialogs = option_dialogs
+        
+        self.dialog_widget_funcs = []
         
         # ----------------------------------------------------------------------------------------
         menu_area = BaseWidget(QHBoxLayout)
@@ -395,18 +397,27 @@ class BaseSettingEntry(BaseWidget):
         self.addWidget(status_widget)
     
     def get_dialog_buttons(self):
-        for name, (title, cls) in self.option_dialogs.items():
+        for name, dialog_info in self.option_dialogs.items():
+            if len(dialog_info) == 2:
+                title, cls = dialog_info
+                variables = ()
+            elif len(dialog_info) == 3:
+                title, cls, variables = dialog_info
+            else:
+                raise TypeError(f"Expected dialog info of length 2 or 3 but got length: {len(dialog_info)}")
+            
             button = QPushButton(name)
-            button.clicked.connect(self.make_open_dialogs_func(title, cls))
+            button.clicked.connect(self.make_open_dialogs_func(title, cls, *variables))
             
             yield button
     
-    def make_open_dialogs_func(self, title, cls: type[BaseSettingDialog]):
-        def open_dialog():
-            dialog_obj = cls(self.entry.id, title)
-            dialog_obj.exec()
+    def make_open_dialogs_func(self, title, cls: type[BaseSettingDialog], *args):
+        def make_dialog():
+            return cls(self.i_parent, self.entry.id, title, *args)
         
-        return open_dialog
+        self.dialog_widget_funcs.append(make_dialog)
+        
+        return lambda: make_dialog().exec()
     
     def get_init_text(self):
         raise NotImplementedError()
@@ -433,9 +444,13 @@ class BaseSettingWidget(BaseWidget):
     def get_widget_type(self) -> type[BaseSettingEntry]:
         raise NotImplementedError()
     
-    def go_to(self, widget: BaseSettingEntry):
-        self.scroll_area.verticalScrollBar().setValue(widget.y())
+    def go_to(self, widget_entry: Entry):
+        widget: BaseSettingEntry = next(w for w in self.scroll_widget.getChildren() if w.entry.id == widget_entry.id)
+        
+        self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
         widget.setFocus()
+        
+        return widget
     
     def keyPressEvent(self, a0):
         if a0.key() == Qt.Key.Key_Enter:
@@ -447,7 +462,15 @@ class BaseSettingWidget(BaseWidget):
         return super().keyPressEvent(a0)
     
     def add(self, entry: Optional[Entry] = None, index: Optional[int] = None):
-        widget = self.get_widget_type()(self, entry)
+        widget_data = self.get_widget_type()
+        
+        if isinstance(widget_data, tuple):
+            widget_type, variables = widget_data
+        else:
+            widget_type = widget_data
+            variables = []
+        
+        widget = widget_type(self, entry, *variables)
         
         if index is None:
             self.scroll_widget.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)

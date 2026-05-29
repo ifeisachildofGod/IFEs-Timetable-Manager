@@ -80,10 +80,10 @@ class Class:
     school: Any
     
     def delete(self):
-        self.level.classes.pop(id)
+        self.level.classes.pop(self.id)
         
         for s_id in self.subjects:
-            self.school.subjects[s_id].classes.pop(id)
+            self.school.subjects[s_id].classes.pop(self.id)
 class ClassLevelName(str):
     def __init__(self, *args):
         super().__init__()

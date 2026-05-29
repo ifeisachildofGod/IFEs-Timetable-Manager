@@ -1,8 +1,9 @@
 
 from imports import *
 
-from widgets.user_interface import *
 from utils import Thread
+
+from widgets.user_interface import *
 
 
 class _TimeTableItem(QTableWidgetItem):
@@ -534,14 +535,6 @@ class SchoolTimetableEditor(BaseWidget):
     def __init__(self):
         super().__init__()
         
-        progress_bar_widget = BaseWidget()
-        
-        progress_label = QLabel("Generating...")
-        progress_label.setStyleSheet("font-weight: bold;")
-        
-        progress_bar_widget.addWidget(progress_label)
-        progress_bar_widget.addStretch()
-        
         self._leave_updated = True
         
         self.remainder_source_ref: _TimeTableItem = None
@@ -559,19 +552,12 @@ class SchoolTimetableEditor(BaseWidget):
         # Create timetable for each class
         self.label_data: dict[ID, QLabel] = {}
         self.timetable_widgets: dict[ID, dict[ID, ClassTimetable]] = {}
-        self.classes_widget: dict[ID, tuple[BaseWidget, dict[str, BaseWidget]]] = {}
-        
-        for _, cls_level in SCHOOL.class_levels:
-            self.add_timetable_level(cls_level)
-            
-            for cls in cls_level.classes.values():
-                self.add_timetable_class(cls)
+        self.classes_widget: dict[ID, tuple[WidgetDropdown, BaseWidget, dict[str, BaseWidget]]] = {}
         
         # Create settings for timetables
         self.settings_widget = TimetableSettings(self)
         
         self.addWidget(self.settings_widget)
-        self.addWidget(progress_bar_widget)
         self.addWidget(self.scroll_area)
     
     def make_ds_func(self, label: _ExtrasDraggableSubjectLabel):
@@ -681,7 +667,7 @@ class SchoolTimetableEditor(BaseWidget):
         level_widget.toogle_widget()
         self.label_data[cls_level.id] = level_widget.title_label
         
-        self.classes_widget[cls_level.id] = body_widget, {}
+        self.classes_widget[cls_level.id] = level_widget, body_widget, {}
         
         toogle_button = QPushButton("☰")
         toogle_button.setProperty("class", "Timetable_DP_OptionText")
@@ -697,7 +683,7 @@ class SchoolTimetableEditor(BaseWidget):
         level_widget.header.addWidget(toogle_button)
         
         self.scroll_area.insertWidget(len(self.scroll_area.getChildren()) - 1, level_widget)
-        
+    
     def add_timetable_class(self, cls: Class):
         def generate_individual_taimetable():
             response = QMessageBox.warning(
@@ -756,20 +742,20 @@ class SchoolTimetableEditor(BaseWidget):
         widget.addWidget(class_header)
         widget.addWidget(class_widget)
         
-        self.classes_widget[cls.level.id][0].addWidget(widget)
-        self.classes_widget[cls.level.id][1][cls.id] = widget
+        self.classes_widget[cls.level.id][1].addWidget(widget)
+        self.classes_widget[cls.level.id][2][cls.id] = widget
     
-    def delete_timetable_level(self, cls_level: ClassLevel):
-        self.classes_widget[cls_level.id][0].delete()
+    def delete_timetable_level(self, cls_level_id: ID):
+        self.classes_widget[cls_level_id][0].delete()
         
-        self.classes_widget.pop(cls_level.id)
-        self.timetable_widgets.pop(cls_level.id)
+        self.classes_widget.pop(cls_level_id)
+        self.timetable_widgets.pop(cls_level_id)
     
     def delete_timetable_class(self, cls: Class):
-        self.classes_widget[cls.level.id][1][cls.id].delete()
+        self.classes_widget[cls.level.id][2][cls.id].delete()
         
         self.timetable_widgets[cls.level.id].pop(cls.id)
-        self.classes_widget[cls.level.id][1].pop(cls.id)
+        self.classes_widget[cls.level.id][2].pop(cls.id)
     
     def set_label_text(self, id: ID, name: str | ClassLevelName):
         self.label_data[id].setText(name if isinstance(name, str) else f"<span style='font-size: 60px'>{name.full()}</span>")

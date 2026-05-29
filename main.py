@@ -9,18 +9,37 @@ from widgets.user_interface import MainTitleBar
 
 
 class Window(QMainWindow):
-    saved_state_changed = pyqtSignal()
-    
     def __init__(self, arguments: list[str]):
         super().__init__()
         
-        path = len(arguments) > 1 and arguments[1] or None
+        self.flag_mapping = {
+            "-ft": self._set_file_type,
+            "-ftype": self._set_file_type,
+            
+            "--arg--": self._file_init
+        }
+        
+        self._open_file_type = None
+        self._default_file_path = None
+        self.arguments = arguments
+        
+        i = 0
+        for arg in self.arguments:
+            arg = arg.strip()
+            
+            if "=" in arg:
+                n, v = arg.split("=")
+                
+                self.flag_mapping[n](v)
+            elif arg.startswith("--") and not arg.endswith("--"):
+                self.flag_mapping[arg[2:]]()
+            else:
+                self.flag_mapping["--arg--"](i, arg)
+                
+                i += 1
         
         self.title = "IFEs Timetable Generator"
         self.export_file_filter = "JSON File (*.json);;Image File (*.png *.jpg *.wpeg *.svg);;Microsoft Document (*.msix);;Pickle File (*.pickle);;CSV File (*.csv);;HTML File (*.html);;PDF File (*.pdf)"
-        
-        self.file = FileManager(self, path, f"Timetable Files (*.{EXTENSION_NAME})")
-        self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback, None)  #, self.export_callback)
         
         # Default data
         self.default_period_amt   =   10  # Being used by the timetable editor
@@ -49,10 +68,10 @@ class Window(QMainWindow):
         menu_bar = self.create_menu_bar()
         
         # Make settings widgets
+        self.timetable_widget = SchoolTimetableEditor()
         self.subjects_widget = SubjectsMainWidget()
         self.teachers_widget = TeachersMainWidget()
-        self.classes_widget = ClassLevelsMainWidget()
-        self.timetable_widget = SchoolTimetableEditor()
+        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget)
         
         # Create viewing container
         main_container = BaseWidget()
@@ -118,9 +137,16 @@ class Window(QMainWindow):
         
         self.go_forward_action.setDisabled(True)
         self.title_bar.go_forward_button.setDisabled(True)
-        
-        if path is not None:
-            self.saved_callback()
+    
+    def _file_init(self, index: int, arg: str):
+        if index == 0:
+            self.file = FileManager(self, None, f"Timetable Files {TABLE_EXTENSION_TYPE};;Template Files {TEMPLATE_EXTENSION_TYPE}")
+            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback, None)  #, self.export_callback)
+        elif index == 1:
+            self.file.path = arg
+    
+    def _set_file_type(self, arg: str):
+        self._open_file_type = arg
     
     def _goto_search(self, sw: QWidget):
         current_display_widget = self.stack.currentWidget()
@@ -150,7 +176,7 @@ class Window(QMainWindow):
         self.saved = True
         
         if self.file.path is not None:
-            school = self.file.get_data()
+            school = self.file.get_data(self._open_file_type)
             SCHOOL.set(school)
             
             self.saved_callback()
@@ -171,25 +197,37 @@ class Window(QMainWindow):
         self.saved = True
         self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
     
-    def load_callback(self, path: str):
-        with open(path, "rb") as file:
-            data = pickle.load(file)
+    def load_callback(self, path: str, file_type: str):
+        if file_type == TABLE_EXTENSION_TYPE:
+            with open(path, "rb") as file:
+                data = pickle.load(file)
+        elif file_type == TEMPLATE_EXTENSION_TYPE:
+            with open(path, "r") as file:
+                data = SCHOOL.from_template(file.read())
+        else:
+            raise TypeError(f"Unsupported file type: {file_type}")
         
         return data
     
-    def open_callback(self, path: str| None = None):
-        win = Window(["main.py", path] if path is not None else [])
+    def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
+        win = Window(["main.py", path, f'-ft={file_type}'] if None not in (path, file_type) else [])
         win.showMaximized()
         
         if not hasattr(self, '_windows'):
             self._windows = []
         self._windows.append(win)
     
-    def save_callback(self, path: str):
+    def save_callback(self, path: str, file_type: Optional[str] = None):
         self.file.path = path
         
-        with open(self.file.path, "wb") as file:
-            pickle.dump(file, SCHOOL)
+        if file_type == TABLE_EXTENSION_TYPE:
+            with open(self.file.path, "wb") as file:
+                pickle.dump(SCHOOL, file)
+        elif file_type == TEMPLATE_EXTENSION_TYPE:
+            with open(self.file.path, "w") as file:
+                file.write(SCHOOL.template())
+        else:
+            raise TypeError(f"Unsupported file type: {file_type}")
         
         self.saved_callback()
     
@@ -529,7 +567,6 @@ class Window(QMainWindow):
             self.stack.setCurrentIndex(index)
         
         self.display_index = index
-
 
 
 if __name__ == "__main__":

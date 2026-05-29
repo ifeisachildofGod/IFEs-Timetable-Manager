@@ -240,11 +240,19 @@ STYLESHEET = '''
     QLabel:disabled {{
         color: {disabled__text};
     }}
+    QLabel.Link {{
+        color: {fg1};
+        font-weight: bold;
+        text-decoration: underline;
+    }}
+    QLabel.Link:hover {{
+        color: {hover__fg1};
+    }}
     
     
     QLineEdit, QTextEdit, QPlainTextEdit {{
-        background-color: {bg4};
         color: {text};
+        background-color: {bg4};
         border: 1px solid {border1};
         border-radius: 5px;
         padding: 5px;

@@ -65,24 +65,30 @@ class TeachersSettingEntry(BaseSettingEntry):
                 self.entry.name.abbrev = text
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel] = None):
+    def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor):
         entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, deepcopy(SCHOOL.settings.TIMETABLE_weekdays))
+        
+        self.entry = entry
+        self.timetable_editor = timetable_editor
+        self.timetable_editor.add_timetable_level(self.entry)
         
         super().__init__(
             parent,
             "Enter Class Level Name",
             None,
-            {"Sub Classes": ("Make and Edit Classes", ClassOptionsMaker), "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor)},
-            entry
+            {
+                "Sub Classes": ("Make and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),
+                "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor)
+            },
+            self.entry
         )
-        
-        self.entry = entry
     
     def get_init_text(self):
         return self.entry.name, None
     
     def simple_name_changed(self, text):
         self.entry.name = ClassLevelName(text)
+        self.timetable_editor.set_label_text(self.entry.id, text)
 
 
 
@@ -139,8 +145,10 @@ class TeachersMainWidget(BaseSettingWidget):
         SCHOOL.teachers.remove(id)
 
 class ClassLevelsMainWidget(BaseSettingWidget):
-    def __init__(self):
+    def __init__(self, timetable_editor: SchoolTimetableEditor):
         super().__init__("Class")
+        
+        self.timetable_editor = timetable_editor
         
         for _, class_level in SCHOOL.class_levels:
             self.add(class_level)
@@ -151,17 +159,21 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         )
     
     def get_widget_type(self):
-        return ClassLevelsSettingEntry
+        return ClassLevelsSettingEntry, (self.timetable_editor, )
     
     def add(self, entry: ClassLevel = None, index = None):
-        new_entry = super().add(entry, index)
+        new_entry: ClassLevel = super().add(entry, index)
         
         if entry is None:
             SCHOOL.class_levels.add(new_entry)
+        
+        for cls in new_entry.classes.values():
+            self.timetable_editor.add_timetable_class(cls)
     
     def remove(self, widget):
         id = super().remove(widget)
         
         SCHOOL.class_levels.remove(id)
+        self.timetable_editor.delete_timetable_level(id)
 
 

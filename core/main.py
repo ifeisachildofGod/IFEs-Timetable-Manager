@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from matplotlib.cbook import flatten
 from typing import Generator, Optional
 
-from core.base import ID
+from core.base import *
 from core.settings import *
 from core.timetable import *
 
@@ -106,7 +106,7 @@ class GlobalClassLevels(Global):
         self.school.fresh_timetable(cls)
     
     def remove_class(self, id: ID, cls_id: Class):
-        self.data[id].classes[cls_id].delete()
+        self[id].classes[cls_id].delete()
         
         self.school.timetables_data.pop(cls_id)
 
@@ -521,7 +521,7 @@ class SchoolFrameWork:
         return text[:sep_index].strip(), text[sep_index + 1:].strip()
     
     @staticmethod
-    def school_from_text(text: str):
+    def from_template(text: str):
         text = "\n".join(["".join(list(line)[:line.find("#")] if "#" in line else list(line)) for line in text.splitlines()])
         
         subjects = GlobalSubjects()
@@ -531,12 +531,12 @@ class SchoolFrameWork:
         school_framework = SchoolFrameWork(subjects, teachers, class_levels) ; school_framework._init()
         school_framework.subjects.set_school(school_framework) ; school_framework.teachers.set_school(school_framework) ; school_framework.class_levels.set_school(school_framework)
         
-        subjects_string, teachers_string, classes_string, timetable_string, dotw_string = text.split("---")
+        subjects_string, teachers_string, classes_string, dotw_string = text.split("---") #, timetable_string = text.split("---")
         
         subjects_string = subjects_string.strip()
         teachers_string = teachers_string.strip()
         classes_string = classes_string.strip()
-        timetable_string = timetable_string.strip()
+        # timetable_string = timetable_string.strip()
         dotw_string = dotw_string.strip()
         
         for s_index, s_info in enumerate(subjects_string.splitlines()):
@@ -544,7 +544,6 @@ class SchoolFrameWork:
                 s_name, s_id = SchoolFrameWork.id_name_from_text(s_info)
                 
                 s_id = ID(s_id)
-                
                 if "/" in s_name:
                     if s_name.count("(") == 1 and s_name.count(")") == 1:
                         n, s_str = SchoolFrameWork.id_name_from_text(s_name)
@@ -557,9 +556,12 @@ class SchoolFrameWork:
                     
                     subject = CombinedSubject(s_id, s_name, subjs, None, {})
                 else:
-                    s_name = SubjectName(s_name.strip(), s_name.strip())
+                    if "â–" in s_name:
+                        names = [n.strip() for n in s_name.split("â–")]
+                    else:
+                        names = [s_name, s_name]
                     
-                    subject = Subject(s_id, s_name, None, {})
+                    subject = Subject(s_id, SubjectName(*names), None, {})
                 
                 school_framework.subjects.add(subject)
         
@@ -574,11 +576,18 @@ class SchoolFrameWork:
                 t_name, t_id = SchoolFrameWork.id_name_from_text(t_info)
                 
                 t_id = ID(t_id)
-                school_framework.teachers.add(
-                        CombinedTeacher(t_id, [[t for _, t in school_framework.teachers][int(s.strip()) - 1] for s in t_name.strip().split("/")])
-                        if "/" in t_name else
-                        Teacher(t_id, TeacherName(t_name.strip(), None, None, t_name.strip()), {})
-                    )
+                t_name = t_name.strip()
+                if "/" in t_name:
+                    teacher = CombinedTeacher(t_id, [[t for _, t in school_framework.teachers][int(s.strip()) - 1] for s in t_name.split("/")])
+                else:
+                    if "■" in t_name:
+                        names = [n.strip() if n.strip() else None for n in t_name.split("■")]
+                    else:
+                        names = [t_name, None, None, t_name]
+                    
+                    teacher = Teacher(t_id, TeacherName(*names), {})
+                
+                school_framework.teachers.add(teacher)
                 teacher_subject_indices[t_id] = tuple(int(v) - 1 for v in value.strip().split())
                 
                 for s_index in teacher_subject_indices[t_id]:
@@ -675,42 +684,92 @@ class SchoolFrameWork:
                 
                 school_framework.class_levels.add_class(lvl_id, cls)
         
-        l_class_levels = [cl_id for cl_id, _ in school_framework.class_levels]
-        if timetable_string:
-            for cls_i, ttbl_string in enumerate(timetable_string.split("_")):
-                cls = all_classes[cls_i]
-                l_weekdays = list(weekdays_data[l_class_levels.index(cls.level.id)])
+        # l_class_levels = [cl_id for cl_id, _ in school_framework.class_levels]
+        # if timetable_string:
+        #     for cls_i, ttbl_string in enumerate(timetable_string.split("_")):
+        #         cls = all_classes[cls_i]
+        #         l_weekdays = list(weekdays_data[l_class_levels.index(cls.level.id)])
                 
-                ttbl_string = ttbl_string.strip()
+        #         ttbl_string = ttbl_string.strip()
                 
-                if ttbl_string:
-                    timetable, _ = school_framework.timetables_data[cls.id] = {}, []
+        #         if ttbl_string:
+        #             timetable, _ = school_framework.timetables_data[cls.id] = {}, []
                     
-                    for s_ttbl_i, s_ttbl_string in enumerate(ttbl_string.strip().split(";")):
-                        s_ttbl_string = s_ttbl_string.strip()
+        #             for s_ttbl_i, s_ttbl_string in enumerate(ttbl_string.strip().split(";")):
+        #                 s_ttbl_string = s_ttbl_string.strip()
                         
-                        if s_ttbl_string:
-                            timetable[l_weekdays[s_ttbl_i]] = [
-                                (
-                                    FreePeriod()
-                                    if int(s.strip()) == 0 else
-                                    (
-                                        BreakPeriod()
-                                        if int(s.strip()) == -1 else
-                                        list(cls.subjects.values())[int(s.strip()) - 1]
-                                    )
-                                )
-                                for s in
-                                s_ttbl_string.split()
-                            ]
+        #                 if s_ttbl_string:
+        #                     timetable[l_weekdays[s_ttbl_i]] = [
+        #                         (
+        #                             FreePeriod()
+        #                             if int(s.strip()) == 0 else
+        #                             (
+        #                                 BreakPeriod()
+        #                                 if int(s.strip()) == -1 else
+        #                                 list(cls.subjects.values())[int(s.strip()) - 1]
+        #                             )
+        #                         )
+        #                         for s in
+        #                         s_ttbl_string.split()
+        #                     ]
         
         return school_framework
+    
+    def template(self):
+        text = ""
+        
+        l_subjects = list(s_id for s_id, _ in self.subjects)
+        for s_id, s in self.subjects:
+            if isinstance(s, Subject):
+                name = s.name.full() if s.name.full() == s.name.short() else f"{s.name.full()} ■ {s.name.short()}"
+            else:
+                name = "/".join([l_subjects.index(s.id) + 1 for s in s.subjects.values()])
+                
+                if s.name is not None:
+                    name = f"({s.name.full()} - {name})"
+            
+            text += f"({name} - {s_id})" + "\n"
+        
+        text += "---\n"
+        
+        s_t_index_mapping = {}
+        l_teachers = list(t_id for t_id, _ in self.teachers)
+        for t_id, t in self.teachers:
+            s_t_index_mapping[t_id] = [l_subjects.index(t_s_id) + 1 for t_s_id in t.subjects]
+            
+            name = t.name.full() if t.name.full() == t.name.short() else f"{t.name.start} ■ {t.name.first if t.name.first else ""} ■ {t.name.other if t.name.other else ""} ■ {t.name.abbrev}"
+            subject_indexes = " ".join([str(i) for i in s_t_index_mapping[t_id]])
+            
+            text += f"({name} - {t_id}): {subject_indexes}\n"
+        
+        text += "---\n"
+        
+        weekdays = ""
+        for ci, (cl_id, cl) in enumerate(self.class_levels):
+            weekdays += "\n".join([f"{d}: {p} {b}" for d, (p, b) in cl.weekdays.items()])
+            
+            subjects_occurence = " ".join([f"{l_subjects.index(cl_s_id) + 1}/{cl_so.day_max}/{cl_so.week_max}" for cl_s_id, cl_so in cl.subjects_occurence.items()])
+            
+            text += f"({cl.name.full()} - {cl_id}) ; {subjects_occurence}\n"
+            
+            for c_id, c in cl.classes.items():
+                t_s_mapping = " ".join([f"{l_teachers.index(c_s.teacher.id) + 1}/{s_t_index_mapping[c_s.teacher.id].index(l_subjects.index(c_s_id) + 1) + 1}" for c_s_id, c_s in c.subjects.items()])
+                
+                text += f"({c.name} - {c_id}): {t_s_mapping}\n"
+            
+            if ci < len(self.class_levels) - 1:
+                text += "_"
+                weekdays += "_"
+        
+        text += "---\n"
+        
+        text += weekdays
+        
+        return text
 
 
-with open(r"test_files\test-frmwk.txt") as file:
-    data = file.read()
-
-SCHOOL = SchoolFrameWork.school_from_text(data)
+SCHOOL = SchoolFrameWork()
+SCHOOL._init()
 
 
 if __name__ == "__main__":
@@ -732,10 +791,10 @@ if __name__ == "__main__":
                     print()
                 print()
     
-    with open(r"test_files\test-frmwk.txt") as file:
+    with open(r"test_files\test-frmwk.template") as file:
         data = file.read()
     
-    sch = SchoolFrameWork.school_from_text(data)
+    sch = SchoolFrameWork.from_template(data)
     print(2)
     
     print("Started Generating")
