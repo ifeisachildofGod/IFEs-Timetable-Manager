@@ -44,6 +44,7 @@ class Global:
     def __getitem__(self, key: ID):
         return self.data.__getitem__(key)
 
+
 class GlobalSubjects(Global):
     def __iter__(self) -> Generator[tuple[ID, Subject | CombinedSubject], None, None]:
         return super().__iter__()
@@ -53,17 +54,6 @@ class GlobalSubjects(Global):
     
     def add(self, entry: Subject | CombinedSubject):
         return super().add(entry)
-    
-    def remove(self, id: ID):
-        for _, cls_lvl in self.school.class_levels:
-            if id in cls_lvl.subjects_occurence:
-                cls_lvl.subjects_occurence.pop(id)
-        
-        for _, teacher in self.school.teachers:
-            if id in teacher.subjects:
-                teacher.subjects.pop(id)
-        
-        return super().remove(id)
 
 class GlobalTeachers(Global):
     def __iter__(self) -> Generator[tuple[ID, Teacher | CombinedTeacher], None, None]:
@@ -87,19 +77,6 @@ class GlobalClassLevels(Global):
         
         return super().add(entry)
     
-    def remove(self, id: ID):
-        self.school.settings.TEACHER_rsma_mapping.pop(id)
-        
-        for _, subject in self.school.subjects:
-            for cls in subject.classes.copy().values():
-                if id == cls.level.id:
-                    subject.classes.pop(cls.id)
-        
-        for cls_id in self[id].classes:
-            self.school.timetables_data.pop(cls_id)
-        
-        return super().remove(id)
-    
     def add_class(self, id: ID, cls: Class):
         self.data[id].classes[cls.id] = cls
         
@@ -109,6 +86,7 @@ class GlobalClassLevels(Global):
         self[id].classes[cls_id].delete()
         
         self.school.timetables_data.pop(cls_id)
+
 
 @dataclass
 class Settings:
@@ -268,6 +246,18 @@ class SchoolFrameWork:
             
             timetable_remains.clear()
             timetable_remains.extend(list(flatten([[self.subjects[s_id] for _ in range(amt)] for s_id, amt in week_amt_data.items()])))
+    
+    def remove_subject(self, cls: Class, subject_id: ID):
+        subject = cls.subjects.pop(subject_id)
+        
+        timetable, timetable_remains = SCHOOL.timetables_data[cls.id]
+        
+        for _ in range(timetable_remains.count(subject)):
+            timetable_remains.remove(subject)
+        
+        for periods in timetable.values():
+            for _ in range(periods.count(subject)):
+                periods.remove(subject)
     
     def detect_clashes(self):
         """

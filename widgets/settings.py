@@ -18,6 +18,20 @@ class SubjectsSettingEntry(BaseSettingEntry):
         
         self.entry = entry
     
+    def remove(self):
+        for cls in self.entry.classes.values():
+            if self.entry.id in cls.level.subjects_occurence:
+                cls.level.subjects_occurence.pop(self.entry.id)
+            
+            if self.entry.id in cls.subjects:
+                SCHOOL.remove_subject(cls, self.entry.id)
+        
+        for _, teacher in SCHOOL.teachers:
+            if self.entry.id in teacher.subjects:
+                teacher.subjects.pop(self.entry.id)
+        
+        return super().remove()
+    
     def get_init_text(self):
         return self.entry.name.full_name, (self.entry.name.full_name, self.entry.name.abbrev)
     
@@ -45,6 +59,14 @@ class TeachersSettingEntry(BaseSettingEntry):
         )
         
         self.entry = entry
+    
+    def remove(self):
+        for subject_id, subject in self.entry.subjects.items():
+            for cls_id, cls in subject.classes.items():
+                if self.entry.id == cls.subjects[subject_id].teacher.id:
+                    SCHOOL.remove_subject(cls, subject_id)
+        
+        return super().remove()
     
     def get_init_text(self):
         return self.entry.name.start, (self.entry.name.start, self.entry.name.first, self.entry.name.other, self.entry.name.abbrev)
@@ -78,10 +100,20 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
             None,
             {
                 "Sub Classes": ("Make and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),
-                "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor)
+                "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor, (self.timetable_editor, ))
             },
             self.entry
         )
+    
+    def remove(self):
+        self.timetable_editor.delete_timetable_level(self.entry.id)
+        
+        SCHOOL.settings.TEACHER_rsma_mapping.pop(self.entry.id)
+        
+        for cls_id in self.entry.classes.copy():
+            SCHOOL.class_levels.remove_class(self.entry.id, cls_id)
+        
+        return super().remove()
     
     def get_init_text(self):
         return self.entry.name, None
@@ -95,14 +127,9 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
 class SubjectsMainWidget(BaseSettingWidget):
     def __init__(self):
         super().__init__("Subject")
-        
-        for _, subject in SCHOOL.subjects:
-            self.add(subject)
-        
-        QTimer.singleShot(
-            150,
-            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
-        )
+    
+    def get_global(self):
+        return SCHOOL.subjects
     
     def get_widget_type(self):
         return SubjectsSettingEntry
@@ -112,23 +139,13 @@ class SubjectsMainWidget(BaseSettingWidget):
         
         if entry is None:
             SCHOOL.subjects.add(new_entry)
-    
-    def remove(self, widget):
-        id = super().remove(widget)
-        
-        SCHOOL.subjects.remove(id)
 
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self):
         super().__init__("Teacher")
-        
-        for _, teacher in SCHOOL.teachers:
-            self.add(teacher)
-        
-        QTimer.singleShot(
-            150,
-            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
-        )
+    
+    def get_global(self):
+        return SCHOOL.teachers
     
     def get_widget_type(self):
         return TeachersSettingEntry
@@ -138,25 +155,15 @@ class TeachersMainWidget(BaseSettingWidget):
         
         if entry is None:
             SCHOOL.teachers.add(new_entry)
-    
-    def remove(self, widget):
-        id = super().remove(widget)
-        
-        SCHOOL.teachers.remove(id)
 
 class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor):
-        super().__init__("Class")
-        
         self.timetable_editor = timetable_editor
         
-        for _, class_level in SCHOOL.class_levels:
-            self.add(class_level)
-        
-        QTimer.singleShot(
-            150,
-            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
-        )
+        super().__init__("Class")
+    
+    def get_global(self):
+        return SCHOOL.class_levels
     
     def get_widget_type(self):
         return ClassLevelsSettingEntry, (self.timetable_editor, )
@@ -169,11 +176,6 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         
         for cls in new_entry.classes.values():
             self.timetable_editor.add_timetable_class(cls)
-    
-    def remove(self, widget):
-        id = super().remove(widget)
-        
-        SCHOOL.class_levels.remove(id)
-        self.timetable_editor.delete_timetable_level(id)
+
 
 

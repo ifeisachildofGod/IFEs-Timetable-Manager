@@ -346,7 +346,7 @@ class BaseSettingEntry(BaseWidget):
             dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         
         delete_button = QPushButton("×")
-        delete_button.clicked.connect(lambda: self.i_parent.remove(self))
+        delete_button.clicked.connect(self.remove)
         
         menu_area.addWidget(options_button, alignment=Qt.AlignmentFlag.AlignLeft)
         menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -396,6 +396,9 @@ class BaseSettingEntry(BaseWidget):
         self.addWidget(edits_area)
         self.addWidget(status_widget)
     
+    def remove(self):
+        self.i_parent.remove(self)
+    
     def get_dialog_buttons(self):
         for name, dialog_info in self.option_dialogs.items():
             if len(dialog_info) == 2:
@@ -440,6 +443,17 @@ class BaseSettingWidget(BaseWidget):
         
         self.addWidget(self.scroll_widget)
         self.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        for _, entry in self.get_global():
+            self.add(entry)
+        
+        QTimer.singleShot(
+            150,
+            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
+        )
+    
+    def get_global(self) -> Global:
+        raise NotImplementedError()
     
     def get_widget_type(self) -> type[BaseSettingEntry]:
         raise NotImplementedError()
@@ -486,6 +500,7 @@ class BaseSettingWidget(BaseWidget):
     
     def remove(self, widget: BaseSettingEntry):
         widget.delete()
+        self.get_global().remove(widget.entry.id)
         
         return widget.entry.id
 

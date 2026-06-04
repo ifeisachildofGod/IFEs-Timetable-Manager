@@ -79,6 +79,13 @@ class Class:
     
     school: Any
     
+    def delete_subject(self, id: ID):
+        self.subjects.pop(id)
+        
+        for v, s_id in self.locked_subjects.copy().items():
+            if s_id == id:
+                self.locked_subjects.pop(v)
+    
     def delete(self):
         self.level.classes.pop(self.id)
         
@@ -101,5 +108,11 @@ class ClassLevel(Entry):
     subjects_occurence: dict[ID, SubjectOccurrance]
     
     weekdays: dict[str, tuple[int, int]]
+    
+    def delete_subject(self, id: ID, teacher_id: Optional[ID] = None):
+        for cls in self.classes.values():
+            if id in cls.subjects:
+                if (cls.subjects[id].teacher.id == teacher_id if teacher_id is not None else True):
+                    cls.delete_subject(id)
 
 

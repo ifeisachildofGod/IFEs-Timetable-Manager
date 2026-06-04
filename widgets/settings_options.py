@@ -56,6 +56,9 @@ class SubjectSelectionList(BaseSelectionList):
     
     def item_removed(self, id: ID):
         SCHOOL.teachers[id].subjects.pop(self.id)
+        
+        for _, cl in SCHOOL.class_levels:
+            cl.delete_subject(self.id, id)
     
     def item_selected(self, id: ID):
         SCHOOL.teachers[id].subjects[self.id] = self.subject
@@ -68,6 +71,9 @@ class TeacherSelectionList(BaseSelectionList):
     
     def item_removed(self, id: ID):
         self.teacher.subjects.pop(id)
+        
+        for _, cl in SCHOOL.class_levels:
+            cl.delete_subject(id, self.id)
     
     def item_selected(self, id: ID):
         self.teacher.subjects[id] = SCHOOL.subjects[id]
@@ -523,10 +529,11 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         return checkbox_func
 
 class OccuranceEditor(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
         super().__init__(title)
         
         self.id = id
+        self.timetable_editor = timetable_editor
         self.class_level = SCHOOL.class_levels[self.id]
         
         self.setFixedSize(600, 400)
@@ -629,6 +636,40 @@ class OccuranceEditor(BaseSettingDialog):
                 per_week_edit.max_num = self.class_level.subjects_occurence[subject.id].week_max + min_rem
             
             self.number_edits[subject.id][0].max_num = number
+            self.class_level.subjects_occurence[subject.id].week_max = number
+            
+            if diff > 0:
+                for cls_ttbl in self.timetable_editor.timetable_widgets[self.id].values():
+                    for _ in range(diff):
+                        cls_ttbl.addRemainder(cls_ttbl.cls.subjects[subject.id])
+            elif diff < 0:
+                diff = -diff
+                
+                for cls_ttbl in self.timetable_editor.timetable_widgets[self.id].values():
+                    cls_subject = cls_ttbl.cls.subjects[subject.id]
+                    
+                    rem_amt = cls_ttbl.timetable_remains.count(cls_subject)
+                    ttbl_rem_amt = diff - rem_amt if diff > rem_amt else 0
+                    
+                    for _ in range(rem_amt if diff > rem_amt else diff):
+                        if cls_subject in cls_ttbl.timetable_remains:
+                            cls_ttbl.removeRemainder(cls_ttbl.remainder_labels[cls_ttbl.timetable_remains.index(cls_subject)])
+                    
+                    if ttbl_rem_amt:
+                        for x in range(cls_ttbl.columnCount() * cls_ttbl.rowCount()):
+                            row = x % cls_ttbl.rowCount()
+                            col = x // cls_ttbl.columnCount()
+                            
+                            item = cls_ttbl.item(row, col)
+                            
+                            if isinstance(item, TimeTableItem) and cls_subject.id == item.subject.id:
+                                if ttbl_rem_amt:
+                                    cls_ttbl.takeItem(row, col)
+                                    cls_ttbl.timetable[cls_ttbl.weekdays[col]][row] = FreePeriod()
+                                else:
+                                    break
+                                
+                                ttbl_rem_amt -= 1
         
         return text_changed_func
 
