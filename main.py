@@ -41,17 +41,6 @@ class Window(QMainWindow):
         self.title = "IFEs Timetable Generator"
         self.export_file_filter = "JSON File (*.json);;Image File (*.png *.jpg *.wpeg *.svg);;Microsoft Document (*.msix);;Pickle File (*.pickle);;CSV File (*.csv);;HTML File (*.html);;PDF File (*.pdf)"
         
-        # Default data
-        self.default_period_amt   =   10  # Being used by the timetable editor
-        self.default_breakperiod  =   7   #   "     "   "  "      "       "
-        self.default_per_day      =   2   # Being used by the classes editor
-        self.default_per_week     =   4   #   "     "   "  "     "       "
-        self.default_max_classes  =   3   # Being used by the teachers editor
-        self.default_save_data    =   {"levels": [], "subjectTeacherMapping": {}}
-        self.default_weekdays     =   ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-        
-        self.children_saved_tracker = {}
-        
         # Setting resize geometry
         self.setGeometry(100, 100, 1000, 700)
         
@@ -63,14 +52,14 @@ class Window(QMainWindow):
         self.prev_display_index = 0
         
         self.go_focus_index = 0
-        self.view_tracker = [0]
         
         menu_bar = self.create_menu_bar()
         
         # Make settings widgets
         self.timetable_widget = SchoolTimetableEditor()
-        self.subjects_widget = SubjectsMainWidget()
-        self.teachers_widget = TeachersMainWidget()
+        
+        self.subjects_widget = SubjectsMainWidget(self.timetable_widget)
+        self.teachers_widget = TeachersMainWidget(self.timetable_widget)
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget)
         
         # Create viewing container
@@ -106,6 +95,7 @@ class Window(QMainWindow):
         timetable_btn = QPushButton("Timetable")
         
         # Add widgets to stack
+        self.is_option_sidebar_focused = True
         self.option_buttons = [subjects_btn, teachers_btn, classes_btn, timetable_btn]
         
         self.stack.addWidget(self.subjects_widget)
@@ -137,6 +127,8 @@ class Window(QMainWindow):
         
         self.go_forward_action.setDisabled(True)
         self.title_bar.go_forward_button.setDisabled(True)
+        
+        self.view_tracker = [self.option_buttons[0]]
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -418,7 +410,9 @@ class Window(QMainWindow):
             self.go_forward_action.setDisabled(False)
             self.title_bar.go_forward_button.setDisabled(False)
             
-            self.option_button_func(self.view_tracker[self.go_focus_index])
+            self.is_option_sidebar_focused = False
+            self.view_tracker[self.go_focus_index].click()
+            self.is_option_sidebar_focused = True
         
         if self.go_focus_index == 0:
             self.go_back_action.setDisabled(True)
@@ -431,7 +425,9 @@ class Window(QMainWindow):
             self.go_back_action.setDisabled(False)
             self.title_bar.go_back_button.setDisabled(False)
             
-            self.option_button_func(self.view_tracker[self.go_focus_index])
+            self.is_option_sidebar_focused = False
+            self.view_tracker[self.go_focus_index].click()
+            self.is_option_sidebar_focused = True
         
         if self.go_focus_index == len(self.view_tracker) - 1:
             self.go_forward_action.setDisabled(True)
@@ -535,20 +531,28 @@ class Window(QMainWindow):
     def make_option_button_func(self, name: str, index: int):
         def func():
             if self.display_index != index:
+                if self.is_option_sidebar_focused:
+                    self.go_focus_index += 1
+                    
+                    self.view_tracker[self.go_focus_index:] = []
+                    
+                    self.go_back_action.setDisabled(False)
+                    self.title_bar.go_back_button.setDisabled(False)
+                    
+                    self.go_forward_action.setDisabled(True)
+                    self.title_bar.go_forward_button.setDisabled(True)
+                    
+                    self.view_tracker.append(self.option_buttons[index])
+                
                 self.title_bar.search_pb.setText(f"Search {name}")
                 
-                self.view_tracker[self.go_focus_index + 1:] = []
-                self.go_focus_index += 1
+                if self.display_index != index:
+                    self.stack.setCurrentIndex(index)
                 
-                self.view_tracker.append(index)
-                
-                self.go_back_action.setDisabled(False)
-                self.title_bar.go_back_button.setDisabled(False)
-                
-                self.go_forward_action.setDisabled(True)
-                self.title_bar.go_forward_button.setDisabled(True)
+                self.display_index = index
             
-            self.option_button_func(index)
+            for i, btn in enumerate(self.option_buttons):
+                btn.setChecked(i == index)
         
         return func
     
@@ -558,15 +562,7 @@ class Window(QMainWindow):
             THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
         
         return palette_action_func
-    
-    def option_button_func(self, index: int):
-        for i, btn in enumerate(self.option_buttons):
-            btn.setChecked(i == index)
-        
-        if self.display_index != index:
-            self.stack.setCurrentIndex(index)
-        
-        self.display_index = index
+
 
 
 if __name__ == "__main__":

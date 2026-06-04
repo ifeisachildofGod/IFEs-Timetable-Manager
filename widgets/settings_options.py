@@ -585,7 +585,7 @@ class OccuranceEditor(BaseSettingDialog):
         per_day_edit = NumberLineEdit(self.class_level.subjects_occurence[subject.id].day_max, 1, self.class_level.subjects_occurence[subject.id].week_max)
         # per_day_edit.edit.setFixedWidth(50)
         per_day_edit.setPlaceholderText("Per day")
-        per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject))
+        per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject.id))
         
         subjects = set([])
         for cls in self.class_level.classes.values():
@@ -597,7 +597,7 @@ class OccuranceEditor(BaseSettingDialog):
         per_week_edit = NumberLineEdit(self.class_level.subjects_occurence[subject.id].week_max, 1, self.class_level.subjects_occurence[subject.id].week_max + 1)
         # per_week_edit.edit.setFixedWidth(54)
         per_week_edit.setPlaceholderText("Per week")
-        per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject))
+        per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject.id))
         
         per_day_widget = BaseWidget(QHBoxLayout)
         per_day_widget.setProperty("class", "Edit")
@@ -621,55 +621,26 @@ class OccuranceEditor(BaseSettingDialog):
         self.number_edits[subject.id] = per_day_edit, per_week_edit
         self.subject_widgets[subject.id] = selection_widget
     
-    def make_per_day_text_changed_func(self, subject: Subject):
+    def make_per_day_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
-            self.class_level.subjects_occurence[subject.id].day_max = number
+            self.class_level.subjects_occurence[subject_id].day_max = number
         
         return text_changed_func
     
-    def make_per_week_text_changed_func(self, subject: Subject):
+    def make_per_week_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
-            diff = number - self.class_level.subjects_occurence[subject.id].week_max
+            diff = number - self.class_level.subjects_occurence[subject_id].week_max
             min_rem = min(self.week_total - (sum(self.class_level.subjects_occurence[s.id].week_max for s in cls.subjects.values()) + diff) for cls in self.class_level.classes.values())
             
             for _, per_week_edit in self.number_edits.values():
-                per_week_edit.max_num = self.class_level.subjects_occurence[subject.id].week_max + min_rem
+                per_week_edit.max_num = self.class_level.subjects_occurence[subject_id].week_max + min_rem
             
-            self.number_edits[subject.id][0].max_num = number
-            self.class_level.subjects_occurence[subject.id].week_max = number
+            self.number_edits[subject_id][0].max_num = number
+            self.class_level.subjects_occurence[subject_id].week_max = number
             
-            if diff > 0:
-                for cls_ttbl in self.timetable_editor.timetable_widgets[self.id].values():
-                    for _ in range(diff):
-                        cls_ttbl.addRemainder(cls_ttbl.cls.subjects[subject.id])
-            elif diff < 0:
-                diff = -diff
-                
-                for cls_ttbl in self.timetable_editor.timetable_widgets[self.id].values():
-                    cls_subject = cls_ttbl.cls.subjects[subject.id]
-                    
-                    rem_amt = cls_ttbl.timetable_remains.count(cls_subject)
-                    ttbl_rem_amt = diff - rem_amt if diff > rem_amt else 0
-                    
-                    for _ in range(rem_amt if diff > rem_amt else diff):
-                        if cls_subject in cls_ttbl.timetable_remains:
-                            cls_ttbl.removeRemainder(cls_ttbl.remainder_labels[cls_ttbl.timetable_remains.index(cls_subject)])
-                    
-                    if ttbl_rem_amt:
-                        for x in range(cls_ttbl.columnCount() * cls_ttbl.rowCount()):
-                            row = x % cls_ttbl.rowCount()
-                            col = x // cls_ttbl.columnCount()
-                            
-                            item = cls_ttbl.item(row, col)
-                            
-                            if isinstance(item, TimeTableItem) and cls_subject.id == item.subject.id:
-                                if ttbl_rem_amt:
-                                    cls_ttbl.takeItem(row, col)
-                                    cls_ttbl.timetable[cls_ttbl.weekdays[col]][row] = FreePeriod()
-                                else:
-                                    break
-                                
-                                ttbl_rem_amt -= 1
+            for cls_id, cls in self.class_level.classes.items():
+                if subject_id in cls.subjects:
+                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, diff)
         
         return text_changed_func
 

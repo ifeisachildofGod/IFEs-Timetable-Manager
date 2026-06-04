@@ -5,8 +5,10 @@ from widgets.settings_options import *
 
 
 class SubjectsSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject] = None):
+    def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject], timetable_editor: SchoolTimetableEditor):
         entry = entry or Subject(ID.generate_new(), SubjectName("", ""), None, {})
+        
+        self.timetable_editor = timetable_editor
         
         super().__init__(
             parent,
@@ -20,11 +22,14 @@ class SubjectsSettingEntry(BaseSettingEntry):
     
     def remove(self):
         for cls in self.entry.classes.values():
+            if self.entry.id in cls.subjects:
+                self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
+                
+                cls.subjects.pop(self.entry.id)
+        
+        for cls in self.entry.classes.values():
             if self.entry.id in cls.level.subjects_occurence:
                 cls.level.subjects_occurence.pop(self.entry.id)
-            
-            if self.entry.id in cls.subjects:
-                SCHOOL.remove_subject(cls, self.entry.id)
         
         for _, teacher in SCHOOL.teachers:
             if self.entry.id in teacher.subjects:
@@ -47,8 +52,10 @@ class SubjectsSettingEntry(BaseSettingEntry):
                 self.entry.name.abbrev = text
 
 class TeachersSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher] = None):
+    def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor):
         entry = entry or Teacher(ID.generate_new(), TeacherName("", "", "", ""), {})
+        
+        self.timetable_editor = timetable_editor
         
         super().__init__(
             parent,
@@ -64,7 +71,9 @@ class TeachersSettingEntry(BaseSettingEntry):
         for subject_id, subject in self.entry.subjects.items():
             for cls_id, cls in subject.classes.items():
                 if self.entry.id == cls.subjects[subject_id].teacher.id:
-                    SCHOOL.remove_subject(cls, subject_id)
+                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
+                    
+                    cls.subjects.pop(subject_id)
         
         return super().remove()
     
@@ -125,14 +134,16 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
 
 
 class SubjectsMainWidget(BaseSettingWidget):
-    def __init__(self):
+    def __init__(self, timetable_editor: SchoolTimetableEditor):
+        self.timetable_editor = timetable_editor
+        
         super().__init__("Subject")
     
     def get_global(self):
         return SCHOOL.subjects
     
     def get_widget_type(self):
-        return SubjectsSettingEntry
+        return SubjectsSettingEntry, (self.timetable_editor, )
     
     def add(self, entry: Subject = None, index = None):
         new_entry = super().add(entry, index)
@@ -141,14 +152,16 @@ class SubjectsMainWidget(BaseSettingWidget):
             SCHOOL.subjects.add(new_entry)
 
 class TeachersMainWidget(BaseSettingWidget):
-    def __init__(self):
+    def __init__(self, timetable_editor: SchoolTimetableEditor):
+        self.timetable_editor = timetable_editor
+        
         super().__init__("Teacher")
     
     def get_global(self):
         return SCHOOL.teachers
     
     def get_widget_type(self):
-        return TeachersSettingEntry
+        return TeachersSettingEntry, (self.timetable_editor, )
     
     def add(self, entry: Teacher = None, index = None):
         new_entry = super().add(entry, index)

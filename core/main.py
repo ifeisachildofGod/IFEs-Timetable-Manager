@@ -189,75 +189,38 @@ class SchoolFrameWork:
             assert timetable is not None
             assert timetable_remains is not None
             
-            week_amt_data = {s_id: cls.level.subjects_occurence[s_id].week_max for s_id in cls.subjects}
-            
             total_available_periods = sum(amt for amt, _ in cls.level.weekdays.values())
-            total_subj_amt = sum(list(week_amt_data.values()))
+            total_subj_amt = sum(cls.level.subjects_occurence[s_id].week_max for s_id in cls.subjects)
             
             assert total_available_periods > total_subj_amt, "Period slots are not enough for the amount of subjects"
             
-            for s_list in timetable.values():
-                for s in s_list:
-                    if s.id not in (FreePeriod.id, BreakPeriod.id):
-                        week_amt_data[s.id] -= 1
+            if self.gen_data.randomize:
+                random.shuffle(timetable_remains)
             
-            completed_ones = []
-            
-            while True:
-                if len(completed_ones) == len(cls.subjects):
-                    break
+            for subject in timetable_remains.copy():
+                scores = self._sps(subject.id, cls)
                 
-                cls_subject_ids = list(cls.subjects)
+                selected_period = None
                 
-                if self.gen_data.randomize:
-                    random.shuffle(cls_subject_ids) # type: ignore
+                max_score = -math.inf
+                for day, score in scores.items():
+                    if max(score) > max_score:
+                        max_score = max(score)
+                        
+                        selected_period = day, score.index(max_score)
                 
-                for s_id in cls_subject_ids:
-                    for _ in range(cls.level.subjects_occurence[s_id].day_max):
-                        if s_id in completed_ones:
-                            continue
-                        
-                        scores = self._sps(s_id, cls)
-                        
-                        selected_period = None
-                        
-                        max_score = -math.inf
-                        for day, score in scores.items():
-                            if max(score) > max_score:
-                                max_score = max(score)
-                                
-                                selected_period = day, score.index(max_score)
-                        
-                        if not selected_period:
-                            print(cls.subjects[s_id].name)
-                            print(json.dumps(self._log_data[cls_id][s_id], indent=2))
-                            
-                            raise TimetableGeneratorError("No valid periods available")
-                        
-                        day, index = selected_period
-                        
-                        assert timetable[day][index].id == FreePeriod.id
-                        
-                        timetable[day][index] = cls.subjects[s_id]
-                        week_amt_data[s_id] -= 1
-                        
-                        if week_amt_data[s_id] <= 0:
-                            completed_ones.append(s_id)
-            
-            timetable_remains.clear()
-            timetable_remains.extend(list(flatten([[self.subjects[s_id] for _ in range(amt)] for s_id, amt in week_amt_data.items()])))
-    
-    def remove_subject(self, cls: Class, subject_id: ID):
-        subject = cls.subjects.pop(subject_id)
-        
-        timetable, timetable_remains = SCHOOL.timetables_data[cls.id]
-        
-        for _ in range(timetable_remains.count(subject)):
-            timetable_remains.remove(subject)
-        
-        for periods in timetable.values():
-            for _ in range(periods.count(subject)):
-                periods.remove(subject)
+                if not selected_period:
+                    print(cls.subjects[subject.id].name)
+                    print(json.dumps(self._log_data[cls_id][subject.id], indent=2))
+                    
+                    raise TimetableGeneratorError("No valid periods available")
+                
+                day, index = selected_period
+                
+                assert timetable[day][index].id == FreePeriod.id
+                
+                timetable[day][index] = cls.subjects[subject.id]
+                timetable_remains.remove(subject)
     
     def detect_clashes(self):
         """
@@ -300,7 +263,11 @@ class SchoolFrameWork:
         
         for day, periods in timetable.items():
             for p_index, period in enumerate(periods):
-                period_scores[day].append(self._period_score(s_id, cls, day, period, p_index))
+                score = -math.inf
+                if period.id == FreePeriod.id:
+                    score = self._period_score(s_id, cls, day, period, p_index)
+                
+                period_scores[day].append(score)
         
         return period_scores
     
