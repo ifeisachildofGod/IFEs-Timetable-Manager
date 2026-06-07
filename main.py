@@ -1,12 +1,14 @@
-from imports import *
+import pygame
 
 from utils import *
+from imports import *
 
 from widgets.base import *
 from widgets.settings import SubjectsMainWidget, TeachersMainWidget, ClassLevelsMainWidget
 from widgets.timetable import SchoolTimetableEditor
 from widgets.user_interface import MainTitleBar
 
+pygame.init()
 
 class Window(QMainWindow):
     def __init__(self, arguments: list[str]):
@@ -39,7 +41,7 @@ class Window(QMainWindow):
                 i += 1
         
         self.title = "IFEs Timetable Generator"
-        self.export_file_filter = "JSON File (*.json);;Image File (*.png *.jpg *.wpeg *.svg);;Microsoft Document (*.msix);;Pickle File (*.pickle);;CSV File (*.csv);;HTML File (*.html);;PDF File (*.pdf)"
+        self.export_file_filter = "Image File (*.png *.jpg *.wpeg);;Scalable Vector Graphic (*.svg);;JSON File (*.json);;Microsoft Document (*.msix);;Pickle File (*.pickle);;CSV File (*.csv);;HTML File (*.html);;PDF File (*.pdf)"
         
         # Setting resize geometry
         self.setGeometry(100, 100, 1000, 700)
@@ -133,7 +135,7 @@ class Window(QMainWindow):
     def _file_init(self, index: int, arg: str):
         if index == 0:
             self.file = FileManager(self, None, f"Timetable Files {TABLE_EXTENSION_TYPE};;Template Files {TEMPLATE_EXTENSION_TYPE}")
-            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback, None)  #, self.export_callback)
+            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback, self.export_callback)
         elif index == 1:
             self.file.path = arg
     
@@ -223,175 +225,93 @@ class Window(QMainWindow):
         
         self.saved_callback()
     
-    # def export_callback(self, path: str, export_mode: int):
-    #     if export_mode == 0:
-    #         if path.endswith(("png", "jpg", "wpeg", "svg", "pdf", "html")):
-    #             title = "Timetable"
+    def export_callback(self, path: str, file_type: str, export_mode: int):
+        if export_mode == 0:
+            if file_type == "html":
+                body = ""
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        body += get_export_html_text(cls)
+                    
+                html = HTML_TEXT.format(title="School", body=body)
                 
-    #             widgets = list(self.timetable_widget.timetable_widgets.values())
+                with open(path, "w") as file:
+                    file.write(html)
+            elif file_type == "png":
+                surfs: list[pygame.Surface] = []
                 
-    #             widget = self.timetable_widget.exportify_widgets(widgets)
-    #             widget.resize(QSize(max(w.columnCount() for w in widgets) * 90 + 114, widget.sizeHint().height()))
+                width = 0
+                height = 0
                 
-    #             if path.endswith("pdf"):
-    #                 printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-    #                 printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-    #                 printer.setOutputFileName(path)
-                    
-    #                 painter = QPainter(printer)
-    #                 widget.render(painter)
-    #                 painter.end()
-    #             elif path.endswith("html"):
-    #                 style = """
-    #                 body {
-    #                     font-family: Arial, sans-serif;
-    #                     padding: 20px;
-    #                     background: #f9f9f9;
-    #                 }
-
-    #                 h2 {
-    #                     text-align: left;
-    #                     margin-bottom: 20px;
-    #                 }
-
-    #                 .timetable {
-    #                     display: grid;
-    #                     grid-template-columns: 100px repeat(5, 1fr);
-    #                     border: 1px solid #ccc;
-    #                     margin-bottom: 100px;
-    #                 }
-
-    #                 .cell {
-    #                     border: 1px solid #ccc;
-    #                     padding: 15px;
-    #                     text-align: center;
-    #                 }
-
-    #                 .header {
-    #                     background: black;
-    #                     color: white;
-    #                     font-weight: bold;
-    #                 }
-                    
-    #                 .break {
-    #                     background: #1f1f1f;
-    #                     color: #1f1f1f;
-    #                 }
-    #                 """
-                    
-    #                 body = ""
-    #                 for cls_ttbl in widgets:
-    #                     ttbl_text = f'<div class="cell"></div>'
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        cls_surf = get_export_surface(cls)
                         
-    #                     for col in range(cls_ttbl.columnCount()):
-    #                         ttbl_text += f'<div class="cell header">{cls_ttbl.horizontalHeaderItem(col).text()}</div>'
+                        width = max(width, cls_surf.get_width())
+                        height += cls_surf.get_height()
                         
-    #                     for row in range(cls_ttbl.rowCount()):
-    #                         ttbl_text += f'<div class="cell header">{cls_ttbl.verticalHeaderItem(row).text()}</div>'
-    #                         for col in range(cls_ttbl.columnCount()):
-    #                             item = cls_ttbl.item(row, col)
-                                
-    #                             ttbl_text += (
-    #                                 f'<div class="cell break"></div>'
-    #                                 if item.break_time else
-    #                                 (
-    #                                     f'<div class="cell"></div>'
-    #                                     if item.free_period else
-    #                                     f'<div class="cell">{item.subject.name}</div>'
-    #                                 )
-    #                             )
-                        
-    #                     body += f"""
-    #                     <h2>{cls_ttbl.cls.name}</h2>
-    #                     <div class="timetable">
-    #                         {ttbl_text}
-    #                     </div>
-    #                     """
+                        surfs.append(cls_surf)
+                
+                screen = pygame.Surface((width, height))
+                screen.fill("white")
+                
+                y = 0
+                for surf in surfs:
+                    screen.blit(surf, ((0, y), surf.get_size()))
                     
-    #                 html = f"""
-    #                 <!DOCTYPE html>
-    #                 <html lang="en">
-    #                 <head>
-    #                     <meta charset="UTF-8">
-    #                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    #                     <title>{title}</title>
-    #                     <style>
-    #                         {style}
-    #                     </style>
-    #                 </head>
-    #                     <body>
-    #                         {body}
-    #                     </body>
-    #                 </html>
-    #                 """
+                    y += surf.get_height()
+                
+                pygame.image.save(screen, path)
+        elif export_mode == 1:
+            if file_type == "html":
+                for _, cls_level in SCHOOL.class_levels:
+                    body = ""
                     
-    #                 with open(path, "w") as file:
-    #                     file.write(html)
-    #             # elif path.endswith("msix"):
-    #             #     doc = Document()
+                    for cls in cls_level.classes.values():
+                        body += get_export_html_text(cls)
                     
-    #             #     doc.add_heading(title, level=1)
+                    html = HTML_TEXT.format(title=cls_level.name.full(), body=body)
                     
-    #             #     for cls_ttbl in widgets:
-    #             #         doc.add_heading(cls_ttbl.cls.name, level=2)
-                        
-    #             #         # Create a Word table
-    #             #         word_table = doc.add_table(cls_ttbl.rowCount(), cls_ttbl.columnCount())
-    #             #         word_table.style = "Table Grid"
-                        
-                        
-    #             #         for row in range(cls_ttbl.rowCount()):
-    #             #             word_table.cell(row, 0).text = cls_ttbl.varticalHeaderItem(row).text()
-    #             #             for col in range(cls_ttbl.columnCount()):
-    #             #                 word_table.cell(0, col).text = cls_ttbl.horizontalHeaderItem(col).text()
-                        
-    #             #         for row in range(1, cls_ttbl.rowCount() + 1):
-    #             #             for col in range(1, cls_ttbl.columnCount() + 1):
-    #             #                 item = cls_ttbl.item(row - 1, col - 1)
-    #             #                 word_table.cell(row, col).text = "" if item.break_time or item.free_period else item.text()
-                        
-    #             #         for r, row in enumerate(word_table.rows):
-    #             #             for c, cell in enumerate(row.cells):
-    #             #                 item = cls_ttbl.item(r, c)
-                                
-    #             #                 self._set_cell_bg(cell, "000000" if not r or not c else ("1F1F1F" if item.break_time else "FFFFFF"))
-
-    #             #     doc.save(path)
-    #             # elif path.endswith("xlsx"):
-    #             #     wb = Workbook()
-    #             #     ws = wb.active
-    #             #     ws.title = title
+                    with open(path + f"/{cls_level.name.full()}.html", "w") as file:
+                        file.write(html)
+            elif file_type == "png":
+                for _, cls_level in SCHOOL.class_levels:
+                    surfs: list[pygame.Surface] = []
                     
-    #             #     bg_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
-    #             #     general_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-    #             #     break_fill = PatternFill(start_color="1F1F1F", end_color="1F1F1F", fill_type="solid")
+                    width = 0
+                    height = 0
                     
-    #             #     for cls_ttbl in widgets:
-    #             #         # Add header row
-    #             #         headers = [cls_ttbl.horizontalHeaderItem(col).text() for col in range(cls_ttbl.columnCount())]
-    #             #         ws.append(headers)
+                    for cls in cls_level.classes.values():
+                        cls_surf = get_export_surface(cls)
                         
-    #             #         for row in range(cls_ttbl.rowCount()):
-    #             #             row_data = [cls_ttbl.verticalHeaderItem(row).text()]
-    #             #             for col in range(cls_ttbl.columnCount()):
-    #             #                 item = cls_ttbl.item(row, col)
-                                
-    #             #                 row_data.append("" if item.break_time or item.free_period else item.text())
-    #             #             ws.append(row_data)
+                        width = max(width, cls_surf.get_width())
+                        height += cls_surf.get_height()
                         
-    #             #         for r, row in enumerate(ws.iter_rows()):
-    #             #             for c, cell in enumerate(row):
-    #             #                 item = cls_ttbl.item(r, c)
-                                
-    #             #                 cell.fill = break_fill if item.break_time else (bg_fill if not r or not c else general_fill)
+                        surfs.append(cls_surf)
                     
-    #             #     wb.save(path)
-    #             else:
-    #                 pixmap = QPixmap(widget.size())
-    #                 widget.render(pixmap)
-    #                 pixmap.save(path)
-    #     elif export_mode == 1:
-    #         pass
+                    screen = pygame.Surface((width, height))
+                    screen.fill("white")
+                    
+                    y = 0
+                    for surf in surfs:
+                        screen.blit(surf, ((0, y), surf.get_size()))
+                        
+                        y += surf.get_height()
+                    
+                    pygame.image.save(screen, path + f"/{cls_level.name.full()}.png")
+        elif export_mode == 2:
+            if file_type == "html":
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        body = get_export_html_text(cls)
+                        html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body)
+                        
+                        with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                            file.write(html)
+            elif file_type == "png":
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        pygame.image.save(get_export_surface(cls), path + f"/{cls.level.name.full()} {cls.name}.png")
     
     def undo(self):
         undo_func = self.focusWidget().__dict__.get("undo")
@@ -444,10 +364,11 @@ class Window(QMainWindow):
         help_menu = menubar.addMenu("Help")
         
         # Export Menu
-        # export_menu = QMenu("Export", self)
+        export_menu = QMenu("Export", self)
         
-        # export_menu.addAction("Single", lambda: self.file.export(0, self.export_file_filter))
-        # export_menu.addAction("Batch", lambda: self.file.export(1, self.export_file_filter))
+        export_menu.addAction("School", lambda: self.file.export(0, "png", self.export_file_filter))
+        export_menu.addAction("By Level", lambda: self.file.export(1, "png", self.export_file_filter))
+        export_menu.addAction("By Class", lambda: self.file.export(2, "png", self.export_file_filter))
         
         # Add all actions
         file_menu.addAction("New", "Ctrl+N", self.file.new)
@@ -456,7 +377,7 @@ class Window(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
-        # file_menu.addMenu(export_menu)
+        file_menu.addMenu(export_menu)
         file_menu.addSeparator()
         file_menu.addAction("Close", self.close)
         
