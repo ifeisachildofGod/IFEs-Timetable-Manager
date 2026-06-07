@@ -247,21 +247,21 @@ def get_export_html_text(cls: Class):
     
     ttbl_text = f'<div class="cell"></div>'
     
-    for col, day in enumerate(timetable):
+    for day in timetable:
         ttbl_text += f'<div class="cell header">{day}</div>'
     
     for row in range(max(d for d, _ in cls.level.weekdays.values())):
         ttbl_text += f'<div class="cell header">Period {row + 1}</div>'
         
-        for day in cls.level.weekdays:
-            subject = timetable[day][row]
+        for periods in timetable.values():
+            subject = periods[row] if row < len(periods) else None
             
             ttbl_text += (
                 f'<div class="cell break"></div>'
-                if subject.id == BreakPeriod.id else
+                if subject and subject.id == BreakPeriod.id else
                 (
                     f'<div class="cell"></div>'
-                    if subject.id == FreePeriod.id else
+                    if subject is None or subject.id == FreePeriod.id else
                     f'<div class="cell">{subject.name.short()}</div>'
                 )
             )
