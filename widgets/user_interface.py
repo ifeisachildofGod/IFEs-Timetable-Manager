@@ -1,5 +1,7 @@
 
+from utils import *
 from imports import *
+
 from widgets.base import *
 
 import math
@@ -621,6 +623,910 @@ class EditableCancelableEntry(BaseWidget):
     
     def get_text(self):
         return self.text
+
+
+
+
+def getMenuPosition(dp_widget: QWidget, menu_widget: QWidget | QMenu):
+    pos = dp_widget.mapToGlobal(QPoint(dp_widget.x(), dp_widget.y() + dp_widget.rect().height() - dp_widget.contentsMargins().bottom()))
+    
+    screen_geom = dp_widget.screen().geometry()
+    g_pos = dp_widget.mapToGlobal(dp_widget.pos())
+    
+    offset_x_factor = 1 if g_pos.x() < screen_geom.width() / 2 else -1
+    offset_y_factor = 1 if g_pos.y() < screen_geom.height() / 2 else -1
+    
+    left_most = menu_widget.rect().width() - dp_widget.width()
+    top_most = menu_widget.rect().height() + dp_widget.height()
+    
+    off_X = int(left_most - left_most * (offset_x_factor + 1) / 2)
+    off_Y = int(top_most - top_most * (offset_y_factor + 1) / 2)
+    
+    return pos - QPoint(off_X, off_Y)
+
+
+class Image(QLabel):
+    def __init__(self, path: str, width: int | None = None, height: int | None = None):
+        super().__init__()
+        
+        self._width = width
+        self._height = height
+        
+        self.setImagePath(path)
+    
+    def setImagePath(self, path: str):
+        pixmap = QPixmap(path)
+        
+        if self._width is not None or self._height is not None:
+            if self._height is not None and self._width is None:
+                self.setFixedSize(int(self._height * pixmap.size().width() / pixmap.size().height()), self._height)
+            elif self._width is not None and self._height is None:
+                self.setFixedSize(self._width, int(self._width * pixmap.size().height() / pixmap.size().width()))
+            else:
+                self.setFixedSize(self._width, self._height)
+        
+        self.setScaledContents(True)  # Optional: scale image to fit self
+        scaled_pixmap = pixmap.scaled(
+            self.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        self.setPixmap(scaled_pixmap)
+        # self.update()
+
+class MyPushButton(QPushButton):
+    def __init__(self, text):
+        super().__init__(text)
+        
+        self.setMinimumWidth(70)
+
+class _SideBarOption(BaseWidget):
+    def __init__(self, name: str, do_action: Callable):
+        super().__init__(QHBoxLayout)
+        
+        self.SELECTED_STYLESHEET = f"""
+            QWidget.SideBarOption {{
+                background-color: {THEME_MANAGER.pallete_get("bg2")};
+            }}
+            
+            QLabel {{
+                color: {THEME_MANAGER.pallete_get("text")};
+                font-weight: 500;
+            }}
+        """
+        
+        self.UNSELECTED_STYLESHEET = f"""
+            QWidget.SideBarOption {{
+                background-color: transparent;
+            }}
+            
+            QWidget.SideBarOption:hover {{
+                background-color: {THEME_MANAGER.pallete_get("bg3")};
+            }}
+            
+            QLabel {{
+                color: {THEME_MANAGER.pallete_get("disabled")};
+            }}
+        """
+        
+        self.setProperty("class", "SideBarOption")
+        self.setStyleSheet(self.UNSELECTED_STYLESHEET)
+        
+        self.setSpacing(0)
+        self.setContentsMargins(10, 8, 10, 8)
+        
+        self.do_action = do_action
+        
+        self.addWidget(QLabel(name))
+        self.getWidget().mousePressEvent = lambda _: self._clicked(True)
+    
+    def _clicked(self, do: bool):
+        if do:
+            self.setStyleSheet(self.SELECTED_STYLESHEET)
+            self.do_action()
+        else:
+            self.setStyleSheet(self.UNSELECTED_STYLESHEET)
+
+class SideBar(BaseWidget):
+    def __init__(self, *content: tuple[str | None, Callable] | None):
+        super().__init__()
+        
+        self.STYLESHEET = """
+            QWidget.SideBar {
+                background-color: #2c2c2c;
+            }
+        """
+        
+        self.widgets = []
+        
+        self.setFixedWidth(210)
+        
+        self.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setProperty("class", "SideBar")
+        self.setStyleSheet(self.STYLESHEET)
+        
+        for index, data in enumerate(content):
+            name, action = data if data is not None else (None, None)
+            
+            option = (
+                _SideBarOption(name, self._mf_option_changed(index, action))
+                if name is not None else
+                SeperatorWidget(Qt.Orientation.Vertical, 10, None, 1, "#9b9b9b")
+            )
+                
+            self.widgets.append(option)
+            self.addWidget(option)
+        
+        for widget in self.widgets:
+            if isinstance(widget, _SideBarOption):
+                widget._clicked(True)
+                
+                break
+        
+        self.addStretch()
+    
+    def _mf_option_changed(self, index: int, action: Callable):
+        def func():
+            action()
+            
+            if hasattr(self, "curr_widget"):
+                self.curr_widget._clicked(False)
+            
+            self.curr_widget = self.widgets[index]
+        
+        return func
+
+class _Tab(BaseWidget):
+    tab_selected = pyqtSignal()
+    
+    def __init__(self, name: str):
+        super().__init__()
+        
+        self.SELECTED_STYLESHEET = f"""
+            QWidget {{
+                background-color: transparent;
+            }}
+            
+            QLabel {{
+                font-size: 13px;
+                font-weight: bold;
+                color: {THEME_MANAGER.pallete_get("text")};
+            }}
+            
+            QLabel:hover {{
+                color: {THEME_MANAGER.pallete_get("hover")};
+            }}
+        """
+        
+        self.UNSELECTED_STYLESHEET = f"""
+            QWidget {{
+                background-color: transparent;
+            }}
+            
+            QLabel {{
+                color: {THEME_MANAGER.pallete_get("disabled")};
+                font-size: 13px;
+            }}
+            
+            QLabel:hover {{
+                color: {THEME_MANAGER.pallete_get("secondary")};
+            }}
+        """
+        
+        self.setFixedHeight(35)
+        
+        self.setSpacing(0)
+        self.setContentsMargins(10, 0, 10, 15)
+        
+        self.name = name
+        
+        self.tab_selected.connect(lambda: self.setState(self.styleSheet() != self.SELECTED_STYLESHEET))
+        self.setState(False)
+        
+        self.addWidget(QLabel(self.name))
+    
+    def setState(self, state):
+        if state and self.styleSheet() != self.SELECTED_STYLESHEET:
+            self.setStyleSheet(self.SELECTED_STYLESHEET)
+        elif self.styleSheet() != self.UNSELECTED_STYLESHEET:
+            self.setStyleSheet(self.UNSELECTED_STYLESHEET)
+    
+    def mousePressEvent(self, a0):
+        self.tab_selected.emit()
+        
+        return super().mousePressEvent(a0)
+
+class TabView(BaseWidget):
+    def __init__(self, tabs: dict[str, QWidget], *extra_title_widgets: QWidget):
+        super().__init__()
+        
+        self.STYLESHEET = f"""
+            QWidget.TabView {{
+                background-color: {THEME_MANAGER.pallete_get("bg4")};
+            }}
+            
+            QWidget.TabWidget {{
+                background-color: transparent;
+                border-bottom: 1px solid {THEME_MANAGER.pallete_get("bg5")};
+            }}
+        """    
+        
+        self.setProperty("class", "TabView")
+        
+        self.setSpacing(0)
+        self.tabWidgetLayout.setContentsMargins(10, 10, 10, 10)
+        
+        self.tabs = tabs
+        self.extra_title_widgets = extra_title_widgets
+        
+        self.tabWidget = QWidget()
+        self.tabWidget.setProperty("class", "TabWidget")
+        self.tabWidget.setFixedHeight(40)
+        self.tabWidget.setStyleSheet(self.STYLESHEET)
+        self.tabWidgetLayout = QHBoxLayout()
+        self.tabWidgetLayout.setContentsMargins(10, 10, 10, 0)
+        self.tabWidget.setLayout(self.tabWidgetLayout)
+        
+        self.bodyWidget = QStackedWidget()
+        
+        self._initTabs()
+        
+        self.main_layout.addWidget(self.tabWidget)
+        self.main_layout.addWidget(self.bodyWidget)
+    
+    def _mf_tab_changed(self, tab, index: int):
+        def func():
+            if hasattr(self, "curr_tab"):
+                self.curr_tab.setState(self.curr_tab == tab)
+            
+            self.curr_tab = tab
+            
+            self.bodyWidget.setCurrentIndex(index)
+        
+        return func
+    
+    def _initTabs(self):
+        for tab_index, (tab_name, widget) in enumerate(self.tabs.items()):
+            tab = _Tab(tab_name)
+            func = self._mf_tab_changed(tab, tab_index)
+            
+            if tab_index == 0:
+                func()
+                tab.setState(True)
+            
+            tab.tab_selected.connect(func)
+            
+            self.tabWidgetLayout.addWidget(tab)
+            self.bodyWidget.addWidget(widget)
+        
+        self.tabWidgetLayout.addStretch()
+        
+        for et_widget in self.extra_title_widgets:
+            self.tabWidgetLayout.addWidget(et_widget)
+
+class RotatableLabel(QLabel):
+    def __init__(self, text, angle: int = 0, parent=None):
+        super().__init__(text, parent)
+        self.angle = angle  # Angle in degrees to rotate the text
+        self.setProperty("class", "Arrow")
+    
+    def rotate(self, angle: int):
+        self.angle = angle
+        self.update()  # Trigger a repaint
+    
+    def paintEvent(self, _):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Save the painter's current state
+        painter.save()
+
+        # Translate to the center of the label
+        center = self.rect().center()
+        painter.translate(center)
+
+        # Rotate the painter
+        painter.rotate(self.angle)
+
+        # Translate back and draw the text
+        center.setX(center.x() + (2 if self.angle >= 180 else -1))
+        painter.translate(-center)
+        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text())
+
+        # Restore the painter's state
+        painter.restore()
+
+class SeperatorWidget(BaseWidget):
+    def __init__(self, orientation: Qt.Orientation, spacing: int, width: Optional[int] = None, height: Optional[int] = None, color: Optional[str] = None):
+        super().__init__()
+        
+        x_spacing = spacing // 2 if orientation == Qt.Orientation.Horizontal else 0
+        y_spacing = spacing // 2 if orientation == Qt.Orientation.Vertical else 0
+        
+        self.setContentsMargins(x_spacing, y_spacing, x_spacing, y_spacing)
+        
+        widget = BaseWidget()
+        
+        if width:
+            widget.setFixedWidth(width)
+        if height:
+            widget.setFixedHeight(height)
+        
+        widget.setStyleSheet(f"background-color: {color or THEME_MANAGER.pallete_get("border1")};")
+        
+        self.addWidget(widget)
+
+class SeparatorLabel(BaseWidget):
+    def __init__(self, text: str):
+        super().__init__(QHBoxLayout)
+        
+        self.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        label = QLabel(text)
+        label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        label.setContentsMargins(0, 0, 5, 0)
+        
+        sep_widget = SeperatorWidget(Qt.Orientation.Vertical, 0, None, 1, "#1c1c1c")
+        sep_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum)
+        sep_widget.setContentsMargins(0, 7, 0, 0)
+        
+        self.addWidget(label)
+        self.addWidget(sep_widget)
+
+class LabeledWidget(BaseWidget):
+    def __init__(self, starter: str | QWidget, widget: QWidget):
+        super().__init__(QHBoxLayout)
+        
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        self.addWidget(QLabel(starter) if isinstance(starter, str) else starter, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.addSpacing(10)
+        self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignRight)
+
+
+class _FontSection(BaseWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setProperty("class", "OptionsMainBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        f_widget = BaseWidget() ; f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        fn_cb = QFontComboBox()
+        s_sb = QSpinBox()
+        c_cb = ColorComboBox("red")
+        st_cb = QComboBox() ; st_cb.addItems(["Regular", "Bold", "Italic", "Bold Italic"])
+        uss_widget = BaseWidget(QHBoxLayout) ; uss_widget.setContentsMargins(0, 5, 0, 5)
+        uss_widget.addWidget(u_cb := QCheckBox("Underline"))
+        uss_widget.addWidget(sp_cb := QCheckBox("Superscript"))
+        uss_widget.addWidget(sb_cb := QCheckBox("Subscript"))
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        o_widget.setContentsMargins(0, 0, 0, 0)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
+        o_widget.addWidget(o_sb := QSpinBox())
+        
+        f_widget.addWidget(LabeledWidget("Font Name", fn_cb))
+        f_widget.addWidget(LabeledWidget("Size", s_sb))
+        f_widget.addWidget(LabeledWidget("Color", c_cb))
+        f_widget.addWidget(LabeledWidget("Style", st_cb))
+        f_widget.addWidget(uss_widget)
+        f_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        a_widget = BaseWidget() ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        ta_cb = QComboBox() ; ta_cb.addItems(["Left", "Center", "Right"])
+        va_cb = QComboBox() ; va_cb.addItems(["Left", "Center", "Right"])
+        
+        a_widget.addWidget(LabeledWidget("Text Alignment", ta_cb))
+        a_widget.addWidget(LabeledWidget("Vertical Alignment", va_cb))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        self.addWidget(SeparatorLabel("Font"))
+        self.addWidget(f_widget)
+        self.addWidget(SeparatorLabel("Alignment"))
+        self.addWidget(a_widget)
+        self.addStretch()
+
+class _OutlineSection(BaseWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setProperty("class", "OptionsMainBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        ou_widget = BaseWidget() ; ou_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
+        c_ccb = ColorComboBox("black")
+        j_cb = QComboBox() ; j_cb.addItems(["Round", "Square", "Bevel"])
+        s_widget = BaseWidget(QHBoxLayout)
+        s_widget.addWidget(s_slider := QSlider(Qt.Orientation.Horizontal))
+        s_widget.addWidget(s_sb := QSpinBox())
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
+        o_widget.addWidget(o_sb := QSpinBox())
+        
+        ou_widget.addWidget(LabeledWidget("Style", s_cb))
+        ou_widget.addWidget(LabeledWidget("Color", c_ccb))
+        ou_widget.addWidget(LabeledWidget("Join", j_cb))
+        ou_widget.addWidget(LabeledWidget("Size", s_widget))
+        ou_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        self.addWidget(SeparatorLabel("Outline"))
+        self.addWidget(ou_widget)
+        self.addStretch()
+
+class _ShadowSection(BaseWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setProperty("class", "OptionsMainBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        sh_widget = BaseWidget() ; sh_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
+        c_ccb = ColorComboBox("black")
+        a_widget = BaseWidget(QHBoxLayout) ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        a_widget.addWidget(a_dial := QDial())
+        a_widget.addWidget(a_sb := QSpinBox())
+        off_widget = BaseWidget(QHBoxLayout)
+        off_widget.addWidget(off_slider := QSlider(Qt.Orientation.Horizontal))
+        off_widget.addWidget(off_sb := QSpinBox())
+        b_widget = BaseWidget(QHBoxLayout)
+        b_widget.addWidget(b_slider := QSlider(Qt.Orientation.Horizontal))
+        b_widget.addWidget(b_sb := QSpinBox())
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
+        o_widget.addWidget(o_sb := QSpinBox())
+        
+        sh_widget.addWidget(LabeledWidget("Style", s_cb))
+        sh_widget.addWidget(LabeledWidget("Color", c_ccb))
+        sh_widget.addWidget(LabeledWidget("Angle", a_widget))
+        sh_widget.addWidget(LabeledWidget("Offset", off_widget))
+        sh_widget.addWidget(LabeledWidget("Blur", b_widget))
+        sh_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        self.addWidget(SeparatorLabel("Shadow"))
+        self.addWidget(sh_widget)
+        self.addStretch()
+
+class _MarginsSection(BaseWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setProperty("class", "OptionsMainBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        m_widget = BaseWidget() ; m_widget.setSpacing(10)
+        
+        m_widget.addWidget(LabeledWidget(LabeledWidget("Left", l_sb := QSpinBox()), LabeledWidget("Top", t_sb := QSpinBox())))
+        m_widget.addWidget(LabeledWidget(LabeledWidget("Right", r_sb := QSpinBox()), LabeledWidget("Bottom", b_sb := QSpinBox())))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        self.addWidget(SeparatorLabel("Margins"))
+        self.addWidget(m_widget)
+        self.addStretch()
+
+class _FormatSection(BaseWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setProperty("class", "OptionsMainBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        as_widget = BaseWidget()
+        
+        as_widget.addWidget(dnast_rb := QRadioButton("Do not auto size text"))
+        as_widget.addWidget(rttfe_rb := QRadioButton("Resize text to fit element"))
+        ntsas_widget = BaseWidget() ; ntsas_widget.addWidget(ntsas_cb := QCheckBox("Normalize text size across slides"))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        fmt_widget = BaseWidget()
+        
+        fmt_widget.addWidget(ww_cb := QCheckBox("Word Wrapping"))
+        fmt_widget.addWidget(caw_cb := QCheckBox("Capitalize all words"))
+        fmt_widget.addWidget(cfwoel_cb := QCheckBox("Capitalize first word of each line"))
+        fmt_widget.addWidget(acfcotw_cb := QCheckBox("Automatically capitalize first character of these words"))
+        acfcotw_widget = BaseWidget() ; acfcotw_widget.addWidget(acfcotw_te := QTextEdit())
+        fmt_widget.addWidget(acfcotw_widget)
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        self.addWidget(SeparatorLabel("Auto Sizing"))
+        self.addWidget(as_widget)
+        self.addWidget(SeparatorLabel("Formatting"))
+        self.addWidget(fmt_widget)
+        self.addStretch()
+
+
+class IconToolBarOption(BaseWidget):
+    def __init__(self, icon_path: Optional[str], width: Optional[int], height: Optional[int], font_size: Optional[int], content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | QWidget, title: str | None = None):
+        super().__init__()
+        
+        self.content = content
+        
+        self.HOVER_STYLESHEET = F"""
+            QWidget.IconToolBarOption:hover {{
+                background-color: {THEME_MANAGER.pallete_get("hover")}
+            }}
+        """
+        
+        self.STYLESHEET = f"""
+            QWidget.IconToolBarOption {{
+                background-color: transparent
+            }}
+            
+            {self.HOVER_STYLESHEET}
+            
+            QWidget.IconToolBarOption QWidget._TopWidget QLabel {{
+                font-size: {font_size}px
+            }}
+            QWidget.IconToolBarOption QLabel {{
+                color: {THEME_MANAGER.pallete_get("text")};
+                font-size: {font_size}px
+            }}
+        """
+        
+        self.setSpacing(0)
+        self.setContentsMargins(15, 5, 15, 5)
+        
+        self.getWidget().setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        self.setProperty("class", "IconToolBarOption")
+        self.setStyleSheet(self.STYLESHEET)
+        
+        title_label = QLabel(title) if isinstance(title, str) else title
+        
+        topWidget = BaseWidget(QHBoxLayout)
+        topWidget.setContentsMargins(0, 0, 0, 0)
+        topWidget.setProperty("class", "_TopWidget")
+        if icon_path is not None:
+            topWidget.addWidget(Image(icon_path, width, height))
+        elif title is not None:
+            topWidget.addWidget(title_label)
+        
+        if not isinstance(content, Callable):
+            topWidget.addWidget(QLabel("▼"))
+        
+        self.addWidget(topWidget)
+        if title is not None and icon_path is not None:
+            self.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+        
+        self.getWidget().mousePressEvent = self._clicked
+        
+        if not isinstance(self.content, Callable) and not isinstance(self.content, list):
+            def hide_event(_):
+                self.setStyleSheet(self.STYLESHEET)
+                self.update()
+            
+            self.content.hideEvent = hide_event
+    
+    def _clicked(self, a0):
+        if isinstance(self.content, Callable):
+            return self.content()
+        else:
+            self.setStyleSheet(self.STYLESHEET.replace(self.HOVER_STYLESHEET, "") + "QWidget.IconToolBarOption {background-color: #30446a}")
+            self.update()
+            
+            if isinstance(self.content, list):
+                menu = self._getMenu(self, self.content)
+                
+                menu.exec(getMenuPosition(self.getWidget(), menu))
+                
+                self.setStyleSheet(self.STYLESHEET)
+                self.update()
+            elif isinstance(self.content, QWidget):
+                self.content.setWindowFlags(Qt.WindowType.Popup)
+                
+                self.content.move(getMenuPosition(self.getWidget(), self.content))
+                self.content.show()
+    
+    def _getMenu(self, parent: QMenu | BaseWidget, content: list | None, name: Optional[str] = None):
+        args = [parent]
+        if name is not None:
+            args.insert(0, name)
+        
+        menu = QMenu(*args)
+        
+        for data in content:
+            if data is None:
+                menu.addSeparator()
+            else:
+                optionName, optionData = data
+                
+                if isinstance(optionData, (Callable, tuple)):
+                    optionAction, disableAction = (optionData, None) if isinstance(optionData, Callable) else optionData
+                    
+                    action = menu.addAction(optionName, optionAction)
+                    
+                    action.setDisabled(disableAction() if disableAction else False)
+                elif isinstance(optionData, list):
+                    menu.addMenu(self._getMenu(menu, optionData, optionName))
+                else:
+                    raise
+        
+        return menu
+
+
+class TitledWidget(BaseWidget):
+    def __init__(self, title: str | QWidget, widget: QWidget, *extra_title_widgets: QWidget, scrollable: bool = False):
+        super().__init__()
+        
+        self.STYLESHEET = f"""
+            QWidget.TitleArea {{
+                background-color: {THEME_MANAGER.pallete_get("bg2")};
+            }}
+            
+            QWidget.Body {{
+                background-color: {THEME_MANAGER.pallete_get("bg1")};
+            }}
+        """
+        
+        self.setProperty("class", "TitledWidget")
+        self.setStyleSheet(self.STYLESHEET)
+        
+        self.setSpacing(0)
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        # Title Area
+        titleArea = QWidget()
+        titleArea.setProperty("class", "TitleArea")
+        titleArea.setFixedHeight(30)
+        titleAreaLayout = QHBoxLayout(titleArea)
+        titleAreaLayout.setContentsMargins(5, 0, 5, 0)
+        
+        if isinstance(title, str):
+            self.titleWidget = QLabel(title)
+            self.titleWidget.setProperty("class", "Title")
+        else:
+            self.titleWidget = title
+        
+        titleAreaLayout.addWidget(self.titleWidget)
+        titleAreaLayout.addStretch()
+        for et_widget in extra_title_widgets:
+            titleAreaLayout.addWidget(et_widget)
+        
+        # Widget Area
+        bodyWidget = BaseScrollWidget() if scrollable else BaseWidget()
+        bodyWidget.setProperty("class", "Body")
+        bodyWidget.setContentsMargins(0, 0, 0, 0)
+        bodyWidget.setSpacing(0)
+        bodyWidget.addWidget(widget)
+        
+        self.addWidget(titleArea)
+        self.addWidget(bodyWidget)
+    
+    def setTitle(self, text: str):
+        if isinstance(self.titleWidget, QLabel):
+            self.titleWidget.setText(text)
+
+
+class FontEditor(IconToolBarOption):
+    def __init__(self, name: str):
+        content_widget = TabView(
+            {
+                "FONT": _FontSection(),
+                "OUTLINE": _OutlineSection(),
+                "SHADOW": _ShadowSection(),
+                "MARGINS": _MarginsSection(),
+                "FORMAT": _FormatSection()
+            }
+        )
+        content_widget.setProperty("class", "Section")
+        
+        super().__init__(None, None, None, 10, content_widget, name)
+        
+        self.setProperty("class", "MyWidget")
+
+class ColorComboBox(IconToolBarOption):
+    def __init__(self, color: QColor | str):
+        color = QColor(color)
+        
+        self.selected_color_display = QWidget()
+        self.selected_color_display.setFixedSize(50, 15)
+        
+        color_picker = QColorDialog()
+        color_picker.colorSelected.connect(self._setColor)
+        
+        color_picker.setCurrentColor(color)
+        self._setColor(color)
+        
+        super().__init__(None, None, None, 10, color_picker, self.selected_color_display)
+        
+        self.setContentsMargins(5, 5, 5, 5)
+        
+        self.setProperty("class", "MyWidget")
+    
+    def _colorToHex(self, color: QColor):
+        r = hex(color.red()).replace("0x", "")
+        g = hex(color.green()).replace("0x", "")
+        b = hex(color.blue()).replace("0x", "")
+        
+        return f"#{"0" + r if len(r) == 1 else r}{"0" + g if len(g) == 1 else g}{"0" + b if len(b) == 1 else b}"
+    
+    def _setColor(self, color: QColor):
+        self.selected_color_display.setStyleSheet(f"background-color: {self._colorToHex(color)};")
+
+
+
+class ExportsEditorDialogWidget(BaseDialogWidget):
+    def __init__(self):
+        super().__init__("Exports Editor", BaseWidget)
+        
+        self._initGeom()
+        
+        self.setProperty("class", "OptionsWidget")
+        
+        central_widget = QStackedWidget()
+        
+        central_widget.addWidget(self.getFontWidget())
+        central_widget.addWidget(self.getColorsWidget())
+        central_widget.addWidget(self.getTimingWidget())
+        central_widget.addWidget(self.getSaveWidget())
+        
+        main_widget = BaseWidget(QHBoxLayout)
+        base_widget = BaseWidget(QHBoxLayout)
+        
+        main_widget.addWidget(
+            SideBar(
+                ("Font", lambda: central_widget.setCurrentIndex(0)),
+                ("Colors", lambda: central_widget.setCurrentIndex(1)),
+                None,
+                ("Timing", lambda: central_widget.setCurrentIndex(2)),
+                None,
+                ("Save", lambda: central_widget.setCurrentIndex(3))
+            )
+        )
+        main_widget.addWidget(central_widget)
+        
+        preview = QCheckBox("Preview Output")
+        ok_button = MyPushButton("OK")
+        cancel_button = MyPushButton("Cancel")
+        
+        base_widget.addWidget(preview)
+        base_widget.addStretch()
+        base_widget.addWidget(ok_button)
+        base_widget.addWidget(cancel_button)
+        
+        self.addWidget(main_widget)
+        self.addWidget(base_widget)
+    
+    def _initGeom(self):
+        self.setMinimumSize(700, 550)
+        
+        screen_geom = self.screen().geometry()
+        
+        self.setGeometry(int(screen_geom.width() / 2 - self.geometry().width() / 2), int(screen_geom.height() / 2 - self.geometry().height() / 2), self.geometry().width(), self.geometry().height())
+    
+    def getFontWidget(self):
+        font_widget = BaseWidget()
+        
+        return font_widget
+    
+    def getColorsWidget(self):
+        colors_widget = BaseWidget()
+        
+        return colors_widget
+    
+    def getTimingWidget(self):
+        timing_widget = BaseWidget()
+        
+        return timing_widget
+    
+    def getSaveWidget(self):
+        save_widget = BaseWidget()
+        
+        return save_widget
+    
+    def export(self, path: str, file_type: str, export_mode: int):
+        if export_mode == 0:
+            if file_type == "html":
+                body = ""
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        body += get_export_html_text(cls)
+                    
+                html = HTML_TEXT.format(title="School", body=body)
+                
+                with open(path, "w") as file:
+                    file.write(html)
+            elif file_type == "png":
+                surfs: list[pygame.Surface] = []
+                
+                width = 0
+                height = 0
+                
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        cls_surf = get_export_surface(cls)
+                        
+                        width = max(width, cls_surf.get_width())
+                        height += cls_surf.get_height()
+                        
+                        surfs.append(cls_surf)
+                
+                screen = pygame.Surface((width, height))
+                screen.fill("white")
+                
+                y = 0
+                for surf in surfs:
+                    screen.blit(surf, ((0, y), surf.get_size()))
+                    
+                    y += surf.get_height()
+                
+                pygame.image.save(screen, path)
+        elif export_mode == 1:
+            if file_type == "html":
+                for _, cls_level in SCHOOL.class_levels:
+                    body = ""
+                    
+                    for cls in cls_level.classes.values():
+                        body += get_export_html_text(cls)
+                    
+                    html = HTML_TEXT.format(title=cls_level.name.full(), body=body)
+                    
+                    with open(path + f"/{cls_level.name.full()}.html", "w") as file:
+                        file.write(html)
+            elif file_type == "png":
+                for _, cls_level in SCHOOL.class_levels:
+                    surfs: list[pygame.Surface] = []
+                    
+                    width = 0
+                    height = 0
+                    
+                    for cls in cls_level.classes.values():
+                        cls_surf = get_export_surface(cls)
+                        
+                        width = max(width, cls_surf.get_width())
+                        height += cls_surf.get_height()
+                        
+                        surfs.append(cls_surf)
+                    
+                    screen = pygame.Surface((width, height))
+                    screen.fill("white")
+                    
+                    y = 0
+                    for surf in surfs:
+                        screen.blit(surf, ((0, y), surf.get_size()))
+                        
+                        y += surf.get_height()
+                    
+                    pygame.image.save(screen, path + f"/{cls_level.name.full()}.png")
+        elif export_mode == 2:
+            if file_type == "html":
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        body = get_export_html_text(cls)
+                        html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body)
+                        
+                        with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                            file.write(html)
+            elif file_type == "png":
+                for _, cls_level in SCHOOL.class_levels:
+                    for cls in cls_level.classes.values():
+                        pygame.image.save(get_export_surface(cls), path + f"/{cls.level.name.full()} {cls.name}.png")
+    
+
+
+
 
 
 

@@ -42,11 +42,10 @@ class FileManager:
         self.file_filter = file_filter
         self._from_save = False
 
-    def set_callbacks(self, save: Optional[Callable[[str, str], str]], open_: Optional[Callable[[str, str], None] | Callable[[str, Any], None]], load: Optional[Callable[[str, str], Any]], export: Callable[[str, str, int], None]):
+    def set_callbacks(self, save: Optional[Callable[[str, str], str]], open_: Optional[Callable[[str, str], None] | Callable[[str, Any], None]], load: Optional[Callable[[str, str], Any]]):
         self.save_callback = save
         self.open_callback = open_
         self.load_callback = load
-        self.export_callback = export
     
     def get_data(self, file_type: str):
         if self.path:

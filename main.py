@@ -6,7 +6,7 @@ from imports import *
 from widgets.base import *
 from widgets.settings import SubjectsMainWidget, TeachersMainWidget, ClassLevelsMainWidget
 from widgets.timetable import SchoolTimetableEditor
-from widgets.user_interface import MainTitleBar
+from widgets.user_interface import ExportsEditorDialogWidget, MainTitleBar
 
 pygame.init()
 
@@ -41,7 +41,6 @@ class Window(QMainWindow):
                 i += 1
         
         self.title = "IFEs Timetable Generator"
-        self.export_file_filter = "Image File (*.png *.jpg *.wpeg);;Scalable Vector Graphic (*.svg);;JSON File (*.json);;Microsoft Document (*.msix);;Pickle File (*.pickle);;CSV File (*.csv);;HTML File (*.html);;PDF File (*.pdf)"
         
         # Setting resize geometry
         self.setGeometry(100, 100, 1000, 700)
@@ -135,7 +134,7 @@ class Window(QMainWindow):
     def _file_init(self, index: int, arg: str):
         if index == 0:
             self.file = FileManager(self, None, f"Timetable Files {TABLE_EXTENSION_TYPE};;Template Files {TEMPLATE_EXTENSION_TYPE}")
-            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback, self.export_callback)
+            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback)
         elif index == 1:
             self.file.path = arg
     
@@ -225,94 +224,6 @@ class Window(QMainWindow):
         
         self.saved_callback()
     
-    def export_callback(self, path: str, file_type: str, export_mode: int):
-        if export_mode == 0:
-            if file_type == "html":
-                body = ""
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        body += get_export_html_text(cls)
-                    
-                html = HTML_TEXT.format(title="School", body=body)
-                
-                with open(path, "w") as file:
-                    file.write(html)
-            elif file_type == "png":
-                surfs: list[pygame.Surface] = []
-                
-                width = 0
-                height = 0
-                
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        cls_surf = get_export_surface(cls)
-                        
-                        width = max(width, cls_surf.get_width())
-                        height += cls_surf.get_height()
-                        
-                        surfs.append(cls_surf)
-                
-                screen = pygame.Surface((width, height))
-                screen.fill("white")
-                
-                y = 0
-                for surf in surfs:
-                    screen.blit(surf, ((0, y), surf.get_size()))
-                    
-                    y += surf.get_height()
-                
-                pygame.image.save(screen, path)
-        elif export_mode == 1:
-            if file_type == "html":
-                for _, cls_level in SCHOOL.class_levels:
-                    body = ""
-                    
-                    for cls in cls_level.classes.values():
-                        body += get_export_html_text(cls)
-                    
-                    html = HTML_TEXT.format(title=cls_level.name.full(), body=body)
-                    
-                    with open(path + f"/{cls_level.name.full()}.html", "w") as file:
-                        file.write(html)
-            elif file_type == "png":
-                for _, cls_level in SCHOOL.class_levels:
-                    surfs: list[pygame.Surface] = []
-                    
-                    width = 0
-                    height = 0
-                    
-                    for cls in cls_level.classes.values():
-                        cls_surf = get_export_surface(cls)
-                        
-                        width = max(width, cls_surf.get_width())
-                        height += cls_surf.get_height()
-                        
-                        surfs.append(cls_surf)
-                    
-                    screen = pygame.Surface((width, height))
-                    screen.fill("white")
-                    
-                    y = 0
-                    for surf in surfs:
-                        screen.blit(surf, ((0, y), surf.get_size()))
-                        
-                        y += surf.get_height()
-                    
-                    pygame.image.save(screen, path + f"/{cls_level.name.full()}.png")
-        elif export_mode == 2:
-            if file_type == "html":
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        body = get_export_html_text(cls)
-                        html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body)
-                        
-                        with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
-                            file.write(html)
-            elif file_type == "png":
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        pygame.image.save(get_export_surface(cls), path + f"/{cls.level.name.full()} {cls.name}.png")
-    
     def undo(self):
         undo_func = self.focusWidget().__dict__.get("undo")
         if undo_func is not None:
@@ -363,21 +274,16 @@ class Window(QMainWindow):
         palette_menu = menubar.addMenu("Palette")
         help_menu = menubar.addMenu("Help")
         
-        # Export Menu
-        export_menu = QMenu("Export", self)
-        
-        export_menu.addAction("School", lambda: self.file.export(0, "png", self.export_file_filter))
-        export_menu.addAction("By Level", lambda: self.file.export(1, "png", self.export_file_filter))
-        export_menu.addAction("By Class", lambda: self.file.export(2, "png", self.export_file_filter))
-        
         # Add all actions
+        export_editor = ExportsEditorDialogWidget()
+        
         file_menu.addAction("New", "Ctrl+N", self.file.new)
         file_menu.addSeparator()
         file_menu.addAction("Open", "Ctrl+O", self.file.open)
         file_menu.addSeparator()
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
-        file_menu.addMenu(export_menu)
+        file_menu.addAction("Export", "Ctrl+Shift+E", lambda: export_editor.exec())
         file_menu.addSeparator()
         file_menu.addAction("Close", self.close)
         

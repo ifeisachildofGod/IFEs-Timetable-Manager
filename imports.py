@@ -13,7 +13,9 @@ from PyQt6.QtWidgets import (
     QGridLayout, QStackedWidget, QTableWidgetItem,
     QMessageBox, QMenu, QAbstractItemView, QFrame,
     QTableWidget, QHeaderView, QSizePolicy, QProgressBar,
-    QFileDialog, QApplication, QMenuBar, QStyle, QStatusBar
+    QFileDialog, QApplication, QMenuBar, QStyle, QStatusBar,
+    QFontComboBox, QComboBox, QSpinBox, QSlider, QDial,
+    QTextEdit, QRadioButton, QColorDialog
 )
 from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon,
