@@ -11,102 +11,126 @@ PALETTES = {
             "bg1": "#1e1e1e",
             "bg2": "#2a2a2a",
             "bg3": "#4b4b4b",
-            "bg4": "#2d2d30",
-            "bg5": "#404040",
-            "text": "#f0f0f0",
+            "bg4": "#2c2c2c",
+            "mute-bg": "#404040",
             "border1": "#505050",
-            "border2": "#353536",
-            "secondary": "#3a3a3d",
-            "hover": "#47474b",
+            "bg6-border2": "#363636",
+            "text": "#f0f0f0",
+            "secondary": "#3a3a3a",
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777"
+            "disabled": "#777777",
+            
+            "maximum": "#000000",
+            "minimum": "#ffffff",
+            
+            "e-border": "#292929",
         },
         
         "light":{
-            "bg1": "#ffffff",
-            "bg2": "#d0d0d0",
-            "bg3": "#b8b8b8",
-            "bg4": "#ffffff",
-            "bg5": "#c0c0c0",
-            "text": "#1a1a1a",
-            "border1": "#b0b0b0",
-            "border2": "#c1c1c1",
-            "secondary": "#f0f0f0",
-            "hover": "#8f8f8f",
-            "scrollbar": "#909090",
+            "bg1": "#e1e1e1",
+            "bg2": "#d5d5d5",
+            "bg3": "#b4b4b4",
+            "bg4": "#d3d3d3",
+            "mute-bg": "#bfbfbf",
+            "border1": "#afafaf",
+            "bg6-border2": "#c9c9c9",
+            "text": "#0f0f0f",
+            "secondary": "#c5c5c5",
+            "scrollbar": "#afafaf",
             "tooltip_bg": "#fefefe",
-            "tooltip_text": "#101010",
-            "disabled": "#aaaaaa"
+            "tooltip_text": "#cfcfcf",
+            "disabled": "#888888",
+            
+            "maximum": "#ffffff",
+            "minimum": "#000000",
+            
+            "e-border": "#d6d6d6",
         },
         
         "red": {
-            "bg1": "#3f0000",
-            "bg2": "#610000",
-            "bg3": "#5f0000",
-            "bg4": "#300000",
-            "bg5": "#404040",
-            "text": "#f0f0f0",
+            "bg1": "#1e0000",
+            "bg2": "#2a0000",
+            "bg3": "#4b0000",
+            "bg4": "#2c0000",
+            "mute-bg": "#404040",
             "border1": "#505050",
-            "border2": "#612121",
+            "bg6-border2": "#612121",
+            "text": "#f0f0f0",
             "secondary": "#7e0000",
-            "hover": "#490101",
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777"
+            "disabled": "#777777",
+            
+            "maximum": "#ff0000",
+            "minimum": "#ffffff",
+            
+            "e-border": "#d60000",
         },
 
         "green": {
-            "bg1": "#001b01",
-            "bg2": "#023d00",
-            "bg3": "#004910",
-            "bg4": "#003008",
-            "bg5": "#404040",
-            "text": "#f0f0f0",
+            "bg1": "#001e00",
+            "bg2": "#002a00",
+            "bg3": "#004b00",
+            "bg4": "#002c00",
+            "mute-bg": "#404040",
             "border1": "#505050",
-            "border2": "#236121",
+            "bg6-border2": "#236121",
+            "text": "#f0f0f0",
             "secondary": "#00660e",
-            "hover": "#014907",
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777"
+            "disabled": "#777777",
+            
+            "maximum": "#00ff00",
+            "minimum": "#ffffff",
+            
+            "e-border": "#00d600",
         },
 
         "lightblue": {
-            "bg1": "#001b17",
-            "bg2": "#003d3a",
-            "bg3": "#004945",
-            "bg4": "#002d30",
-            "bg5": "#404040",
-            "text": "#f0f0f0",
+            "bg1": "#001e1e",
+            "bg2": "#002a2a",
+            "bg3": "#004b4b",
+            "bg4": "#002c2c",
+            "mute-bg": "#404040",
             "border1": "#505050",
-            "border2": "#215f61",
+            "bg6-border2": "#215f61",
+            "text": "#f0f0f0",
             "secondary": "#006666",
-            "hover": "#014945",
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777"
+            "disabled": "#777777",
+            
+            "maximum": "#001111",
+            "minimum": "#ffffff",
+            
+            "e-border": "#002929",
         },
 
         "darkblue": {
-            "bg1": "#02001b",
-            "bg2": "#01003d",
-            "bg3": "#050049",
-            "bg4": "#030030",
-            "bg5": "#404040",
-            "text": "#f0f0f0",
+            "bg1": "#11001e",
+            "bg2": "#11002a",
+            "bg3": "#11004b",
+            "bg4": "#11002c",
+            "mute-bg": "#404040",
             "border1": "#505050",
-            "border2": "#252161",
+            "bg6-border2": "#252161",
+            "text": "#f0f0f0",
             "secondary": "#020066",
-            "hover": "#060149",
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777"
+            "disabled": "#777777",
+            
+            "maximum": "#110033",
+            "minimum": "#ffffff",
+            
+            "e-border": "#110029",
         }
     },
 
@@ -114,9 +138,11 @@ PALETTES = {
         "blue": {
             "primary_text": "#ffffff",
             "primary_hover": "#5db5fd",
-            "fg1": "#32a6ff",
+            "fg1": "#1171f7",
             "fg2": "#1a9cff",
             "fg3": "#6eb4e9",
+            "fg4": "#1f7cff",
+            "fg5": "#00589b",
             "highlight": "#a3d6ff",
         },
 
@@ -126,6 +152,8 @@ PALETTES = {
             "fg1": "#0e9c15",
             "fg2": "#15810b",
             "fg3": "#064900",
+            "fg4": "#1fff0c",
+            "fg5": "#11f717",
             "highlight": "#00cc00",
         },
 
@@ -135,6 +163,8 @@ PALETTES = {
             "fg1": "#9c0e0e",
             "fg2": "#810b0b",
             "fg3": "#350000",
+            "fg4": "#ff0914",
+            "fg5": "#f71117",
             "highlight": "#cc0000",
         }
     }
@@ -143,7 +173,7 @@ PALETTES = {
 STYLESHEET = '''
     QWidget.Bordered {{
         border-radius: 9px;
-        border: 1.5px solid {border2};
+        border: 1.5px solid {bg6-border2};
     }}
     
     
@@ -165,6 +195,10 @@ STYLESHEET = '''
         margin: 0px;
     }}
     
+    QFrame.DPMenu {{
+        border: 1px solid {bg6-border2};
+    }}
+    
     QScrollArea {{
         background-color: {bg2};
         border: 1px solid {border1};
@@ -173,7 +207,7 @@ STYLESHEET = '''
     
     
     QScrollBar::handle {{
-        background: {bg4};
+        background: {scrollbar};
         border-radius: 4px;
         min-height: 20px;
     }}
@@ -190,14 +224,14 @@ STYLESHEET = '''
         min-width: 30px;
     }}
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
-        background-color: {bg3};
+        background-color: {scrollbar};
         border-radius: 7px;
     }}
     QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{
-        background-color: {hover__bg3};
+        background-color: {hover__scrollbar};
     }}
     QScrollBar::handle:vertical:pressed, QScrollBar::handle:horizontal:pressed {{
-        background-color: {pressed__bg3};
+        background-color: {pressed__scrollbar};
     }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
@@ -250,7 +284,7 @@ STYLESHEET = '''
     }}
     
     
-    QLineEdit, QTextEdit, QPlainTextEdit {{
+    QLineEdit, QTextEdit, QPlainTextEdit, QPushButton.SearchPB {{
         color: {text};
         background-color: {bg4};
         border: 1px solid {border1};
@@ -258,11 +292,35 @@ STYLESHEET = '''
         padding: 5px;
     }}
     
+    QPushButton.SearchPB:hover {{
+        background-color: {hover__bg4};
+    }}
+    QPushButton.SearchPB:disabled {{
+        color: {disabled__text};
+        background-color: {disabled__bg4};
+    }}
+    
     
     QSlider {{
         color: {fg1};
     }}
     
+    QWidget.SearchOptions * {{
+        background: none;
+    }}
+    
+    QWidget.SearchOptions {{
+        background-color: {hover__bg3};
+        border: none;
+        padding: 8px 16px;
+        border-radius: 0px;
+    }}
+    QWidget.SearchOptions:hover {{
+        background-color: {bg3};
+    }}
+    QWidget.SearchOptions:disabled {{
+        background-color: {disabled__bg3};
+    }}
     
     QPushButton {{
         background-color: {fg1};
@@ -276,6 +334,7 @@ STYLESHEET = '''
         background-color: {hover__fg1};
     }}
     QPushButton:disabled {{
+        color: {disabled__text};
         background-color: {disabled__fg1};
     }}
     
@@ -283,7 +342,7 @@ STYLESHEET = '''
     QComboBox {{
         background-color: {bg3};
         color: {text};
-        border: 1px solid {border2};
+        border: 1px solid {bg6-border2};
         border-radius: 8px;
         padding: 6px;
         min-width: 120px;
@@ -324,7 +383,7 @@ STYLESHEET = '''
     
     
     QToolTip {{
-        background-color: {bg5};
+        background-color: {tooltip_bg};
         color: {text};
         border: 1px solid {border1};
         padding: 5px;
@@ -352,7 +411,7 @@ STYLESHEET = '''
     
     QMenuBar {{
         color: {text};
-        background-color: {bg5};
+        background-color: {mute-bg};
         border-bottom: 1px solid {border1};
     }}
     QMenuBar::item {{
@@ -360,13 +419,13 @@ STYLESHEET = '''
         padding: 8px 12px;
     }}
     QMenuBar::item:selected {{
-        background-color: {hover__bg5};
+        background-color: {hover__mute-bg};
     }}
     QMenu {{
         color: {text};
         padding: 5px;
         background-color: {bg2};
-        border: 1px solid {border2};
+        border: 1px solid {bg6-border2};
         border-radius: 5px;
     }}
     QMenu::item {{
@@ -388,7 +447,7 @@ STYLESHEET = '''
     QTableView {{
         background-color: {bg1};
         color: {text};
-        gridline-color: {border2};
+        gridline-color: {bg6-border2};
         selection-background-color: {fg2};
     }}
     
@@ -430,7 +489,7 @@ STYLESHEET = '''
     
     
     QWidget.TimetableWidget {{
-        background-color: {bg5};
+        background-color: {mute-bg};
         border-radius: 8px;
     }}
     
@@ -524,8 +583,8 @@ STYLESHEET = '''
     }}
     QWidget.SubjectClassViewEntryEdits QLineEdit {{
         min-width: 60px;
-        background-color: {bg5};
-        border: 1px solid {border2};
+        background-color: {mute-bg};
+        border: 1px solid {bg6-border2};
         border-radius: 10px;
         padding: 6px;
         color: {text};
@@ -620,7 +679,7 @@ STYLESHEET = '''
         background-color: {bg4};
         border: none;
         border-radius: 8px;
-        gridline-color: {border2};
+        gridline-color: {bg6-border2};
     }}
     QHeaderView::section {{
         background-color: {bg4};
@@ -701,6 +760,80 @@ STYLESHEET = '''
     QPushButton.GoButton:hover {{
         background-color: {bg3};
     }}
+    
+    
+    
+    QWidget.ExportEditor QWidget.ExportEditorOptionsBG, QWidget.SC_Bordeless {{
+        border: none;
+    }}
+    
+    QWidget.ExportEditor QWidget.ExportEditorOptionsBG {{
+        background-color: transparent;
+    }}
+    
+    QWidget.ExportEditor QWidget.CustomUIEditors {{
+        color: {text};
+        background-color: {bg4};
+        border: 1px solid {e-border};
+    }}
+    
+    QWidget.ExportEditor QLabel {{
+        background: none;
+    }}
+    
+    QWidget.ExportEditor QLineEdit, QWidget.ExportEditor QTextEdit {{
+        color: {text};
+        background-color: {bg2};
+        border: 1px solid {maximum};
+    }}
+    
+    QWidget.ExportEditor QSpinBox {{
+        color: {text};
+        background-color: {bg4};
+        border: 1px solid {maximum};
+    }}
+    
+    QWidget.ExportEditor QComboBox {{
+        background-color: {bg4};
+        color: {text};
+        border: 1px solid {maximum};
+        padding: 6px;
+        min-width: 120px;
+    }}
+    
+    QWidget.ExportEditor QComboBox::drop-down {{
+        border: none;
+        padding-right: 6px;
+    }}
+    
+    QWidget.ExportEditor QComboBox::down-arrow {{
+        image: none;
+        border: none;
+        width: 12px;
+        height: 12px;
+        background-color: {fg4};
+        border-radius: 100%;
+    }}
+    
+    QWidget.ExportEditor QComboBox::down-arrow:hover {{
+        background-color: {hover__fg4};
+    }}
+    
+    QWidget.ExportEditor QComboBox QAbstractItemView {{
+        color: {text};
+        background-color: {bg4};
+        border: 1px solid {maximum};
+        selection-background-color: {hover__fg4};
+        selection-color: {text};
+    }}
+    
+    QWidget.ExportEditor QColorDialog, QDialog, QWidget.ExportEditorSection {{
+        background-color: {bg6-border2}
+    }}
+    
+    QWidget.ExportEditorSideBar {{
+        background-color: {bg4};
+    }}
 '''
 
 
@@ -725,10 +858,11 @@ class ThemeManager:
                 
                 self._add_theme(f"{name1}-{name2}", {"palette": palette, "stylesheet": STYLESHEET})
         
-        self.func_mappings = {
+        self.func_mappings: dict[str, Callable[[str, tuple[Any, ...]], str]] = {
             "hover": self.get_hover_color,
             "pressed": self.get_pressed_color,
-            "disabled": self.get_disabled_color
+            "disabled": self.get_disabled_color,
+            "interpolate": self.interpolate_brightness
         }
     
     @staticmethod
@@ -767,7 +901,8 @@ class ThemeManager:
         return color
     
     @staticmethod
-    def interpolate_brightness(color: str, brightness: int):
+    def interpolate_brightness(color: str, brightness: int | str):
+        brightness = int(brightness)
         return ThemeManager.rgb_to_hex(ThemeManager.hex_to_rgb(color, brightness) if color is not None else (255, 255, 255, 255 - brightness))
     
     @staticmethod
@@ -798,7 +933,12 @@ class ThemeManager:
             
             function_key, palette_key = stripped_text.split(delimeter)
             
-            replacements["{" + text + "}"] = str(self.func_mappings[function_key](palette[palette_key]))
+            if "-" in function_key:
+                function_key, *extra_function_params = function_key.split("-")
+            else:
+                extra_function_params = []
+            
+            replacements["{" + text + "}"] = str(self.func_mappings[function_key](palette[palette_key], *extra_function_params))
         
         for init_text, rep_text in replacements.items():
             stylesheet = stylesheet.replace(init_text, rep_text)
@@ -827,9 +967,8 @@ class ThemeManager:
         # Inject palette variables into stylesheet using string formatting
         # try:
         #     error = None
-            
-        stylesheet_template = self._process_stylesheet_func_pointers("__", stylesheet_template, self.current_pallete)
-        applied_stylesheet = stylesheet_template.format(**self.current_pallete)
+        
+        applied_stylesheet = self.process_stylesheet(stylesheet_template)
         
         # except KeyError as e:
         #     error = e
@@ -838,7 +977,10 @@ class ThemeManager:
         #     KeyError(f"Missing color value for: {error} on line {stylesheet_template[:stylesheet_template.find(str(error))].count("\n") + 1}")
         
         self.app.setStyleSheet(applied_stylesheet)
-
+    
+    def process_stylesheet(self, stylesheet: str):
+        return self._process_stylesheet_func_pointers("__", stylesheet, self.current_pallete).format(**self.current_pallete)
+    
     def get_current_theme(self):
         theme: dict[str, dict[str, str] | str] = self.themes.get(self.current_theme, None)
         

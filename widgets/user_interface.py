@@ -5,7 +5,7 @@ from imports import *
 from widgets.base import *
 
 import math
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 T = TypeVar("T")
 
@@ -186,8 +186,7 @@ class MenuFrame(QFrame):
     def __init__(self):
         super().__init__()
         
-        self.setProperty("class", "Menu")
-        self.setStyleSheet("QFrame.Menu { border: 1px solid "+ THEME_MANAGER.pallete_get("border2") +"; }")
+        self.setProperty("class", "DPMenu")
         self.setWindowFlags(Qt.WindowType.Popup)
         self.setFrameShape(QFrame.Shape.Box)
         
@@ -205,6 +204,76 @@ class MenuFrame(QFrame):
         else:
             self.move(self._pos)
             self.show()
+
+class _SearchEditOption(BaseWidget):
+    def __init__(self, se: "SearchEdit", data_point: T, style: str | list | tuple, info: tuple[Optional[str], Optional[str], Optional[str], Optional[str]]):
+        super().__init__(QHBoxLayout)
+        
+        self.setProperty("class", "SearchOptions")
+        self.setContentsMargins(10, 10, 10, 10)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        
+        self.se = se
+        self.data_point = data_point
+        self.main_text, self.right_text, self.bottom_text, self.end_text = info
+        
+        if isinstance(style, str):
+            self.m_style = self.b_style = self.r_style = self.e_style = style
+        elif isinstance(style, (list, tuple)):
+            for i, (x, s_name) in enumerate(((self.main_text, "m_style"), (self.bottom_text, "b_style"), (self.right_text, "r_style"), (self.end_text, "e_style"))):
+                if x is not None:
+                    setattr(self, s_name, style[i])
+        else:
+            raise TypeError("Style is of type:", type(style))
+        
+        assert self.m_style is not None
+        
+        self.main_label = QLabel() ; self.main_label.setMinimumHeight(25)
+        self.bottom_label = QLabel() ; self.main_label.setMinimumHeight(17)
+        self.right_label = QLabel() ; self.main_label.setMinimumHeight(19)
+        self.end_label = QLabel() ; self.main_label.setMinimumHeight(15)
+        
+        w1 = BaseWidget()
+        w1.setContentsMargins(0, 0, 0, 0)
+        w1.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+        
+        main_right_widget = BaseWidget(QHBoxLayout)
+        main_right_widget.setSpacing(10)
+        main_right_widget.setContentsMargins(0, 0, 0, 0)
+        
+        main_right_widget.addWidget(self.main_label)
+        main_right_widget.addWidget(self.right_label)
+        
+        w1.addWidget(main_right_widget)
+        w1.addWidget(self.bottom_label, alignment=Qt.AlignmentFlag.AlignBottom)
+        
+        self.addWidget(w1)
+        self.addWidget(self.end_label, alignment=Qt.AlignmentFlag.AlignRight)
+    
+    def update_highlights(self, text: str, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
+        score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
+        
+        if score != -1:
+            if not self.isVisible():
+                self.setVisible(True)
+            
+            self.main_label.setText("".join([f"<span style='font-size: 25px; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" for i, c in enumerate(self.main_text)]))
+            self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
+            self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
+            self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
+        else:
+            self.setVisible(False)
+    
+    def mousePressEvent(self, a0):
+        self.se.hide()
+        self.se.search_le.blockSignals(True)
+        self.se.search_le.clear()
+        self.se.search_le.blockSignals(False)
+        
+        if self.se.goto_search_callback:
+            self.se.goto_search_callback(self.data_point)
+        
+        return super().mousePressEvent(a0)
 
 class SearchEdit(QFrame):
     DEBOUNCE_MS = 120
@@ -227,6 +296,7 @@ class SearchEdit(QFrame):
         self.setProperty("class", "option-menu")
         self.setFixedWidth(500)
 
+        self.ref_data = {}
         self._updating = False
 
         # ---------- Layout ----------
@@ -239,14 +309,20 @@ class SearchEdit(QFrame):
         self.search_le.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
         
         self.main_layout.addWidget(self.search_le, alignment=Qt.AlignmentFlag.AlignTop)
-
-        self.options_widget = BaseScrollWidget()
         
-        self.options_widget.setFixedWidth(496)
-        self.options_widget.setFixedHeight(220)
-        self.options_widget.setVisible(False)
+        self.options_widget_wrapper = BaseScrollWidget()
+        
+        self.options_widget = BaseWidget()
+        self.options_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        
+        self.options_widget_wrapper.addWidget(self.options_widget)
+        self.options_widget_wrapper.addStretch()
+        
+        self.options_widget_wrapper.setFixedWidth(496)
+        self.options_widget_wrapper.setMinimumHeight(220)
+        self.options_widget_wrapper.setVisible(False)
 
-        self.main_layout.addWidget(self.options_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.main_layout.addWidget(self.options_widget_wrapper, alignment=Qt.AlignmentFlag.AlignTop)
 
         # ---------- Debounce ----------
         self._search_timer = QTimer(self)
@@ -270,19 +346,16 @@ class SearchEdit(QFrame):
     def _run_search(self):
         if self._updating:
             return
-
+        
         self._updating = True
         text = self.search_le.text().strip()
-
-        BaseWidget.static_clear_layout(self.options_layout)
-        
-        self.options_layout.addStretch()
         
         if not text:
-            self.options_container.setVisible(False)
+            self.options_widget_wrapper.setVisible(False)
             self._updating = False
+            
             return
-
+        
         score_data = sorted(
             [
                 (
@@ -296,43 +369,61 @@ class SearchEdit(QFrame):
             key=lambda x: x[2][0],
             reverse=True
         )
-
-        added = 0
-        for index, (data_point, (name, right, bottom, end), (score, indices)) in enumerate(score_data):
-            if score == -1 or added >= self.MAX_RESULTS:
-                continue
-
-            label = QLabel(
-                self._stylize_text_indices(
-                    name,
-                    f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;",
-                    right,
-                    bottom,
-                    end,
-                    indices
-                )
-            )
-            label.setProperty("class", "QPushButton")
-            label.mousePressEvent = self._make_option_clicked_func(data_point)
-            
-            self.options_layout.insertWidget(index, label, alignment=Qt.AlignmentFlag.AlignTop)
-            added += 1
         
-        self.options_container.setVisible(added > 0)
+        ref_data_copy = self.ref_data.copy()
+        l_ref_data = list(ref_data_copy)
+        
+        self.ref_data.clear()
+        
+        added = 0
+        for index, (data_point, info, score_highlight_data) in enumerate(score_data):
+            added += 1
+            
+            if data_point not in ref_data_copy:
+                widget = _SearchEditOption(self, data_point, f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;", info)
+                
+                self.options_widget.addWidget(widget)
+            else:
+                widget = ref_data_copy[data_point]
+                
+                if index != l_ref_data.index(data_point):
+                    self.options_widget.insertWidget(index, widget)
+            
+            widget.update_highlights(text, score_highlight_data)
+            self.ref_data[data_point] = widget
+            
+            if added >= self.MAX_RESULTS:
+                break
+        
+        for dp, widg in ref_data_copy.items():
+            if dp not in self.ref_data:
+                self.options_widget.removeWidget(widg)
+        
+        # added = 0
+        # for data_point, (name, right, bottom, end), (score, indices) in score_data:
+        #     if score == -1 or added >= self.MAX_RESULTS:
+        #         continue
+            
+        #     label = QLabel(
+        #         self._stylize_text_indices(
+        #             name,
+        #             f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;",
+        #             right,
+        #             bottom,
+        #             end,
+        #             indices
+        #         )
+        #     )
+        #     label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        #     label.setProperty("class", "SearchOptions")
+        #     label.mousePressEvent = self._make_option_clicked_func(data_point)
+            
+        #     self.options_widget.addWidget(label, alignment=Qt.AlignmentFlag.AlignTop)
+        #     added += 1
+        
+        self.options_widget_wrapper.setVisible(added > 0)
         
         self._updating = False
-    
-    def _make_option_clicked_func(self, data_point: T):
-        def handler(_):
-            self.hide()
-            self.search_le.blockSignals(True)
-            self.search_le.clear()
-            self.search_le.blockSignals(False)
-
-            if self.goto_search_callback:
-                self.goto_search_callback(data_point)
-
-        return handler
     
     def _score(
         self,
@@ -340,7 +431,7 @@ class SearchEdit(QFrame):
         potential_match: str,
         extra_text_data: Optional[tuple[Optional[str], Optional[str], Optional[str]]] = None,
         backgrounds_texts: Optional[list[Optional[str]]] = None
-    ):
+    ) -> tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]:
         l_text = text.lower()
         l_target = potential_match.lower()
         
@@ -410,28 +501,6 @@ class SearchEdit(QFrame):
                     return bg_score / 20, ([], [], [], [])
         
         return -1, ([], [], [], [])
-    
-    def _stylize_text_indices(self, main_text: str, style: str, right_text: Optional[str], bottom_text: Optional[str], end_text: Optional[str], indices: tuple[list[int], list[int], list[int]]):
-        main_indices, right_indices, bottom_indices, end_indices = indices
-        
-        text = f"""
-        <table width="100%">
-        <tr>
-            <td align="left">
-            {"".join([f"<span style='font-size: 23px; {f"{style}" if i in main_indices else ""}'>{c}</span>" for i, c in enumerate(main_text)])}
-            <span>    </span>
-            {"".join([f"<span style='color: grey; font-size: 18px; font-weight: 300; {f"{style}" if i in right_indices else ""}'>{c}</span>" for i, c in enumerate(right_text)]) if right_text else ""}
-            <br>
-            {"".join([f"<span style='color: grey; font-size: 15px; font-weight: 500; {f"{style}" if i in bottom_indices else ""}'>{c}</span>" for i, c in enumerate(bottom_text)]) if bottom_text else ""}
-            </td>
-            <td align="right">
-            {"".join([f"<span style='color: lightgrey; font-size: 10px; font-weight: 300; {f"{style}" if i in end_indices else ""}'>{c}</span>" for i, c in enumerate(end_text)]) if end_text else ""}
-            </td>
-            <br>
-        </tr>
-        </table>
-        """
-        return text
 
 class CustomTitleBar(BaseWidget):
     def __init__(self, parent: QWidget, get_search_scope_func: Callable, goto_search_func: Callable):
@@ -463,7 +532,7 @@ class CustomTitleBar(BaseWidget):
         
         self.search_pb = QPushButton("Search Subjects")
         self.search_pb.setFixedWidth(self.search_edit.width())
-        self.search_pb.setStyleSheet(f"background-color: {THEME_MANAGER.pallete_get("bg2")}; border: 1px solid {THEME_MANAGER.pallete_get("border1")};")
+        self.search_pb.setProperty("class", "SearchPB")
         self.search_pb.clicked.connect(self._open_search_edit)
         
         self.center_widget.addWidget(self.search_pb)
@@ -684,30 +753,34 @@ class _SideBarOption(BaseWidget):
     def __init__(self, name: str, do_action: Callable):
         super().__init__(QHBoxLayout)
         
-        self.SELECTED_STYLESHEET = f"""
-            QWidget.SideBarOption {{
-                background-color: {THEME_MANAGER.pallete_get("bg2")};
-            }}
-            
-            QLabel {{
-                color: {THEME_MANAGER.pallete_get("text")};
-                font-weight: 500;
-            }}
-        """
+        self.SELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget.SideBarOption {{
+                    background-color: {fg4};
+                }}
+                
+                QLabel {{
+                    color: {text};
+                    font-weight: 500;
+                }}
+            """
+        )
         
-        self.UNSELECTED_STYLESHEET = f"""
-            QWidget.SideBarOption {{
-                background-color: transparent;
-            }}
-            
-            QWidget.SideBarOption:hover {{
-                background-color: {THEME_MANAGER.pallete_get("bg3")};
-            }}
-            
-            QLabel {{
-                color: {THEME_MANAGER.pallete_get("disabled")};
-            }}
-        """
+        self.UNSELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget.SideBarOption {{
+                    background-color: transparent;
+                }}
+                
+                QWidget.SideBarOption:hover {{
+                    background-color: {hover__bg3};
+                }}
+                
+                QLabel {{
+                    color: {hover__text};
+                }}
+            """
+        )
         
         self.setProperty("class", "SideBarOption")
         self.setStyleSheet(self.UNSELECTED_STYLESHEET)
@@ -731,20 +804,13 @@ class SideBar(BaseWidget):
     def __init__(self, *content: tuple[str | None, Callable] | None):
         super().__init__()
         
-        self.STYLESHEET = """
-            QWidget.SideBar {
-                background-color: #2c2c2c;
-            }
-        """
-        
         self.widgets = []
         
         self.setFixedWidth(210)
         
         self.setSpacing(0)
         self.setContentsMargins(0, 0, 0, 0)
-        self.setProperty("class", "SideBar")
-        self.setStyleSheet(self.STYLESHEET)
+        self.setProperty("class", "ExportEditorSideBar")
         
         for index, data in enumerate(content):
             name, action = data if data is not None else (None, None)
@@ -783,36 +849,40 @@ class _Tab(BaseWidget):
     def __init__(self, name: str):
         super().__init__()
         
-        self.SELECTED_STYLESHEET = f"""
-            QWidget {{
-                background-color: transparent;
-            }}
-            
-            QLabel {{
-                font-size: 13px;
-                font-weight: bold;
-                color: {THEME_MANAGER.pallete_get("text")};
-            }}
-            
-            QLabel:hover {{
-                color: {THEME_MANAGER.pallete_get("hover")};
-            }}
-        """
+        self.SELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget {{
+                    background-color: transparent;
+                }}
+                
+                QLabel {{
+                    font-size: 13px;
+                    font-weight: bold;
+                    color: {fg4};
+                }}
+                
+                QLabel:hover {{
+                    color: {hover__fg4};
+                }}
+            """
+        )
         
-        self.UNSELECTED_STYLESHEET = f"""
-            QWidget {{
-                background-color: transparent;
-            }}
-            
-            QLabel {{
-                color: {THEME_MANAGER.pallete_get("disabled")};
-                font-size: 13px;
-            }}
-            
-            QLabel:hover {{
-                color: {THEME_MANAGER.pallete_get("secondary")};
-            }}
-        """
+        self.UNSELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget {{
+                    background-color: transparent;
+                }}
+                
+                QLabel {{
+                    color: {text};
+                    font-size: 13px;
+                }}
+                
+                QLabel:hover {{
+                    color: {hover__text};
+                }}
+            """
+        )
         
         self.setFixedHeight(35)
         
@@ -841,16 +911,18 @@ class TabView(BaseWidget):
     def __init__(self, tabs: dict[str, QWidget], *extra_title_widgets: QWidget):
         super().__init__()
         
-        self.STYLESHEET = f"""
-            QWidget.TabView {{
-                background-color: {THEME_MANAGER.pallete_get("bg4")};
-            }}
-            
-            QWidget.TabWidget {{
-                background-color: transparent;
-                border-bottom: 1px solid {THEME_MANAGER.pallete_get("bg5")};
-            }}
-        """    
+        self.STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget.TabView {{
+                    background-color: {bg1};
+                }}
+                
+                QWidget.TabWidget {{
+                    background-color: transparent;
+                    border-bottom: 1px solid {secondary};
+                }}
+            """ 
+        )   
         
         self.setProperty("class", "TabView")
         
@@ -905,38 +977,6 @@ class TabView(BaseWidget):
         for et_widget in self.extra_title_widgets:
             self.tabWidgetLayout.addWidget(et_widget)
 
-class RotatableLabel(QLabel):
-    def __init__(self, text, angle: int = 0, parent=None):
-        super().__init__(text, parent)
-        self.angle = angle  # Angle in degrees to rotate the text
-        self.setProperty("class", "Arrow")
-    
-    def rotate(self, angle: int):
-        self.angle = angle
-        self.update()  # Trigger a repaint
-    
-    def paintEvent(self, _):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        # Save the painter's current state
-        painter.save()
-
-        # Translate to the center of the label
-        center = self.rect().center()
-        painter.translate(center)
-
-        # Rotate the painter
-        painter.rotate(self.angle)
-
-        # Translate back and draw the text
-        center.setX(center.x() + (2 if self.angle >= 180 else -1))
-        painter.translate(-center)
-        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text())
-
-        # Restore the painter's state
-        painter.restore()
-
 class SeperatorWidget(BaseWidget):
     def __init__(self, orientation: Qt.Orientation, spacing: int, width: Optional[int] = None, height: Optional[int] = None, color: Optional[str] = None):
         super().__init__()
@@ -990,7 +1030,7 @@ class _FontSection(BaseWidget):
     def __init__(self):
         super().__init__()
 
-        self.setProperty("class", "OptionsMainBG")
+        self.setProperty("class", "ExportEditorOptionsBG")
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1039,7 +1079,7 @@ class _OutlineSection(BaseWidget):
     def __init__(self):
         super().__init__()
 
-        self.setProperty("class", "OptionsMainBG")
+        self.setProperty("class", "ExportEditorOptionsBG")
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1071,7 +1111,7 @@ class _ShadowSection(BaseWidget):
     def __init__(self):
         super().__init__()
 
-        self.setProperty("class", "OptionsMainBG")
+        self.setProperty("class", "ExportEditorOptionsBG")
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1109,7 +1149,7 @@ class _MarginsSection(BaseWidget):
     def __init__(self):
         super().__init__()
 
-        self.setProperty("class", "OptionsMainBG")
+        self.setProperty("class", "ExportEditorOptionsBG")
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1128,7 +1168,7 @@ class _FormatSection(BaseWidget):
     def __init__(self):
         super().__init__()
 
-        self.setProperty("class", "OptionsMainBG")
+        self.setProperty("class", "ExportEditorOptionsBG")
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1164,27 +1204,31 @@ class IconToolBarOption(BaseWidget):
         
         self.content = content
         
-        self.HOVER_STYLESHEET = F"""
-            QWidget.IconToolBarOption:hover {{
-                background-color: {THEME_MANAGER.pallete_get("hover")}
-            }}
-        """
+        self.HOVER_STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget.IconToolBarOption:hover {{
+                    background-color: {hover__bg3}
+                }}
+            """
+        )
         
-        self.STYLESHEET = f"""
-            QWidget.IconToolBarOption {{
-                background-color: transparent
-            }}
-            
-            {self.HOVER_STYLESHEET}
-            
-            QWidget.IconToolBarOption QWidget._TopWidget QLabel {{
-                font-size: {font_size}px
-            }}
-            QWidget.IconToolBarOption QLabel {{
-                color: {THEME_MANAGER.pallete_get("text")};
-                font-size: {font_size}px
-            }}
-        """
+        self.STYLESHEET = THEME_MANAGER.process_stylesheet(
+            f"""
+                QWidget.IconToolBarOption {{{{
+                    background-color: transparent
+                }}}}
+                
+                {self.HOVER_STYLESHEET}
+                
+                QWidget.IconToolBarOption QWidget._TopWidget QLabel {{{{
+                    font-size: {font_size}px
+                }}}}
+                QWidget.IconToolBarOption QLabel {{{{
+                    color: {{text}};
+                    font-size: {font_size}px
+                }}}}
+            """
+        )
         
         self.setSpacing(0)
         self.setContentsMargins(15, 5, 15, 5)
@@ -1270,15 +1314,17 @@ class TitledWidget(BaseWidget):
     def __init__(self, title: str | QWidget, widget: QWidget, *extra_title_widgets: QWidget, scrollable: bool = False):
         super().__init__()
         
-        self.STYLESHEET = f"""
-            QWidget.TitleArea {{
-                background-color: {THEME_MANAGER.pallete_get("bg2")};
-            }}
-            
-            QWidget.Body {{
-                background-color: {THEME_MANAGER.pallete_get("bg1")};
-            }}
-        """
+        self.STYLESHEET = THEME_MANAGER.process_stylesheet(
+            """
+                QWidget.TitleArea {{
+                    background-color: {bg1};
+                }}
+                
+                QWidget.Body {{
+                    background-color: {bg2};
+                }}
+            """
+        )
         
         self.setProperty("class", "TitledWidget")
         self.setStyleSheet(self.STYLESHEET)
@@ -1334,7 +1380,7 @@ class FontEditor(IconToolBarOption):
         
         super().__init__(None, None, None, 10, content_widget, name)
         
-        self.setProperty("class", "MyWidget")
+        self.setProperty("class", "CustomUIEditors")
 
 class ColorComboBox(IconToolBarOption):
     def __init__(self, color: QColor | str):
@@ -1353,7 +1399,7 @@ class ColorComboBox(IconToolBarOption):
         
         self.setContentsMargins(5, 5, 5, 5)
         
-        self.setProperty("class", "MyWidget")
+        self.setProperty("class", "CustomUIEditors")
     
     def _colorToHex(self, color: QColor):
         r = hex(color.red()).replace("0x", "")
@@ -1369,11 +1415,11 @@ class ColorComboBox(IconToolBarOption):
 
 class ExportsEditorDialogWidget(BaseDialogWidget):
     def __init__(self):
-        super().__init__("Exports Editor", BaseWidget)
+        super().__init__("Export Editor", BaseWidget)
         
         self._initGeom()
         
-        self.setProperty("class", "OptionsWidget")
+        self.setProperty("class", "ExportEditor")
         
         central_widget = QStackedWidget()
         
@@ -1398,8 +1444,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         main_widget.addWidget(central_widget)
         
         preview = QCheckBox("Preview Output")
-        ok_button = MyPushButton("OK")
-        cancel_button = MyPushButton("Cancel")
+        ok_button = QPushButton("OK")
+        cancel_button = QPushButton("Cancel")
         
         base_widget.addWidget(preview)
         base_widget.addStretch()
@@ -1410,7 +1456,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.addWidget(base_widget)
     
     def _initGeom(self):
-        self.setMinimumSize(700, 550)
+        self.setMinimumSize(800, 550)
         
         screen_geom = self.screen().geometry()
         
@@ -1418,21 +1464,25 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def getFontWidget(self):
         font_widget = BaseWidget()
+        font_widget.setProperty("class", "ExportEditorOptionsBG")
         
         return font_widget
     
     def getColorsWidget(self):
         colors_widget = BaseWidget()
+        colors_widget.setProperty("class", "ExportEditorOptionsBG")
         
         return colors_widget
     
     def getTimingWidget(self):
         timing_widget = BaseWidget()
+        timing_widget.setProperty("class", "ExportEditorOptionsBG")
         
         return timing_widget
     
     def getSaveWidget(self):
         save_widget = BaseWidget()
+        save_widget.setProperty("class", "ExportEditorOptionsBG")
         
         return save_widget
     

@@ -145,10 +145,10 @@ class Window(QMainWindow):
         current_display_widget = self.stack.currentWidget()
         
         if isinstance(current_display_widget, BaseSettingWidget):
-            current_display_widget.scroll_area.verticalScrollBar().setValue(sw.y())
+            current_display_widget.scroll_widget.getScrollWidget().verticalScrollBar().setValue(sw.y())
     
     def _get_search_scope(self):
-        display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.clasS_levels
+        display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels
         
         current_display_index = self.stack.currentIndex()
         current_display_widget = self.stack.currentWidget()
@@ -157,7 +157,7 @@ class Window(QMainWindow):
             return (
                 sorted(
                     [
-                        (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (None, sw_id, None), [])
+                        (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (display_data[current_display_index][sw_id].name.short() if display_data[current_display_index][sw_id].name.full() != display_data[current_display_index][sw_id].name.short() else None, sw_id, None), [])
                         for sw_id, sw in
                         current_display_widget.widgets.items()
                     ],
@@ -374,6 +374,7 @@ class Window(QMainWindow):
                 self.title_bar.search_pb.setText(f"Search {name}")
                 
                 if self.display_index != index:
+                    self.title_bar.search_pb.setDisabled(index == 3)
                     self.stack.setCurrentIndex(index)
                 
                 self.display_index = index

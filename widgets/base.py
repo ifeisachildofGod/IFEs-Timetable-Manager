@@ -435,6 +435,8 @@ class BaseSettingWidget(BaseWidget):
     def __init__(self, name: str):
         super().__init__()
         
+        self.widgets = {}
+        
         self.add_button = QPushButton()
         self.add_button.clicked.connect(lambda: self.add())
         self.add_button.setText(f"Add {name}")
@@ -491,6 +493,8 @@ class BaseSettingWidget(BaseWidget):
         else:
             self.scroll_widget.insertWidget(index, widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
         
+        self.widgets[entry.id] = widget
+        
         QTimer.singleShot(
             100,
             lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(self.scroll_widget.getScrollWidget().verticalScrollBar().maximum())
@@ -500,6 +504,7 @@ class BaseSettingWidget(BaseWidget):
     
     def remove(self, widget: BaseSettingEntry):
         widget.delete()
+        self.widgets.pop(widget.entry.id)
         self.get_global().remove(widget.entry.id)
         
         return widget.entry.id
