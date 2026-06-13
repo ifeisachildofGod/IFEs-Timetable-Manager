@@ -75,6 +75,21 @@ class BaseWidget(QWidget):
         for widget in self.getWidgets():
             widget.setProperty(name, value)
     
+    def setStyleProperty(self, obj: QWidget, name: str, value: str):
+        assert ";" not in name
+        
+        stylesheet = obj.styleSheet() + " "
+        
+        index = stylesheet.find(name)
+        
+        start_index = index if index != -1 else len(stylesheet)
+        end_index = start_index + stylesheet[start_index:].find(";") + 1 if index != -1 else len(stylesheet)
+        
+        stylesheet = list(stylesheet)
+        stylesheet[start_index : end_index] = f"{name}: {value.strip().removesuffix(";")};"
+        
+        obj.setStyleSheet("".join(stylesheet).removesuffix(" "))
+    
     def setFixedWidth(self, width: int):
         self.getWidget().setFixedWidth(width)
 

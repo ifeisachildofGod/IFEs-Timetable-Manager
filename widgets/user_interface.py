@@ -520,7 +520,7 @@ class CustomTitleBar(BaseWidget):
         
         self.center_widget = BaseWidget(QHBoxLayout)
         self.center_widget.setProperty("class", "TitleBar")
-        self.center_widget.setContentsMargins(60, 5, 60, 5)
+        self.center_widget.setContentsMargins(60, 0, 60, 0)
         
         right_widget = BaseWidget(QHBoxLayout)
         right_widget.setProperty("class", "TitleBar")
@@ -555,6 +555,7 @@ class MainTitleBar(CustomTitleBar):
         super().__init__(parent, get_search_scope_func, goto_search_func)
         
         menu_bar.setFixedHeight(40)
+        menu_bar.setContentsMargins(0, 0, 0, 0)
         menu_bar.setStyleSheet("QMenuBar {background-color: transparent; border: none;}")
         
         self.left_widget.addWidget(menu_bar)
@@ -580,6 +581,7 @@ class WidgetDropdown(BaseWidget):
         self.setSpacing(0)
         
         self.setProperty("class", "Bordered")
+        self.setProperty("class", "BorderRadiused")
         self.setProperty("class", "DropdownCheckboxes")
         
         self.header = BaseWidget(QHBoxLayout)
@@ -696,24 +698,6 @@ class EditableCancelableEntry(BaseWidget):
 
 
 
-def getMenuPosition(dp_widget: QWidget, menu_widget: QWidget | QMenu):
-    pos = dp_widget.mapToGlobal(QPoint(dp_widget.x(), dp_widget.y() + dp_widget.rect().height() - dp_widget.contentsMargins().bottom()))
-    
-    screen_geom = dp_widget.screen().geometry()
-    g_pos = dp_widget.mapToGlobal(dp_widget.pos())
-    
-    offset_x_factor = 1 if g_pos.x() < screen_geom.width() / 2 else -1
-    offset_y_factor = 1 if g_pos.y() < screen_geom.height() / 2 else -1
-    
-    left_most = menu_widget.rect().width() - dp_widget.width()
-    top_most = menu_widget.rect().height() + dp_widget.height()
-    
-    off_X = int(left_most - left_most * (offset_x_factor + 1) / 2)
-    off_Y = int(top_most - top_most * (offset_y_factor + 1) / 2)
-    
-    return pos - QPoint(off_X, off_Y)
-
-
 class Image(QLabel):
     def __init__(self, path: str, width: int | None = None, height: int | None = None):
         super().__init__()
@@ -743,11 +727,6 @@ class Image(QLabel):
         self.setPixmap(scaled_pixmap)
         # self.update()
 
-class MyPushButton(QPushButton):
-    def __init__(self, text):
-        super().__init__(text)
-        
-        self.setMinimumWidth(70)
 
 class _SideBarOption(BaseWidget):
     def __init__(self, name: str, do_action: Callable):
@@ -818,7 +797,7 @@ class SideBar(BaseWidget):
             option = (
                 _SideBarOption(name, self._mf_option_changed(index, action))
                 if name is not None else
-                SeperatorWidget(Qt.Orientation.Vertical, 10, None, 1, "#9b9b9b")
+                SeperatorWidget(Qt.Orientation.Vertical, 10, None, 1)
             )
                 
             self.widgets.append(option)
@@ -927,18 +906,15 @@ class TabView(BaseWidget):
         self.setProperty("class", "TabView")
         
         self.setSpacing(0)
-        self.tabWidgetLayout.setContentsMargins(10, 10, 10, 10)
         
         self.tabs = tabs
         self.extra_title_widgets = extra_title_widgets
         
-        self.tabWidget = QWidget()
+        self.tabWidget = BaseWidget(QHBoxLayout)
         self.tabWidget.setProperty("class", "TabWidget")
         self.tabWidget.setFixedHeight(40)
         self.tabWidget.setStyleSheet(self.STYLESHEET)
-        self.tabWidgetLayout = QHBoxLayout()
-        self.tabWidgetLayout.setContentsMargins(10, 10, 10, 0)
-        self.tabWidget.setLayout(self.tabWidgetLayout)
+        self.tabWidget.setContentsMargins(10, 10, 10, 0)
         
         self.bodyWidget = QStackedWidget()
         
@@ -969,16 +945,16 @@ class TabView(BaseWidget):
             
             tab.tab_selected.connect(func)
             
-            self.tabWidgetLayout.addWidget(tab)
+            self.tabWidget.addWidget(tab)
             self.bodyWidget.addWidget(widget)
         
-        self.tabWidgetLayout.addStretch()
+        self.tabWidget.addStretch()
         
         for et_widget in self.extra_title_widgets:
-            self.tabWidgetLayout.addWidget(et_widget)
+            self.tabWidget.addWidget(et_widget)
 
 class SeperatorWidget(BaseWidget):
-    def __init__(self, orientation: Qt.Orientation, spacing: int, width: Optional[int] = None, height: Optional[int] = None, color: Optional[str] = None):
+    def __init__(self, orientation: Qt.Orientation, spacing: int, width: Optional[int] = None, height: Optional[int] = None):
         super().__init__()
         
         x_spacing = spacing // 2 if orientation == Qt.Orientation.Horizontal else 0
@@ -993,7 +969,7 @@ class SeperatorWidget(BaseWidget):
         if height:
             widget.setFixedHeight(height)
         
-        widget.setStyleSheet(f"background-color: {color or THEME_MANAGER.pallete_get("border1")};")
+        widget.setStyleSheet(f"background-color: {THEME_MANAGER.process_stylesheet("{interpolate-250__maximum}")};")
         
         self.addWidget(widget)
 
@@ -1007,8 +983,9 @@ class SeparatorLabel(BaseWidget):
         label = QLabel(text)
         label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         label.setContentsMargins(0, 0, 5, 0)
+        self.setStyleProperty(label, "font-weight", "bold")
         
-        sep_widget = SeperatorWidget(Qt.Orientation.Vertical, 0, None, 1, "#1c1c1c")
+        sep_widget = SeperatorWidget(Qt.Orientation.Vertical, 0, None, 1)
         sep_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum)
         sep_widget.setContentsMargins(0, 7, 0, 0)
         
@@ -1026,182 +1003,24 @@ class LabeledWidget(BaseWidget):
         self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignRight)
 
 
-class _FontSection(BaseWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        f_widget = BaseWidget() ; f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        fn_cb = QFontComboBox()
-        s_sb = QSpinBox()
-        c_cb = ColorComboBox("red")
-        st_cb = QComboBox() ; st_cb.addItems(["Regular", "Bold", "Italic", "Bold Italic"])
-        uss_widget = BaseWidget(QHBoxLayout) ; uss_widget.setContentsMargins(0, 5, 0, 5)
-        uss_widget.addWidget(u_cb := QCheckBox("Underline"))
-        uss_widget.addWidget(sp_cb := QCheckBox("Superscript"))
-        uss_widget.addWidget(sb_cb := QCheckBox("Subscript"))
-        o_widget = BaseWidget(QHBoxLayout)
-        o_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        o_widget.setContentsMargins(0, 0, 0, 0)
-        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
-        o_widget.addWidget(o_sb := QSpinBox())
-        
-        f_widget.addWidget(LabeledWidget("Font Name", fn_cb))
-        f_widget.addWidget(LabeledWidget("Size", s_sb))
-        f_widget.addWidget(LabeledWidget("Color", c_cb))
-        f_widget.addWidget(LabeledWidget("Style", st_cb))
-        f_widget.addWidget(uss_widget)
-        f_widget.addWidget(LabeledWidget("Opacity", o_widget))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        a_widget = BaseWidget() ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        ta_cb = QComboBox() ; ta_cb.addItems(["Left", "Center", "Right"])
-        va_cb = QComboBox() ; va_cb.addItems(["Left", "Center", "Right"])
-        
-        a_widget.addWidget(LabeledWidget("Text Alignment", ta_cb))
-        a_widget.addWidget(LabeledWidget("Vertical Alignment", va_cb))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(SeparatorLabel("Font"))
-        self.addWidget(f_widget)
-        self.addWidget(SeparatorLabel("Alignment"))
-        self.addWidget(a_widget)
-        self.addStretch()
-
-class _OutlineSection(BaseWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        ou_widget = BaseWidget() ; ou_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
-        c_ccb = ColorComboBox("black")
-        j_cb = QComboBox() ; j_cb.addItems(["Round", "Square", "Bevel"])
-        s_widget = BaseWidget(QHBoxLayout)
-        s_widget.addWidget(s_slider := QSlider(Qt.Orientation.Horizontal))
-        s_widget.addWidget(s_sb := QSpinBox())
-        o_widget = BaseWidget(QHBoxLayout)
-        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
-        o_widget.addWidget(o_sb := QSpinBox())
-        
-        ou_widget.addWidget(LabeledWidget("Style", s_cb))
-        ou_widget.addWidget(LabeledWidget("Color", c_ccb))
-        ou_widget.addWidget(LabeledWidget("Join", j_cb))
-        ou_widget.addWidget(LabeledWidget("Size", s_widget))
-        ou_widget.addWidget(LabeledWidget("Opacity", o_widget))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(SeparatorLabel("Outline"))
-        self.addWidget(ou_widget)
-        self.addStretch()
-
-class _ShadowSection(BaseWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        sh_widget = BaseWidget() ; sh_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
-        c_ccb = ColorComboBox("black")
-        a_widget = BaseWidget(QHBoxLayout) ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        a_widget.addWidget(a_dial := QDial())
-        a_widget.addWidget(a_sb := QSpinBox())
-        off_widget = BaseWidget(QHBoxLayout)
-        off_widget.addWidget(off_slider := QSlider(Qt.Orientation.Horizontal))
-        off_widget.addWidget(off_sb := QSpinBox())
-        b_widget = BaseWidget(QHBoxLayout)
-        b_widget.addWidget(b_slider := QSlider(Qt.Orientation.Horizontal))
-        b_widget.addWidget(b_sb := QSpinBox())
-        o_widget = BaseWidget(QHBoxLayout)
-        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
-        o_widget.addWidget(o_sb := QSpinBox())
-        
-        sh_widget.addWidget(LabeledWidget("Style", s_cb))
-        sh_widget.addWidget(LabeledWidget("Color", c_ccb))
-        sh_widget.addWidget(LabeledWidget("Angle", a_widget))
-        sh_widget.addWidget(LabeledWidget("Offset", off_widget))
-        sh_widget.addWidget(LabeledWidget("Blur", b_widget))
-        sh_widget.addWidget(LabeledWidget("Opacity", o_widget))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(SeparatorLabel("Shadow"))
-        self.addWidget(sh_widget)
-        self.addStretch()
-
-class _MarginsSection(BaseWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        m_widget = BaseWidget() ; m_widget.setSpacing(10)
-        
-        m_widget.addWidget(LabeledWidget(LabeledWidget("Left", l_sb := QSpinBox()), LabeledWidget("Top", t_sb := QSpinBox())))
-        m_widget.addWidget(LabeledWidget(LabeledWidget("Right", r_sb := QSpinBox()), LabeledWidget("Bottom", b_sb := QSpinBox())))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(SeparatorLabel("Margins"))
-        self.addWidget(m_widget)
-        self.addStretch()
-
-class _FormatSection(BaseWidget):
-    def __init__(self):
-        super().__init__()
-
-        self.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        as_widget = BaseWidget()
-        
-        as_widget.addWidget(dnast_rb := QRadioButton("Do not auto size text"))
-        as_widget.addWidget(rttfe_rb := QRadioButton("Resize text to fit element"))
-        ntsas_widget = BaseWidget() ; ntsas_widget.addWidget(ntsas_cb := QCheckBox("Normalize text size across slides"))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        fmt_widget = BaseWidget()
-        
-        fmt_widget.addWidget(ww_cb := QCheckBox("Word Wrapping"))
-        fmt_widget.addWidget(caw_cb := QCheckBox("Capitalize all words"))
-        fmt_widget.addWidget(cfwoel_cb := QCheckBox("Capitalize first word of each line"))
-        fmt_widget.addWidget(acfcotw_cb := QCheckBox("Automatically capitalize first character of these words"))
-        acfcotw_widget = BaseWidget() ; acfcotw_widget.addWidget(acfcotw_te := QTextEdit())
-        fmt_widget.addWidget(acfcotw_widget)
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(SeparatorLabel("Auto Sizing"))
-        self.addWidget(as_widget)
-        self.addWidget(SeparatorLabel("Formatting"))
-        self.addWidget(fmt_widget)
-        self.addStretch()
-
 
 class IconToolBarOption(BaseWidget):
-    def __init__(self, icon_path: Optional[str], width: Optional[int], height: Optional[int], font_size: Optional[int], content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | QWidget, title: str | None = None):
+    def __init__(self, *args, **kwargs):
         super().__init__()
         
+        if args or kwargs:
+            self.initialize(*args, **kwargs)
+    
+    def initialize(
+            self,
+            content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | QWidget,
+            title: Optional[str | QLabel] = None,
+            icon_path: Optional[str] = None,
+            width: Optional[int] = None,
+            height: Optional[int] = None,
+            font_size: Optional[int] = None,
+            show_dp_icon: bool = False
+        ):
         self.content = content
         
         self.HOVER_STYLESHEET = THEME_MANAGER.process_stylesheet(
@@ -1215,72 +1034,96 @@ class IconToolBarOption(BaseWidget):
         self.STYLESHEET = THEME_MANAGER.process_stylesheet(
             f"""
                 QWidget.IconToolBarOption {{{{
-                    background-color: transparent
+                    background-color: transparent;
                 }}}}
                 
-                {self.HOVER_STYLESHEET}
-                
-                QWidget.IconToolBarOption QWidget._TopWidget QLabel {{{{
-                    font-size: {font_size}px
+                QWidget.IconToolBarOption QWidget._TopWidget QLabel.TitleLabel {{{{
+                    background: none;
+                    font-size: {font_size}px;
                 }}}}
                 QWidget.IconToolBarOption QLabel {{{{
                     color: {{text}};
-                    font-size: {font_size}px
+                    font-size: {font_size}px;
                 }}}}
             """
-        )
+        ) + self.HOVER_STYLESHEET
         
         self.setSpacing(0)
-        self.setContentsMargins(15, 5, 15, 5)
+        self.setContentsMargins(5, 5, 5, 5)
         
         self.getWidget().setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         self.setProperty("class", "IconToolBarOption")
         self.setStyleSheet(self.STYLESHEET)
         
-        title_label = QLabel(title) if isinstance(title, str) else title
+        if isinstance(title, str):
+            title_label = QLabel(title)
+            title_label.setProperty("class", "TitleLabel")
+        else:
+            title_label = title
         
-        topWidget = BaseWidget(QHBoxLayout)
-        topWidget.setContentsMargins(0, 0, 0, 0)
-        topWidget.setProperty("class", "_TopWidget")
+        self.arrow = None
+        if not isinstance(content, Callable) and show_dp_icon:
+            self.arrow = ArrowWidget(270)
+            
+            self.addWidget(self.arrow)
+        
         if icon_path is not None:
-            topWidget.addWidget(Image(icon_path, width, height))
-        elif title is not None:
-            topWidget.addWidget(title_label)
-        
-        if not isinstance(content, Callable):
-            topWidget.addWidget(QLabel("▼"))
-        
-        self.addWidget(topWidget)
-        if title is not None and icon_path is not None:
-            self.addWidget(title_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+            self.addWidget(Image(icon_path, width, height))
+        if title is not None:
+            self.addWidget(title_label)
         
         self.getWidget().mousePressEvent = self._clicked
         
         if not isinstance(self.content, Callable) and not isinstance(self.content, list):
+            self.content.setProperty("class", "Bordered")
+            
             def hide_event(_):
                 self.setStyleSheet(self.STYLESHEET)
                 self.update()
+                
+                if self.arrow:
+                    self.arrow.setAngle(270)
             
             self.content.hideEvent = hide_event
+    
+    def getMenuPosition(self, menu_widget: QWidget | QMenu):
+        pos = self.getWidget().mapToGlobal(QPoint(self.getWidget().x(), self.getWidget().y() + self.getWidget().rect().height() - self.getWidget().contentsMargins().bottom()))
+        
+        screen_geom = self.getWidget().screen().geometry()
+        g_pos = self.getWidget().mapToGlobal(self.getWidget().pos())
+        
+        offset_x_factor = 1 if g_pos.x() < screen_geom.width() / 2 else -1
+        offset_y_factor = 1 if g_pos.y() < screen_geom.height() / 2 else -1
+        
+        left_most = menu_widget.rect().width() - self.getWidget().width()
+        top_most = menu_widget.rect().height() + self.getWidget().height()
+        
+        off_X = int(left_most - left_most * (offset_x_factor + 1) / 2)
+        off_Y = int(top_most - top_most * (offset_y_factor + 1) / 2)
+        
+        return pos - QPoint(off_X, off_Y)
     
     def _clicked(self, a0):
         if isinstance(self.content, Callable):
             return self.content()
         else:
-            self.setStyleSheet(self.STYLESHEET.replace(self.HOVER_STYLESHEET, "") + "QWidget.IconToolBarOption {background-color: #30446a}")
+            self.setStyleSheet(self.STYLESHEET.replace(self.HOVER_STYLESHEET, "") + THEME_MANAGER.process_stylesheet("QWidget.IconToolBarOption {{ background-color: {hover__bg3} }}"))
             self.update()
+            
+            if self.arrow:
+                self.arrow.setAngle(0)
             
             if isinstance(self.content, list):
                 menu = self._getMenu(self, self.content)
                 
-                menu.exec(getMenuPosition(self.getWidget(), menu))
+                menu.exec(self.getMenuPosition(menu))
                 
                 self.setStyleSheet(self.STYLESHEET)
                 self.update()
             elif isinstance(self.content, QWidget):
                 self.content.setWindowFlags(Qt.WindowType.Popup)
                 
-                self.content.move(getMenuPosition(self.getWidget(), self.content))
+                self.content.move(self.getMenuPosition(self.content))
                 self.content.show()
     
     def _getMenu(self, parent: QMenu | BaseWidget, content: list | None, name: Optional[str] = None):
@@ -1308,7 +1151,6 @@ class IconToolBarOption(BaseWidget):
                     raise
         
         return menu
-
 
 class TitledWidget(BaseWidget):
     def __init__(self, title: str | QWidget, widget: QWidget, *extra_title_widgets: QWidget, scrollable: bool = False):
@@ -1366,40 +1208,324 @@ class TitledWidget(BaseWidget):
 
 
 class FontEditor(IconToolBarOption):
-    def __init__(self, name: str):
+    def __init__(self):
+        super().__init__()
+        
+        self.font_display_label = QLabel()
+        self.font_display_label.setStyleSheet("background: none;")
+        
         content_widget = TabView(
             {
-                "FONT": _FontSection(),
-                "OUTLINE": _OutlineSection(),
-                "SHADOW": _ShadowSection(),
-                "MARGINS": _MarginsSection(),
-                "FORMAT": _FormatSection()
+                "FONT": self.getFontSection(),
+                "OUTLINE": self.getOutlineSection(),
+                "SHADOW": self.getShadowSection(),
+                "MARGINS": self.getMarginSection(),
+                "FORMAT": self.getFormatSection()
             }
         )
         content_widget.setProperty("class", "Section")
         
-        super().__init__(None, None, None, 10, content_widget, name)
+        self.initialize(content_widget, title=self.font_display_label)
         
-        self.setProperty("class", "CustomUIEditors")
+        self.font_cb.currentFontChanged.connect(self.fontFamilyChanged)
+        self.s_sb.valueChanged.connect(self.fontSizeChanged)
+        self.ls_sb.valueChanged.connect(self.fontLetterSpacingChanged)
+        self.o_slider.valueChanged.connect(lambda v: self.o_sb.setValue(v))
+        self.o_sb.valueChanged.connect(lambda v: self.o_slider.setValue(v))
+        self.o_sb.valueChanged.connect(self.fontOpacityChanged)
+        self.st_cb.currentIndexChanged.connect(self.fontStyleChanged)
+        self.ul_cb.clicked.connect(lambda s: self.fontLineStyleChanged(s, False))
+        self.ol_cb.clicked.connect(lambda s: self.fontLineStyleChanged(False, s))
+        self.c_cb.colorSelected.connect(self.fontColorChanged)
+        
+        self.fontFamilyChanged(self.font_cb.currentFont())
+        self.fontSizeChanged(self.s_sb.value())
+        self.fontLetterSpacingChanged(self.ls_sb.value())
+        self.fontStyleChanged(0)
+        self.fontOpacityChanged(self.o_sb.value())
+        self.fontLineStyleChanged(self.ul_cb.isChecked(), self.ol_cb.isChecked())
+        self.fontColorChanged(self.c_cb.currentColor())
+    
+    def fontFamilyChanged(self, font: QFont):
+        family = font.family()
+        
+        f = self.font_display_label.font()
+        f.setFamily(family)
+        
+        self.font_display_label.setText(family)
+        self.setStyleProperty(self.font_display_label, "font-family", f"'{family}'")
+    
+    def fontSizeChanged(self, size: int):
+        font = self.font_display_label.font()
+        
+        font.setPointSize(size)
+        
+        self.setStyleProperty(self.font_display_label, "font-size", f"{size}px")
+    
+    def fontOpacityChanged(self, opacity: int):
+        self.setStyleProperty(self.font_display_label, "opacity", str(opacity))
+    
+    def fontStyleChanged(self, index: int):
+        font = self.font_display_label.font()
+        
+        match index:
+            case 0:
+                font.setBold(False)
+                font.setItalic(False)
+                self.setStyleProperty(self.font_display_label, "font-style", "normal")
+                self.setStyleProperty(self.font_display_label, "font-weight", "normal")
+            case 1:
+                font.setBold(True)
+                font.setItalic(False)
+                self.setStyleProperty(self.font_display_label, "font-style", "normal")
+                self.setStyleProperty(self.font_display_label, "font-weight", "bold")
+            case 2:
+                font.setBold(False)
+                font.setItalic(True)
+                self.setStyleProperty(self.font_display_label, "font-style", "italic")
+                self.setStyleProperty(self.font_display_label, "font-weight", "normal")
+            case 3:
+                font.setBold(True)
+                font.setItalic(True)
+                self.setStyleProperty(self.font_display_label, "font-style", "italic")
+                self.setStyleProperty(self.font_display_label, "font-weight", "bold")
+    
+    def fontLineStyleChanged(self, underline: bool, overline: bool):
+        font = self.font_display_label.font()
+        
+        font.setOverline(overline)
+        font.setUnderline(underline)
+        
+        self.setStyleProperty(self.font_display_label, "text-decoration", "underline" if underline else ("overline" if overline else "none"))
+        
+        if underline:
+            self.ol_cb.blockSignals(True)
+            self.ol_cb.setChecked(False)
+            self.ol_cb.blockSignals(False)
+        elif overline:
+            self.ul_cb.blockSignals(True)
+            self.ul_cb.setChecked(False)
+            self.ul_cb.blockSignals(False)
+    
+    def fontColorChanged(self, color: str):
+        self.setStyleProperty(self.font_display_label, "color", color)
+    
+    def fontLetterSpacingChanged(self, spacing: float):
+        font = self.font_display_label.font()
+        
+        font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
+        self.setStyleProperty(self.font_display_label, "letter-spacing", f"{spacing}px")
+    
+    def getFontSection(self):
+        font_section = BaseWidget()
+        font_section.setProperty("class", "ExportEditorOptionsBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        f_widget = BaseWidget() ; f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        self.font_cb = QFontComboBox()
+        self.s_sb = QSpinBox() ; self.s_sb.setValue(self.font_display_label.font().pointSize())
+        self.ls_sb = QSpinBox() ; self.ls_sb.setValue(int(self.font_display_label.font().letterSpacing()))
+        self.c_cb = ColorComboBox("white")
+        self.st_cb = QComboBox() ; self.st_cb.addItems(["Regular", "Bold", "Italic", "Bold Italic"])
+        uss_widget = BaseWidget(QHBoxLayout) ; uss_widget.setContentsMargins(0, 5, 0, 5)
+        uss_widget.addWidget(ul_cb := QCheckBox("Underline"))
+        uss_widget.addWidget(ol_cb := QCheckBox("Overline"))
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        o_widget.setContentsMargins(0, 0, 0, 0)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal)) ; o_slider.setMaximum(100) ; o_slider.setValue(100)
+        o_widget.addWidget(o_sb := QSpinBox()) ; o_sb.setMaximum(100) ; o_sb.setValue(100)
+        self.o_slider = o_slider
+        self.o_sb = o_sb
+        self.ul_cb = ul_cb
+        self.ol_cb = ol_cb
+        
+        f_widget.addWidget(LabeledWidget("Font Name", self.font_cb))
+        f_widget.addWidget(LabeledWidget("Size", self.s_sb))
+        f_widget.addWidget(LabeledWidget("Letter Spacing", self.ls_sb))
+        f_widget.addWidget(LabeledWidget("Color", self.c_cb))
+        f_widget.addWidget(LabeledWidget("Style", self.st_cb))
+        f_widget.addWidget(uss_widget)
+        f_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        a_widget = BaseWidget() ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        ta_cb = QComboBox() ; ta_cb.addItems(["Left", "Center", "Right"])
+        va_cb = QComboBox() ; va_cb.addItems(["Left", "Center", "Right"])
+        
+        a_widget.addWidget(LabeledWidget("Text Alignment", ta_cb))
+        a_widget.addWidget(LabeledWidget("Vertical Alignment", va_cb))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        font_section.addWidget(SeparatorLabel("Font"))
+        font_section.addWidget(f_widget)
+        font_section.addWidget(SeparatorLabel("Alignment"))
+        font_section.addWidget(a_widget)
+        font_section.addStretch()
+        
+        return font_section
+    
+    def getOutlineSection(self):
+        outline_section = BaseWidget()
+        outline_section.setProperty("class", "ExportEditorOptionsBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        ou_widget = BaseWidget() ; ou_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
+        c_ccb = ColorComboBox("black")
+        j_cb = QComboBox() ; j_cb.addItems(["Round", "Square", "Bevel"])
+        s_widget = BaseWidget(QHBoxLayout)
+        s_widget.addWidget(s_slider := QSlider(Qt.Orientation.Horizontal))
+        s_widget.addWidget(s_sb := QSpinBox())
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
+        o_widget.addWidget(o_sb := QSpinBox())
+        
+        ou_widget.addWidget(LabeledWidget("Style", s_cb))
+        ou_widget.addWidget(LabeledWidget("Color", c_ccb))
+        ou_widget.addWidget(LabeledWidget("Join", j_cb))
+        ou_widget.addWidget(LabeledWidget("Size", s_widget))
+        ou_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        outline_section.addWidget(SeparatorLabel("Outline"))
+        outline_section.addWidget(ou_widget)
+        outline_section.addStretch()
+        
+        return outline_section
+    
+    def getShadowSection(self):
+        shadow_section = BaseWidget()
+        shadow_section.setProperty("class", "ExportEditorOptionsBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        sh_widget = BaseWidget() ; sh_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
+        c_ccb = ColorComboBox("black")
+        a_widget = BaseWidget(QHBoxLayout) ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        a_widget.addWidget(a_dial := QDial())
+        a_widget.addWidget(a_sb := QSpinBox())
+        off_widget = BaseWidget(QHBoxLayout)
+        off_widget.addWidget(off_slider := QSlider(Qt.Orientation.Horizontal))
+        off_widget.addWidget(off_sb := QSpinBox())
+        b_widget = BaseWidget(QHBoxLayout)
+        b_widget.addWidget(b_slider := QSlider(Qt.Orientation.Horizontal))
+        b_widget.addWidget(b_sb := QSpinBox())
+        o_widget = BaseWidget(QHBoxLayout)
+        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
+        o_widget.addWidget(o_sb := QSpinBox())
+        
+        sh_widget.addWidget(LabeledWidget("Style", s_cb))
+        sh_widget.addWidget(LabeledWidget("Color", c_ccb))
+        sh_widget.addWidget(LabeledWidget("Angle", a_widget))
+        sh_widget.addWidget(LabeledWidget("Offset", off_widget))
+        sh_widget.addWidget(LabeledWidget("Blur", b_widget))
+        sh_widget.addWidget(LabeledWidget("Opacity", o_widget))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        shadow_section.addWidget(SeparatorLabel("Shadow"))
+        shadow_section.addWidget(sh_widget)
+        shadow_section.addStretch()
+        
+        return shadow_section
+    
+    def getMarginSection(self):
+        margins_section = BaseWidget()
+        margins_section.setProperty("class", "ExportEditorOptionsBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        m_widget = BaseWidget() ; m_widget.setSpacing(10)
+        
+        m_widget.addWidget(LabeledWidget(LabeledWidget("Left", l_sb := QSpinBox()), LabeledWidget("Top", t_sb := QSpinBox())))
+        m_widget.addWidget(LabeledWidget(LabeledWidget("Right", r_sb := QSpinBox()), LabeledWidget("Bottom", b_sb := QSpinBox())))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        margins_section.addWidget(SeparatorLabel("Margins"))
+        margins_section.addWidget(m_widget)
+        margins_section.addStretch()
+        
+        return margins_section
+    
+    def getFormatSection(self):
+        format_section = BaseWidget()
+        format_section.setProperty("class", "ExportEditorOptionsBG")
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        as_widget = BaseWidget()
+        
+        as_widget.addWidget(dnast_rb := QRadioButton("Do not auto size text"))
+        as_widget.addWidget(rttfe_rb := QRadioButton("Resize text to fit element"))
+        ntsas_widget = BaseWidget() ; ntsas_widget.addWidget(ntsas_cb := QCheckBox("Normalize text size across slides"))
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        fmt_widget = BaseWidget()
+        
+        fmt_widget.addWidget(ww_cb := QCheckBox("Word Wrapping"))
+        fmt_widget.addWidget(caw_cb := QCheckBox("Capitalize all words"))
+        fmt_widget.addWidget(cfwoel_cb := QCheckBox("Capitalize first word of each line"))
+        fmt_widget.addWidget(acfcotw_cb := QCheckBox("Automatically capitalize first character of these words"))
+        acfcotw_widget = BaseWidget() ; acfcotw_widget.addWidget(acfcotw_te := QTextEdit())
+        fmt_widget.addWidget(acfcotw_widget)
+        
+        # -----------------------------------------------------------------------------------------------------------
+        
+        format_section.addWidget(SeparatorLabel("Auto Sizing"))
+        format_section.addWidget(as_widget)
+        format_section.addWidget(SeparatorLabel("Formatting"))
+        format_section.addWidget(fmt_widget)
+        format_section.addStretch()
+        
+        return format_section
 
 class ColorComboBox(IconToolBarOption):
+    colorSelected = pyqtSignal(str)
+    
     def __init__(self, color: QColor | str):
+        super().__init__()
+        
         color = QColor(color)
         
+        wrapper_widget = BaseWidget(QHBoxLayout)
+        wrapper_widget.setSpacing(5)
+        wrapper_widget.setContentsMargins(0, 0, 0, 0)
+        
         self.selected_color_display = QWidget()
-        self.selected_color_display.setFixedSize(50, 15)
+        self.selected_color_display.setFixedSize(20, 20)
+        
+        self.selected_color_hex_label = QLabel()
+        self.selected_color_hex_label.setStyleSheet("font-family: consolas; font-size: 15px;")
+        
+        wrapper_widget.addWidget(self.selected_color_display)
+        wrapper_widget.addWidget(self.selected_color_hex_label)
         
         color_picker = QColorDialog()
-        color_picker.colorSelected.connect(self._setColor)
+        color_picker.currentColorChanged.connect(self._setColor)
         
-        color_picker.setCurrentColor(color)
+        self._is_init = True
         self._setColor(color)
+        self._is_init = False
         
-        super().__init__(None, None, None, 10, color_picker, self.selected_color_display)
+        self.initialize(color_picker, title=wrapper_widget, font_size=10)
         
         self.setContentsMargins(5, 5, 5, 5)
-        
-        self.setProperty("class", "CustomUIEditors")
+    
+    def currentColor(self):
+        return self._color
     
     def _colorToHex(self, color: QColor):
         r = hex(color.red()).replace("0x", "")
@@ -1409,7 +1535,15 @@ class ColorComboBox(IconToolBarOption):
         return f"#{"0" + r if len(r) == 1 else r}{"0" + g if len(g) == 1 else g}{"0" + b if len(b) == 1 else b}"
     
     def _setColor(self, color: QColor):
-        self.selected_color_display.setStyleSheet(f"background-color: {self._colorToHex(color)};")
+        color = self._colorToHex(color)
+        
+        self.selected_color_hex_label.setText(color)
+        self.selected_color_display.setStyleSheet(f"background-color: {color};")
+        
+        if not self._is_init:
+            self.colorSelected.emit(color)
+        
+        self._color = color
 
 
 
@@ -1417,77 +1551,88 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     def __init__(self):
         super().__init__("Export Editor", BaseWidget)
         
-        self._initGeom()
+        self.export_mode = 0
+        self._initGeometry()
         
         self.setProperty("class", "ExportEditor")
         
-        central_widget = QStackedWidget()
+        main_widget = BaseScrollWidget()
+        main_widget.setProperty("class", "ExportEditorOptionsBG")
         
-        central_widget.addWidget(self.getFontWidget())
-        central_widget.addWidget(self.getColorsWidget())
-        central_widget.addWidget(self.getTimingWidget())
-        central_widget.addWidget(self.getSaveWidget())
+        e_widget = BaseWidget() ; e_widget.setContentsMargins(35, 0, 35, 0)
+        et_widget = BaseWidget(QHBoxLayout) ; et_widget.setSpacing(50)
+        et_widget.addWidget(s_rb := QRadioButton("School")) ; s_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        et_widget.addWidget(l_rb := QRadioButton("Level")) ; l_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        et_widget.addWidget(c_rb := QRadioButton("Class")) ; c_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        s_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("School Export File Path" if b else path_edit.placeholderText()))
+        l_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("Level Export Folder Path" if b else path_edit.placeholderText()))
+        c_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("Class Export Folder Path" if b else path_edit.placeholderText()))
+        e_widget.addWidget(et_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
+        e_widget.addWidget(LabeledWidget("Export File Type", eft_cb := QComboBox())) ; eft_cb.addItems(["PNG", "JPG", "HTML", "PDF", "MSIX"])
+        s_rb.clicked.connect(lambda b: self._set_export_mode(0 if b else self.export_mode))
+        l_rb.clicked.connect(lambda b: self._set_export_mode(1 if b else self.export_mode))
+        c_rb.clicked.connect(lambda b: self._set_export_mode(2 if b else self.export_mode))
+        self.eft_cb = eft_cb
         
-        main_widget = BaseWidget(QHBoxLayout)
+        f_widget = BaseWidget() ; f_widget.setContentsMargins(35, 0, 35, 0)
+        f_widget.addWidget(LabeledWidget("Title", title_font := FontEditor()))
+        f_widget.addWidget(LabeledWidget("Timetable Title", tt_font := FontEditor()))
+        f_widget.addWidget(LabeledWidget("Timetable Content", tc_font := FontEditor()))
+        f_widget.addWidget(LabeledWidget("Break", b_font := FontEditor()))
+        
+        t_widget = BaseWidget() ; t_widget.setContentsMargins(35, 0, 35, 0)
+        t_widget.addWidget(LabeledWidget("Weekday Background Color", wb_color := ColorComboBox("black")))
+        t_widget.addWidget(LabeledWidget("Timetable Background Color", ttbl_bg_color := ColorComboBox("black")))
+        t_widget.addWidget(LabeledWidget("Break Background Color", b_bg_color := ColorComboBox("black")))
+        t_widget.addWidget(LabeledWidget("Border Color", b_color := ColorComboBox("white")))
+        thickness_widget = BaseWidget()
+        thickness_widget.addWidget(t_l1_widg := LabeledWidget("  Vertical Line Thickness", vlt_sb := QSpinBox())) ; t_l1_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        thickness_widget.addWidget(t_l2_widg := LabeledWidget("Horizontal Line Thickness", hlt_sb := QSpinBox())) ; t_l2_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        t_widget.addWidget(thickness_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        main_widget.addWidget(SeparatorLabel("Export"))
+        main_widget.addWidget(e_widget)
+        main_widget.addWidget(SeparatorLabel("Fonts"))
+        main_widget.addWidget(f_widget)
+        main_widget.addWidget(SeparatorLabel("Table"))
+        main_widget.addWidget(t_widget)
+        
         base_widget = BaseWidget(QHBoxLayout)
         
-        main_widget.addWidget(
-            SideBar(
-                ("Font", lambda: central_widget.setCurrentIndex(0)),
-                ("Colors", lambda: central_widget.setCurrentIndex(1)),
-                None,
-                ("Timing", lambda: central_widget.setCurrentIndex(2)),
-                None,
-                ("Save", lambda: central_widget.setCurrentIndex(3))
-            )
-        )
-        main_widget.addWidget(central_widget)
-        
         preview = QCheckBox("Preview Output")
-        ok_button = QPushButton("OK")
-        cancel_button = QPushButton("Cancel")
+        export_button = QPushButton("Export") ; export_button.clicked.connect(self.export)
+        cancel_button = QPushButton("Cancel") ; cancel_button.clicked.connect(self.close)
         
         base_widget.addWidget(preview)
         base_widget.addStretch()
-        base_widget.addWidget(ok_button)
-        base_widget.addWidget(cancel_button)
+        base_widget.addWidget(path_edit := QLineEdit(), alignment=Qt.AlignmentFlag.AlignBottom)
+        base_widget.addWidget(export_button, alignment=Qt.AlignmentFlag.AlignBottom)
+        base_widget.addWidget(cancel_button, alignment=Qt.AlignmentFlag.AlignBottom)
+        
+        self.path_edit = path_edit
+        self.path_edit.setPlaceholderText("Export File Path")
+        self.path_edit.setFixedWidth(400)
+        
+        s_rb.setChecked(True)
         
         self.addWidget(main_widget)
         self.addWidget(base_widget)
     
-    def _initGeom(self):
+    def _initGeometry(self):
         self.setMinimumSize(800, 550)
         
         screen_geom = self.screen().geometry()
         
         self.setGeometry(int(screen_geom.width() / 2 - self.geometry().width() / 2), int(screen_geom.height() / 2 - self.geometry().height() / 2), self.geometry().width(), self.geometry().height())
     
-    def getFontWidget(self):
-        font_widget = BaseWidget()
-        font_widget.setProperty("class", "ExportEditorOptionsBG")
-        
-        return font_widget
+    def _set_export_mode(self, mode: int):
+        self.export_mode = mode
     
-    def getColorsWidget(self):
-        colors_widget = BaseWidget()
-        colors_widget.setProperty("class", "ExportEditorOptionsBG")
+    def export(self):
+        path = self.path_edit.text()
+        file_type = self.eft_cb.currentText().lower()
         
-        return colors_widget
-    
-    def getTimingWidget(self):
-        timing_widget = BaseWidget()
-        timing_widget.setProperty("class", "ExportEditorOptionsBG")
-        
-        return timing_widget
-    
-    def getSaveWidget(self):
-        save_widget = BaseWidget()
-        save_widget.setProperty("class", "ExportEditorOptionsBG")
-        
-        return save_widget
-    
-    def export(self, path: str, file_type: str, export_mode: int):
-        if export_mode == 0:
+        if self.export_mode == 0:
             if file_type == "html":
                 body = ""
                 for _, cls_level in SCHOOL.class_levels:
@@ -1523,7 +1668,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                     y += surf.get_height()
                 
                 pygame.image.save(screen, path)
-        elif export_mode == 1:
+        elif self.export_mode == 1:
             if file_type == "html":
                 for _, cls_level in SCHOOL.class_levels:
                     body = ""
@@ -1560,7 +1705,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         y += surf.get_height()
                     
                     pygame.image.save(screen, path + f"/{cls_level.name.full()}.png")
-        elif export_mode == 2:
+        elif self.export_mode == 2:
             if file_type == "html":
                 for _, cls_level in SCHOOL.class_levels:
                     for cls in cls_level.classes.values():

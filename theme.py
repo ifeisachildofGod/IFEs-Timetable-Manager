@@ -14,7 +14,7 @@ PALETTES = {
             "bg4": "#2c2c2c",
             "mute-bg": "#404040",
             "border1": "#505050",
-            "bg6-border2": "#363636",
+            "bg6-border2": "#808080",
             "text": "#f0f0f0",
             "secondary": "#3a3a3a",
             "scrollbar": "#505050",
@@ -35,7 +35,7 @@ PALETTES = {
             "bg4": "#d3d3d3",
             "mute-bg": "#bfbfbf",
             "border1": "#afafaf",
-            "bg6-border2": "#c9c9c9",
+            "bg6-border2": "#7e7e7e",
             "text": "#0f0f0f",
             "secondary": "#c5c5c5",
             "scrollbar": "#afafaf",
@@ -172,10 +172,12 @@ PALETTES = {
 
 STYLESHEET = '''
     QWidget.Bordered {{
-        border-radius: 9px;
-        border: 1.5px solid {bg6-border2};
+        border: 1px solid {bg6-border2};
     }}
     
+    QWidget.BorderRadiused {{
+        border-radius: 9px;
+    }}
     
     QMainWindow {{
         background-color: {bg1};
@@ -369,16 +371,26 @@ STYLESHEET = '''
         selection-color: {text};
     }}
     
-    QCheckBox, QRadioButton {{
-        spacing: 6px;
+    QRadioButton {{
+        color: {text};
+        spacing: 8px;
+        padding: 4px;
         background: none;
     }}
-    
-    
     QRadioButton::indicator {{
-        width: 14px;
-        height: 14px;
-        border-radius: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 6px;
+        border: 2px solid {minimum};
+    }}
+    QRadioButton::indicator:unchecked {{
+        background-color: {bg1};
+    }}
+    QRadioButton::indicator:checked {{
+        background-color: {fg2};
+    }}
+    QRadioButton::indicator:hover {{
+        border-color: {fg2};
     }}
     
     
@@ -456,6 +468,7 @@ STYLESHEET = '''
         color: {text};
         spacing: 8px;
         padding: 4px;
+        background: none;
     }}
     QCheckBox::indicator {{
         width: 18px;
@@ -771,13 +784,7 @@ STYLESHEET = '''
         background-color: transparent;
     }}
     
-    QWidget.ExportEditor QWidget.CustomUIEditors {{
-        color: {text};
-        background-color: {bg4};
-        border: 1px solid {e-border};
-    }}
-    
-    QWidget.ExportEditor QLabel {{
+    QLabel {{
         background: none;
     }}
     
@@ -945,6 +952,11 @@ class ThemeManager:
         
         return stylesheet
     
+    def process_stylesheet(self, stylesheet: str):
+        assert isinstance(self.current_pallete, dict)
+        
+        return self._process_stylesheet_func_pointers("__", stylesheet, self.current_pallete).format(**self.current_pallete)
+    
     def _add_theme(self, name: str, theme_dict: dict):
         """Add a theme directly from a dict"""
         self.themes[name] = theme_dict
@@ -977,9 +989,6 @@ class ThemeManager:
         #     KeyError(f"Missing color value for: {error} on line {stylesheet_template[:stylesheet_template.find(str(error))].count("\n") + 1}")
         
         self.app.setStyleSheet(applied_stylesheet)
-    
-    def process_stylesheet(self, stylesheet: str):
-        return self._process_stylesheet_func_pointers("__", stylesheet, self.current_pallete).format(**self.current_pallete)
     
     def get_current_theme(self):
         theme: dict[str, dict[str, str] | str] = self.themes.get(self.current_theme, None)

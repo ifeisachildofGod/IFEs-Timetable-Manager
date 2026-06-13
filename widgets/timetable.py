@@ -728,29 +728,18 @@ class SchoolTimetableEditor(BaseWidget):
         
         self.classes_widget[cls_level.id] = level_widget, body_widget, {}
         
-        toogle_button = QPushButton("☰")
-        toogle_button.setProperty("class", "Timetable_DP_OptionText")
-        
         settings_menu_widget = self.make_timetable_settings(cls_level)
+        toogle_option = IconToolBarOption(settings_menu_widget, title="☰")
         
-        def toogle_menu():
-            settings_menu_widget.set_pos(toogle_button.mapToGlobal(QPoint(-150, toogle_button.pos().y() + toogle_button.height())))
-            settings_menu_widget.toogle()
-        
-        toogle_button.clicked.connect(toogle_menu)
-        
-        level_widget.header.addWidget(toogle_button)
+        level_widget.header.addWidget(toogle_option)
         
         self.scroll_area.insertWidget(len(self.scroll_area.getChildren()) - 1, level_widget)
     
     def add_timetable_class(self, cls: Class):
-        def toogle_settings_menu():
-            settings_menu.move(class_header.mapToGlobal(QPoint(toogle_button.x() - settings_menu.width() + toogle_button.width(), toogle_button.y() + toogle_button.height())))
-            settings_menu.show()
+        settings_menu = BaseWidget()
+        settings_menu.setWindowFlags(Qt.WindowType.Popup)
         
-        toogle_button = QPushButton("☰")
-        toogle_button.setProperty("class", "Timetable_DP_OptionText")
-        toogle_button.clicked.connect(toogle_settings_menu)
+        toogle_button = IconToolBarOption(settings_menu, title="☰")
         
         widget = BaseWidget()
         widget.setProperty("class", "TimetableWidget")
@@ -776,9 +765,6 @@ class SchoolTimetableEditor(BaseWidget):
         
         timetable = ClassTimetable(cls, self)
         self.timetable_widgets[cls.level.id][cls.id] = timetable
-        
-        settings_menu = BaseWidget()
-        settings_menu.setWindowFlags(Qt.WindowType.Popup)
         
         generate_button = QPushButton("Generate")
         generate_button.clicked.connect(timetable.generate)

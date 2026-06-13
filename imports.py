@@ -21,7 +21,7 @@ from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon,
     QFontMetrics, QIntValidator, QPainter,
     QColor, QMouseEvent, QDrag, QDragEnterEvent,
-    QDragMoveEvent, QDropEvent, QPixmap
+    QDragMoveEvent, QDropEvent, QPixmap, QFont
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize,
