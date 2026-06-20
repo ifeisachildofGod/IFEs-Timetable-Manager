@@ -1,9 +1,22 @@
 
+from enum import Enum
+import importlib
 from imports import *
+
+# for use by other dependant files
 from theme import THEME_MANAGER
 
 
+
+class Status(Enum):
+    MESSAGE = "MESSAGE"
+    WARN = "WARN"
+    ERROR = "ERROR"
+
+
 class BaseWidget(QWidget):
+    clicked = pyqtSignal(QMouseEvent)
+    
     def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None):
         super().__init__()
         
@@ -19,9 +32,15 @@ class BaseWidget(QWidget):
         self.setLayout(layout)
         
         self.container = QWidget()
+        self.container.setProperty("class", "BaseWidget")
+        self.container.mousePressEvent = self.mouseClicked
+        
         self.main_layout = self.layout_type(self.container)
         
         layout.addWidget(self.container)
+    
+    def mouseClicked(self, ev):
+        self.clicked.emit(ev)
     
     @staticmethod
     def static_clear_layout(layout: QLayout):
@@ -105,14 +124,15 @@ class BaseWidget(QWidget):
     def removeWidget(self, a0: Optional[QWidget]):
         self.getLayout().removeWidget(a0)
         
-        self._children.remove(a0)
+        if a0 is not None:
+            self._children.remove(a0)
     
     def popWidget(self, index: int):
         self.getLayout().removeWidget(self.getChildren()[index])
         
         self._children.pop(index)
     
-    def addWidget(self, widget: QWidget, stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
+    def addWidget(self, widget: Optional[QWidget], stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
         kwargs = {}
         
         if stretch is not None:
@@ -121,7 +141,9 @@ class BaseWidget(QWidget):
             kwargs["alignment"] = alignment
         
         self.getLayout().addWidget(widget, **kwargs)
-        self._children.append(widget)
+        
+        if widget is not None:
+            self._children.append(widget)
     
     def insertWidget(self, index: int, widget: Optional[QWidget], stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
         kwargs = {}
@@ -132,7 +154,9 @@ class BaseWidget(QWidget):
             kwargs["alignment"] = alignment
         
         self.getLayout().insertWidget(index, widget, **kwargs)
-        self._children.insert(index, widget)
+        
+        if widget is not None:
+            self._children.insert(index, widget)
     
     def addStretch(self, stretch: Optional[int] = None):
         args = []
@@ -164,7 +188,7 @@ class BaseWidget(QWidget):
         
         self._children.insert(index, {"space": size})
     
-    def indexOf(self, a0: QWidget | None):
+    def indexOf(self, a0: Optional[QWidget]):
         return self.getLayout().indexOf(a0)
     
     def getWidget(self):
@@ -176,8 +200,10 @@ class BaseWidget(QWidget):
     def getLayout(self):
         return self.main_layout
     
-    def getChildren(self):
-        return self._children
+    def getChildren(self, a0: Optional[type[QWidget]] = None, is_generator: bool = False):
+        c_gen = (c for c in self._children if isinstance(c, a0 or QWidget))
+        
+        return c_gen if is_generator else list(c_gen)
 
 class BaseScrollWidget(BaseWidget):
     def __init__(self, layout_type = None):
@@ -328,6 +354,88 @@ class BaseGridWidget(BaseScrollWidget):
         
         self.row_max -= 1
 
+class StatusBar(BaseWidget):
+    def __init__(self):
+        super().__init__(QHBoxLayout)
+        
+        self.setSpacing(10)
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        self.statuses = {}
+        
+        self.addStretch()
+    
+    def _addMessage(self, key: str, message: str, color: str):
+        assert key not in self.statuses
+        
+        sep_label = None
+        if self.statuses:
+            self.addWidget(sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
+        
+        label = QLabel(message)
+        label.setStyleSheet(f"color: {color}")
+        
+        self.addWidget(label)
+        self.statuses[key] = [label, sep_label]
+    
+    def _insertMessage(self, index: int, key: str, message: str, color: str):
+        assert key not in self.statuses
+        
+        sep_label = None
+        if self.statuses and index:
+            self.insertWidget(index + 1, sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
+        elif self.statuses:
+            self.insertWidget(index + 1, sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
+            
+            second_l = self.getChildren(QLabel)[1]
+            self.statuses[next(k for k, (l, s) in self.statuses.items() if second_l == l)][1] = sep_label
+            
+            sep_label = None
+        
+        label = QLabel(message)
+        label.setStyleSheet(f"color: {color}")
+        
+        self.insertWidget(index + bool(self.statuses and index) + 1, label)
+        self.statuses[key] = [label, sep_label]
+    
+    def removeLinient(self, key: str):
+        if key in self.statuses:
+            self.remove(key)
+    
+    def remove(self, key: str):
+        label, dot = self.statuses.pop(key)
+        
+        if not self.getChildren(QLabel).index(label) and len(self.statuses) == 1:
+            dot = self.getChildren()[1]
+            
+            self.statuses[next(k for k, (_, d) in self.statuses.items() if d == dot)][1] = None
+        
+        self.removeWidget(label)
+        label.deleteLater()
+        
+        if dot:
+            self.removeWidget(dot)
+            dot.deleteLater()
+    
+    def addMessage(self, msg_type: Status, key: str, message: str):
+        match msg_type:
+            case Status.MESSAGE:
+                self._addMessage(key, message, "white")
+            case Status.WARN:
+                self._addMessage(key, f"<i>{message}</i>", "yellow")
+            case Status.ERROR:
+                self._addMessage(key, f"<b>{message}</b>", "#ff3030")
+    
+    def insertMessage(self, msg_type: Status, index: int, key: str, message: str):
+        match msg_type:
+            case Status.MESSAGE:
+                self._insertMessage(index, key, message, "white")
+            case Status.WARN:
+                self._insertMessage(index, key, f"<i>{message}</i>", "yellow")
+            case Status.ERROR:
+                self._insertMessage(index, key, f"<b>{message}</b>", "#ff3030")
+
+
 
 class BaseSettingDialog(BaseDialogWidget):
     def __init__(self, title: str):
@@ -342,28 +450,39 @@ class BaseSettingDialog(BaseDialogWidget):
         return self.getWidget().getScrollWidget()
 
 class BaseSettingEntry(BaseWidget):
-    def __init__(self, i_parent: "BaseSettingWidget", simple_placeholder: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]], entry: Entry):
+    IconToolBarOption = importlib.import_module("widgets.user_interface").IconToolBarOption
+    
+    def __init__(self, i_parent: "BaseSettingWidget", general_entry_name: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]], entry: Entry):
         super().__init__()
+        
+        self.setProperty("class", "SettingEntry")
         
         self.entry = entry
         self.i_parent = i_parent
         self.option_dialogs = option_dialogs
         
+        simple_placeholder = f"Enter {general_entry_name} Name"
+        
         self.dialog_widget_funcs = []
         
         # ----------------------------------------------------------------------------------------
         menu_area = BaseWidget(QHBoxLayout)
+        menu_area.setContentsMargins(0, 0, 0, 0)
         
-        options_button = QPushButton("☰")
+        options_widget = BaseWidget()
+        
+        options_option = self.IconToolBarOption(options_widget, "☰")
         
         dialog_buttons_widget = BaseWidget(QHBoxLayout)
         for button in self.get_dialog_buttons():
             dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         
         delete_button = QPushButton("×")
+        delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
         
-        menu_area.addWidget(options_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        
+        menu_area.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignLeft)
         menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
         menu_area.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignRight)
                 
@@ -372,28 +491,30 @@ class BaseSettingEntry(BaseWidget):
         simple, extended = self.get_init_text()
         
         edits_area = BaseWidget(QHBoxLayout)
+        edits_area.setContentsMargins(0, 0, 0, 0)
         
         simple_line_edit = QLineEdit()
-        simple_line_edit.textChanged.connect(self.simple_name_changed)
         simple_line_edit.setText(simple)
         simple_line_edit.setPlaceholderText(simple_placeholder)
         
+        extended_line_edits: list[QLineEdit] = []
         if extended_placeholders:
             extended_edits_widget = BaseWidget()
+            extended_edits_widget.setContentsMargins(0, 0, 0, 0)
+            
             for i, placeholder in enumerate(extended_placeholders):
-                def ext(t: str):
-                    self.extended_name_changed(t, i)
-                
                 line_edit = QLineEdit()
-                line_edit.textChanged.connect(ext)
-                line_edit.setText(extended[i])
+                line_edit.textChanged.connect(self._make_ext_name_changed(i, simple_line_edit))
                 line_edit.setPlaceholderText(placeholder)
                 
                 extended_edits_widget.addWidget(line_edit)
             
+            extended_line_edits.extend(extended_edits_widget.getChildren(QLineEdit))
             extended_edits_widget.setVisible(False)
             
             edits_area.addWidget(extended_edits_widget)
+        
+        simple_line_edit.textChanged.connect(lambda text: self.simple_name_changed(text, extended_line_edits))
         
         edits_area.addWidget(simple_line_edit)
         
@@ -403,13 +524,50 @@ class BaseSettingEntry(BaseWidget):
         
         # ----------------------------------------------------------------------------------------
         
-        status_widget = QStatusBar()
+        self.status_widget = StatusBar()
+        
+        simple_line_edit.textChanged.connect(lambda text: self.status_widget.removeLinient("EmptyNameWarning") if text else self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{general_entry_name} has no name"))
         
         # ----------------------------------------------------------------------------------------
         
+        if extended_placeholders:
+            def rb_clicked(s: bool):
+                simple_line_edit.setVisible(s)
+                extended_edits_widget.setVisible(not s)
+                
+                options_option.disappear()
+                
+                if s:
+                    simple_line_edit.setFocus()
+                    
+                    for i in range(len(extended_line_edits)):
+                        self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
+                    
+                    simple_line_edit.setText(simple_line_edit.text())
+                elif extended_line_edits:
+                    extended_line_edits[0].setFocus()
+                    
+                    for le in extended_line_edits:
+                        le.setText(le.text())
+            
+            sn_rb = QRadioButton("Short Name")
+            ln_rb = QRadioButton("Long Name")
+            
+            options_widget.addWidget(sn_rb)
+            options_widget.addWidget(ln_rb)
+            
+            sn_rb.setChecked(True)
+            
+            sn_rb.clicked.connect(lambda s: rb_clicked(s))
+            ln_rb.clicked.connect(lambda s: rb_clicked(not s))
+            
+            for i, line_edit in enumerate(extended_line_edits):
+                line_edit.textChanged.connect(self._make_ext_name_empty(i))
+                line_edit.setText(extended[i])
+        
         self.addWidget(menu_area)
         self.addWidget(edits_area)
-        self.addWidget(status_widget)
+        self.addWidget(self.status_widget)
     
     def remove(self):
         self.i_parent.remove(self)
@@ -440,10 +598,25 @@ class BaseSettingEntry(BaseWidget):
     def get_init_text(self):
         raise NotImplementedError()
     
-    def simple_name_changed(self, text: str):
+    def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
+        def func(text: str):
+            self.extended_name_changed(text, index, simple_line_edit)
+        
+        return func
+    
+    def _make_ext_name_empty(self, index: int):
+        def func(text: str):
+            self.extended_name_empty(text, index)
+        
+        return func
+    
+    def simple_name_changed(self, text: str, extended_line_edits: tuple[QLineEdit, ...]):
         raise NotImplementedError()
     
-    def extended_name_changed(self, text: str, index: int):
+    def extended_name_changed(self, text: str, index: int, simple_line_edit: QLineEdit):
+        raise NotImplementedError()
+    
+    def extended_name_empty(self, text: str, index: int):
         raise NotImplementedError()
 
 class BaseSettingWidget(BaseWidget):
@@ -457,6 +630,7 @@ class BaseSettingWidget(BaseWidget):
         self.add_button.setText(f"Add {name}")
         
         self.scroll_widget = BaseScrollWidget()
+        self.scroll_widget.setSpacing(20)
         
         self.addWidget(self.scroll_widget)
         self.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignRight)

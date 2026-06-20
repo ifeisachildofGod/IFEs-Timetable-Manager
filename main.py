@@ -191,6 +191,11 @@ class Window(QMainWindow):
         self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
     
     def load_callback(self, path: str, file_type: str):
+        if file_type is None:
+            print("No file type specified; Defaulting to default file type")
+            
+            file_type = TABLE_EXTENSION_TYPE
+        
         if file_type == TABLE_EXTENSION_TYPE:
             with open(path, "rb") as file:
                 data = pickle.load(file)

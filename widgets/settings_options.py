@@ -353,7 +353,6 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 max_random_text_input.textChanged.connect(rsma_func)
                 
                 is_random_check_box = QCheckBox("Random")
-                is_random_check_box.clicked.connect(self.make_main_checkbox_func(subject, cls.level.id, rsma_func))
                 
                 select_all_check_box = QCheckBox("All")
                 select_all_check_box.clicked.connect(self.make_select_all_checkbox_func(subject, cls.level.id))
@@ -363,13 +362,14 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 
                 self.class_check_box_tracker[subject.id]["sub_cbs"][cls.level.id] = {}
                 self.class_check_box_tracker[subject.id]["main_cb"][cls.level.id] = select_all_check_box
-                self.class_check_box_tracker[subject.id]["max_random"][cls.level.id] = max_random_text_input
                 self.class_check_box_tracker[subject.id]["widget"][cls.level.id], to_be_clicked = self.make_dp_widget(subject, cls.level)
                 
                 main_widget = WidgetDropdown(cls.level.name.full(), self.class_check_box_tracker[subject.id]["widget"][cls.level.id])
                 main_widget.header.addWidget(max_random_text_input)
-                main_widget.header.addWidget(is_random_check_box)
+                # main_widget.header.addWidget(is_random_check_box)
                 main_widget.header.addWidget(select_all_check_box)
+                
+                is_random_check_box.clicked.connect(self.make_random_checkbox_func(subject, cls.level.id, main_widget, max_random_text_input, rsma_func))
                 
                 self.class_check_box_tracker[subject.id]["icon"][cls.level.id] = main_widget.toogle_icon
                 
@@ -460,7 +460,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         
         return func
     
-    def make_main_checkbox_func(self, subject: Subject, class_id: str, rsma_func: Callable[[Optional[int]], None]):
+    def make_random_checkbox_func(self, subject: Subject, class_id: str, widget_dp: WidgetDropdown, max_random_text_input: QLineEdit, rsma_func: Callable[[Optional[int]], None]):
         def checkbox_func(on):
             if on:
                 for c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][class_id].values():
@@ -470,14 +470,15 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 if self.class_check_box_tracker[subject.id]["icon"][class_id].angle != 270:
                     self.class_check_box_tracker[subject.id]["icon"][class_id].mouseclicked.emit()
                 
-                if self.class_check_box_tracker[subject.id]["max_random"][class_id].number() == -1:
-                    self.class_check_box_tracker[subject.id]["max_random"][class_id].setNumber(SCHOOL.settings.DEFAULT_max_classes)
+                if max_random_text_input.number() == -1:
+                    max_random_text_input.setNumber(SCHOOL.settings.DEFAULT_max_classes)
                 
                 if not self.is_init:
                     rsma_func(None)
             
+            widget_dp.beDisabled(on)
+            max_random_text_input.setVisible(on)
             self.class_check_box_tracker[subject.id]["icon"][class_id].setDisabled(on)
-            self.class_check_box_tracker[subject.id]["max_random"][class_id].setVisible(on)
         
         return checkbox_func
     

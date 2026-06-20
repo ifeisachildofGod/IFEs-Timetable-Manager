@@ -12,7 +12,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
         
         super().__init__(
             parent,
-            "Enter Subject Name",
+            "Subject",
             ["Full Name", "Abbreviation"],
             {"Classes": ("Select Classes", SubjectDropdownCheckBoxes), "Teachers": ("Select Teachers", SubjectSelectionList)},
             entry
@@ -40,16 +40,32 @@ class SubjectsSettingEntry(BaseSettingEntry):
     def get_init_text(self):
         return self.entry.name.full_name, (self.entry.name.full_name, self.entry.name.abbrev)
     
-    def simple_name_changed(self, text):
+    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit]):
         self.entry.name.abbrev = text
         self.entry.name.full_name = text
+        
+        full_name_e = extended_line_edits[0]
+        full_name_e.setText(text)
     
-    def extended_name_changed(self, text, index):
+    def extended_name_changed(self, text, index, simple_line_edit):
         match index:
             case 0:
                 self.entry.name.full_name = text
+                
+                if text != simple_line_edit.text():
+                    simple_line_edit.setText(text)
             case 1:
                 self.entry.name.abbrev = text
+    
+    def extended_name_empty(self, text, index):
+        key = f"E{index}EmptyNameWarning"
+        
+        match index:
+            case 1:
+                if text:
+                    self.status_widget.removeLinient(key)
+                else:
+                    self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
 
 class TeachersSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor):
@@ -59,8 +75,8 @@ class TeachersSettingEntry(BaseSettingEntry):
         
         super().__init__(
             parent,
-            "Enter Teacher Name",
-            ["Surname", "First Name", "Other Names"],
+            "Teacher",
+            ["Surname", "First Name", "Other Names", "Abbreviation"],
             {"Classes": ("Select Classes", TeacherDropdownCheckBoxes), "Subjects": ("Select Subjects", TeacherSelectionList)},
             entry
         )
@@ -80,20 +96,52 @@ class TeachersSettingEntry(BaseSettingEntry):
     def get_init_text(self):
         return self.entry.name.start, (self.entry.name.start, self.entry.name.first, self.entry.name.other, self.entry.name.abbrev)
     
-    def simple_name_changed(self, text):
+    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
         self.entry.name.start = text
         self.entry.name.abbrev = text
+        
+        full_name_e = extended_line_edits[1]
+        full_name_e.setText(text)
     
-    def extended_name_changed(self, text, index):
+    def extended_name_changed(self, text, index, simple_line_edit):
         match index:
             case 0:
                 self.entry.name.start = text
             case 1:
                 self.entry.name.first = text
+                
+                if text != simple_line_edit.text():
+                    simple_line_edit.setText(text)
             case 2:
                 self.entry.name.other = text
             case 3:
                 self.entry.name.abbrev = text
+    
+    def extended_name_empty(self, text, index):
+        key = f"E{index}EmptyNameWarning"
+        
+        match index:
+            case 0:
+                if text:
+                    self.status_widget.removeLinient(key)
+                else:
+                    self.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
+            case 1:
+                if text:
+                    self.status_widget.removeLinient(key)
+                else:
+                    self.status_widget.removeLinient("EmptyNameWarning")
+                    self.status_widget.addMessage(Status.WARN, key, f"First name is empty")
+            case 2:
+                if text:
+                    self.status_widget.removeLinient(key)
+                else:
+                    self.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
+            case 3:
+                if text:
+                    self.status_widget.removeLinient(key)
+                else:
+                    self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor):
@@ -105,7 +153,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
         
         super().__init__(
             parent,
-            "Enter Class Level Name",
+            "Class Level",
             None,
             {
                 "Sub Classes": ("Make and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),

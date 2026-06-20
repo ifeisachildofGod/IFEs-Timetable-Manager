@@ -577,6 +577,7 @@ class WidgetDropdown(BaseWidget):
         super().__init__(parent)
         
         self.widget = widget
+        self._disabled = False
         
         self.setSpacing(0)
         
@@ -588,12 +589,12 @@ class WidgetDropdown(BaseWidget):
         self.header.setProperty("class", "DPC_Header")
         self.header.setFixedHeight(50)
         self.header.setContentsMargins(12, 0, 12, 0)
-        self.header.mousePressEvent = self.tdp_event_func
+        self.header.clicked.connect(self.tdp_event_func)
         
         self.toogle_icon = ArrowWidget(270)
         self.toogle_icon.setProperty("class", "Arrow")
-        self.toogle_icon.mouseclicked.connect(self.toogle_widget)
         self.toogle_icon.setContentsMargins(0, 0, 10, 0)
+        self.toogle_icon.mouseclicked.connect(self.toogle_widget)
         
         self.title_label = QLabel(title)
         
@@ -602,15 +603,24 @@ class WidgetDropdown(BaseWidget):
         self.header.addStretch()
         
         self.addWidget(self.header)
-        self.addWidget(self.widget) # type: ignore
+        self.addWidget(self.widget)
     
     def tdp_event_func(self, a0: QMouseEvent | None):
-        if a0.button() == Qt.MouseButton.LeftButton: # type: ignore
+        if a0.button() == Qt.MouseButton.LeftButton and not self._disabled:
             self.toogle_widget()
     
     def toogle_widget(self):
         self.toogle_icon.setAngle(0 if self.toogle_icon.angle != 0 else 270)
         self.widget.setVisible(not self.widget.isVisible())
+    
+    def beDisabled(self, a0: bool):
+        if a0:
+            self._disabled = False
+        else:
+            if self.widget.isVisible():
+                self.toogle_widget()
+            
+            self._disabled = True
 
 class EditableCancelableEntry(BaseWidget):
     deleted = pyqtSignal()
@@ -1076,15 +1086,18 @@ class IconToolBarOption(BaseWidget):
         
         if not isinstance(self.content, Callable) and not isinstance(self.content, list):
             self.content.setProperty("class", "Bordered")
-            
-            def hide_event(_):
-                self.setStyleSheet(self.STYLESHEET)
-                self.update()
-                
-                if self.arrow:
-                    self.arrow.setAngle(270)
-            
-            self.content.hideEvent = hide_event
+            self.content.hideEvent = lambda _: self._disappear()
+    
+    def _disappear(self):
+        self.setStyleSheet(self.STYLESHEET)
+        self.update()
+        
+        if self.arrow:
+            self.arrow.setAngle(270)
+    
+    def disappear(self):
+        self._disappear()
+        self.content.hide()
     
     def getMenuPosition(self, menu_widget: QWidget | QMenu):
         pos = self.getWidget().mapToGlobal(QPoint(self.getWidget().x(), self.getWidget().y() + self.getWidget().rect().height() - self.getWidget().contentsMargins().bottom()))

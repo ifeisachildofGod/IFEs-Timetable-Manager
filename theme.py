@@ -12,6 +12,7 @@ PALETTES = {
             "bg2": "#2a2a2a",
             "bg3": "#4b4b4b",
             "bg4": "#2c2c2c",
+            "bg5": "#313131",
             "mute-bg": "#404040",
             "border1": "#505050",
             "bg6-border2": "#808080",
@@ -284,7 +285,9 @@ STYLESHEET = '''
     QLabel.Link:hover {{
         color: {hover__fg1};
     }}
-    
+    QLabel.StatusBarSeperator {{
+        color: {pressed__text};
+    }}
     
     QLineEdit, QTextEdit, QPlainTextEdit, QPushButton.SearchPB {{
         color: {text};
@@ -545,7 +548,7 @@ STYLESHEET = '''
     QLabel.SidebarToggleButton:hover {{
         background-color: {hover__bg2};
     }}
-    QPushButton.Close {{
+    QPushButton.SettingEntryClose {{
         background-color: transparent;
         color: {text};
         font-weight: bold;
@@ -553,7 +556,7 @@ STYLESHEET = '''
         min-width: 0px;
         min-height: 0px;
     }}
-    QPushButton.Close:hover {{
+    QPushButton.SettingEntryClose:hover {{
         color: {fg1};
     }}
     
@@ -604,7 +607,7 @@ STYLESHEET = '''
     }}
     
     
-    QWidget.OptionTag QPushButton.Close {{
+    QWidget.OptionTag QPushButton.SettingEntryClose {{
         font-size: 16px;
         border-radius: 8px;
     }}
@@ -652,15 +655,18 @@ STYLESHEET = '''
     }}
     
     
-    QWidget.SettingOptionEntry {{
-        background-color: {bg3};
+    QWidget.SettingEntry {{
+        background-color: {bg5};
         border-radius: 8px;
     }}
-    QWidget.SettingOptionEntry QPushButton.Close {{
+    QWidget.SettingEntry QWidget.BaseWidget {{
+        background: none;
+    }}
+    QPushButton.SettingEntryClose {{
         font-size: 30px;
         border-radius: 15px;
     }}
-    QWidget.SettingOptionEntry QLineEdit {{
+    QWidget.SettingEntry QLineEdit {{
         background-color: {bg4};
         color: {text};
         border: 1px solid {border1};
@@ -737,29 +743,6 @@ STYLESHEET = '''
     
     QWidget.TitleBar {{
         background-color: {bg1};
-    }}
-    QPushButton.FileClose, QPushButton.FileMinumum, QPushButton.FileMaximum {{
-        color: {text};
-        background-color: transparent;
-        border: none;
-        border-radius: 0px;
-        min-width: 50px;
-        min-height: 40px;
-        padding: 0px;
-        font-size: 20px;
-    }}
-    QPushButton.FileClose {{
-        font-size: 15px;
-    }}
-    QPushButton.FileMinumum {{
-        font-size: 10px;
-    }}
-    QPushButton.FileMinumum:hover, QPushButton.FileMaximum:hover {{
-        background-color: {hover__bg3};
-    }}
-    QPushButton.FileClose:hover {{
-        color: white;
-        background-color: red;
     }}
     QPushButton.GoButton {{
         color: {text};
