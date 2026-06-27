@@ -600,6 +600,7 @@ class SchoolTimetableEditor(BaseWidget):
         super().__init__()
         
         self._leave_updated = True
+        self.show_clashes = False
         
         self.remainder_source_ref: Optional[TimeTableItem] = None
         
@@ -690,6 +691,16 @@ class SchoolTimetableEditor(BaseWidget):
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.clear_timetable()
         
+        def show_clashes(s: bool):
+            self.show_clashes = s
+            
+            if s:
+                for lvl_dp, _, _ in self.classes_widget.values():
+                    if not lvl_dp.widget.isVisible():
+                        lvl_dp.toogle_widget()
+            
+            self.update()
+        
         period_amt_edit = NumberLineEdit(max(p_week for p_week, _ in cls_level.weekdays.values()), 1, 20)
         period_amt_edit.setPlaceholderText("Periods Amt")
         period_amt_edit.textChanged.connect(period_amt_changed)
@@ -707,6 +718,13 @@ class SchoolTimetableEditor(BaseWidget):
         clear_button = QPushButton("Clear Timetable")
         clear_button.clicked.connect(clear_func)
         
+        show_clashes_cb = QCheckBox("Show Clashes")
+        show_clashes_cb.clicked.connect(show_clashes)
+        
+        timing_widget = BaseWidget()
+        
+        # Add time widgets
+        
         layout.addWidget(period_amt_edit)
         layout.addWidget(breakperiod_edit)
         # layout.addSpacing(5)
@@ -714,6 +732,8 @@ class SchoolTimetableEditor(BaseWidget):
         layout.addSpacing(20)
         layout.addWidget(generate_new_button, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(clear_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(show_clashes_cb)
+        layout.addWidget(timing_widget)
         
         return widget_menu
     
@@ -733,7 +753,7 @@ class SchoolTimetableEditor(BaseWidget):
         
         level_widget.header.addWidget(toogle_option)
         
-        self.scroll_area.insertWidget(len(self.scroll_area.getChildren()) - 1, level_widget)
+        self.scroll_area.insertWidget(len(self.scroll_area.getChildren()), level_widget)
     
     def add_timetable_class(self, cls: Class):
         settings_menu = BaseWidget()

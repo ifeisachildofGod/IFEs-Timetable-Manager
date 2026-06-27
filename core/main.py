@@ -12,6 +12,49 @@ from core.settings import *
 from core.timetable import *
 
 
+@dataclass
+class Margins:
+    left: int
+    top: int
+    right: int
+    bottom: int
+
+@dataclass
+class Font:
+    family: str
+    size: int
+    bold: bool
+    italic: bool
+    
+    color: str
+    letter_spacing: int
+    opacity: int
+    underline: bool
+    overline: bool
+    text_alignment: str
+    
+    stylesheet: Optional[str] = None
+
+@dataclass
+class TimetableExportTheme:
+    cls_title_text_theme: Font
+    ttbl_content_text_theme: Font
+    weekday_text_theme: Font
+    break_text_theme: Font
+    
+    ttbl_bg_color: str
+    ttbl_cell_bg_color: str
+    weekday_bg_color: str
+    break_bg_color: str
+    border_color: str
+    
+    horizontal_line_thickness: int
+    vertical_line_thickness: int
+    
+    export_mode: int
+    export_file_type: str
+
+
 class Global:
     def __init__(self, school: "SchoolFrameWork | None" = None):
         super().__init__()
@@ -90,11 +133,12 @@ class GlobalClassLevels(Global):
 
 @dataclass
 class Settings:
+    THEME: str
     DEFAULT_max_classes: int
     DEFAULT_occurance_data: tuple[int, int]
     TEACHER_rsma_mapping: dict[ID, Optional[int]]
     TIMETABLE_weekdays: dict[str, tuple[int, int]]
-    THEME: str
+    EXPORT_timetable_export_theme: TimetableExportTheme
     
     def set(self, value):
         self.__dict__ = value.__dict__
@@ -126,16 +170,22 @@ class SchoolFrameWork:
         if self.gen_data is None:
             self.gen_data = GeneratingData(False, {}, {}, {})
         if self.settings is None:
-            self.settings = Settings(3, (2, 3), {},
-            {
-                "Monday": (10, 7),
-                "Tuesday": (10, 7),
-                "Wednesday": (10, 7),
-                "Thursday": (10, 7),
-                "Friday": (10, 7)
-            },
-            "dark-blue"
-        )
+            self.settings = Settings(
+                "dark-blue", 3, (2, 3), {},
+                {
+                    "Monday": (10, 7),
+                    "Tuesday": (10, 7),
+                    "Wednesday": (10, 7),
+                    "Thursday": (10, 7),
+                    "Friday": (10, 7)
+                },
+                TimetableExportTheme(
+                    None, None, None, None,
+                    "white", "white", "black", "black", "black",
+                    1, 1,
+                    0, "School"
+                )
+            )
     
     def set(self, school: "SchoolFrameWork"):
         self.subjects.set(school.subjects)

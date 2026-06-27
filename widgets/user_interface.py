@@ -1,4 +1,7 @@
 
+import csv
+from io import StringIO
+
 from utils import *
 from imports import *
 
@@ -6,6 +9,7 @@ from widgets.base import *
 
 import math
 from typing import Literal, TypeVar
+from PIL import Image as PILImage
 
 T = TypeVar("T")
 
@@ -884,17 +888,13 @@ class _Tab(BaseWidget):
         self.setState(False)
         
         self.addWidget(QLabel(self.name))
+        self.getWidget().mousePressEvent = lambda _: self.tab_selected.emit()
     
     def setState(self, state):
         if state and self.styleSheet() != self.SELECTED_STYLESHEET:
             self.setStyleSheet(self.SELECTED_STYLESHEET)
         elif self.styleSheet() != self.UNSELECTED_STYLESHEET:
             self.setStyleSheet(self.UNSELECTED_STYLESHEET)
-    
-    def mousePressEvent(self, a0):
-        self.tab_selected.emit()
-        
-        return super().mousePressEvent(a0)
 
 class TabView(BaseWidget):
     def __init__(self, tabs: dict[str, QWidget], *extra_title_widgets: QWidget):
@@ -1088,13 +1088,6 @@ class IconToolBarOption(BaseWidget):
             self.content.setProperty("class", "Bordered")
             self.content.hideEvent = lambda _: self._disappear()
     
-    def _disappear(self):
-        self.setStyleSheet(self.STYLESHEET)
-        self.update()
-        
-        if self.arrow:
-            self.arrow.setAngle(270)
-    
     def disappear(self):
         self._disappear()
         self.content.hide()
@@ -1115,6 +1108,13 @@ class IconToolBarOption(BaseWidget):
         off_Y = int(top_most - top_most * (offset_y_factor + 1) / 2)
         
         return pos - QPoint(off_X, off_Y)
+    
+    def _disappear(self):
+        self.setStyleSheet(self.STYLESHEET)
+        self.update()
+        
+        if self.arrow:
+            self.arrow.setAngle(270)
     
     def _clicked(self, a0):
         if isinstance(self.content, Callable):
@@ -1220,90 +1220,99 @@ class TitledWidget(BaseWidget):
             self.titleWidget.setText(text)
 
 
-class FontEditor(IconToolBarOption):
-    def __init__(self):
+class TextThemeEditor(IconToolBarOption):
+    def __init__(self, text_theme: Optional[Font] = None):
         super().__init__()
         
-        self.font_display_label = QLabel()
+        self.font_display_label = QLabel("Text")
         self.font_display_label.setStyleSheet("background: none;")
         
-        content_widget = TabView(
-            {
-                "FONT": self.getFontSection(),
-                "OUTLINE": self.getOutlineSection(),
-                "SHADOW": self.getShadowSection(),
-                "MARGINS": self.getMarginSection(),
-                "FORMAT": self.getFormatSection()
-            }
-        )
-        content_widget.setProperty("class", "Section")
+        self.initialize(self._getFontSection(), title=self.font_display_label)
         
-        self.initialize(content_widget, title=self.font_display_label)
-        
-        self.font_cb.currentFontChanged.connect(self.fontFamilyChanged)
-        self.s_sb.valueChanged.connect(self.fontSizeChanged)
-        self.ls_sb.valueChanged.connect(self.fontLetterSpacingChanged)
+        self.font_cb.currentTextChanged.connect(self._fontFamilyChanged)
+        self.s_sb.valueChanged.connect(self._fontSizeChanged)
+        self.ls_sb.valueChanged.connect(self._fontLetterSpacingChanged)
         self.o_slider.valueChanged.connect(lambda v: self.o_sb.setValue(v))
         self.o_sb.valueChanged.connect(lambda v: self.o_slider.setValue(v))
-        self.o_sb.valueChanged.connect(self.fontOpacityChanged)
-        self.st_cb.currentIndexChanged.connect(self.fontStyleChanged)
-        self.ul_cb.clicked.connect(lambda s: self.fontLineStyleChanged(s, False))
-        self.ol_cb.clicked.connect(lambda s: self.fontLineStyleChanged(False, s))
-        self.c_cb.colorSelected.connect(self.fontColorChanged)
+        self.o_sb.valueChanged.connect(self._fontOpacityChanged)
+        self.b_cb.clicked.connect(self._fontWeightChanged)
+        self.i_cb.clicked.connect(self._fontStyleChanged)
+        self.ul_cb.clicked.connect(lambda s: self._fontLineStyleChanged(s, False))
+        self.ol_cb.clicked.connect(lambda s: self._fontLineStyleChanged(False, s))
+        self.c_cb.colorSelected.connect(self._fontColorChanged)
         
-        self.fontFamilyChanged(self.font_cb.currentFont())
-        self.fontSizeChanged(self.s_sb.value())
-        self.fontLetterSpacingChanged(self.ls_sb.value())
-        self.fontStyleChanged(0)
-        self.fontOpacityChanged(self.o_sb.value())
-        self.fontLineStyleChanged(self.ul_cb.isChecked(), self.ol_cb.isChecked())
-        self.fontColorChanged(self.c_cb.currentColor())
+        if text_theme is not None:
+            self.font_cb.setCurrentText(text_theme.family)
+            self.s_sb.setValue(text_theme.size)
+            self.ls_sb.setValue(text_theme.letter_spacing)
+            self.o_slider.setValue(text_theme.opacity)
+            self.o_sb.setValue(text_theme.opacity)
+            self.b_cb.setChecked(text_theme.bold)
+            self.i_cb.setChecked(text_theme.italic)
+            self.ul_cb.setChecked(text_theme.underline)
+            self.ol_cb.setChecked(text_theme.overline)
+            self.c_cb.setColor(text_theme.color)
+            self.ta_cb.setCurrentText(text_theme.text_alignment.title())
+        
+        self._fontFamilyChanged(self.font_cb.currentText())
+        self._fontSizeChanged(self.s_sb.value())
+        self._fontLetterSpacingChanged(self.ls_sb.value())
+        self._fontWeightChanged(self.b_cb.isChecked())
+        self._fontStyleChanged(self.i_cb.isChecked())
+        self._fontOpacityChanged(self.o_sb.value())
+        self._fontLineStyleChanged(self.ul_cb.isChecked(), self.ol_cb.isChecked())
+        self._fontColorChanged(self.c_cb.currentColor())
+        self._textAlignment(self.ta_cb.currentText())
     
-    def fontFamilyChanged(self, font: QFont):
-        family = font.family()
-        
-        f = self.font_display_label.font()
-        f.setFamily(family)
-        
-        self.font_display_label.setText(family)
-        self.setStyleProperty(self.font_display_label, "font-family", f"'{family}'")
+    def text_theme(self):
+        return Font(
+            self.font_cb.currentText(),
+            
+            self.s_sb.value(),
+            self.b_cb.isChecked(),
+            self.i_cb.isChecked(),
+            
+            self.c_cb.currentColor(),
+            self.ls_sb.value(),
+            self.o_sb.value(),
+            self.ul_cb.isChecked(),
+            self.ol_cb.isChecked(),
+            self.ta_cb.currentText(),
+            
+            self.font_display_label.styleSheet()
+        )
     
-    def fontSizeChanged(self, size: int):
+    def _fontFamilyChanged(self, font_family: str):
+        font = self.font_display_label.font()
+        
+        # self.font_display_label.setText(font_family)
+        
+        font.setFamily(font_family)
+        self.setStyleProperty(self.font_display_label, "font-family", f"'{font_family}'")
+    
+    def _fontSizeChanged(self, size: int):
         font = self.font_display_label.font()
         
         font.setPointSize(size)
         
-        self.setStyleProperty(self.font_display_label, "font-size", f"{size}px")
+        self.setStyleProperty(self.font_display_label, "font-size", f"{size}pt")
     
-    def fontOpacityChanged(self, opacity: int):
+    def _fontOpacityChanged(self, opacity: int):
         self.setStyleProperty(self.font_display_label, "opacity", str(opacity))
     
-    def fontStyleChanged(self, index: int):
+    def _fontWeightChanged(self, bold: bool):
         font = self.font_display_label.font()
         
-        match index:
-            case 0:
-                font.setBold(False)
-                font.setItalic(False)
-                self.setStyleProperty(self.font_display_label, "font-style", "normal")
-                self.setStyleProperty(self.font_display_label, "font-weight", "normal")
-            case 1:
-                font.setBold(True)
-                font.setItalic(False)
-                self.setStyleProperty(self.font_display_label, "font-style", "normal")
-                self.setStyleProperty(self.font_display_label, "font-weight", "bold")
-            case 2:
-                font.setBold(False)
-                font.setItalic(True)
-                self.setStyleProperty(self.font_display_label, "font-style", "italic")
-                self.setStyleProperty(self.font_display_label, "font-weight", "normal")
-            case 3:
-                font.setBold(True)
-                font.setItalic(True)
-                self.setStyleProperty(self.font_display_label, "font-style", "italic")
-                self.setStyleProperty(self.font_display_label, "font-weight", "bold")
+        font.setBold(bold)
+        self.setStyleProperty(self.font_display_label, "font-weight", "bold" if bold else "normal")
     
-    def fontLineStyleChanged(self, underline: bool, overline: bool):
+    def _fontStyleChanged(self, italic: bool):
+        font = self.font_display_label.font()
+        
+        font.setItalic(italic)
+        self.setStyleProperty(self.font_display_label, "font-style", "italic" if italic else "normal")
+    
+    def _fontLineStyleChanged(self, underline: bool, overline: bool):
         font = self.font_display_label.font()
         
         font.setOverline(overline)
@@ -1320,16 +1329,19 @@ class FontEditor(IconToolBarOption):
             self.ul_cb.setChecked(False)
             self.ul_cb.blockSignals(False)
     
-    def fontColorChanged(self, color: str):
+    def _fontColorChanged(self, color: str):
         self.setStyleProperty(self.font_display_label, "color", color)
     
-    def fontLetterSpacingChanged(self, spacing: float):
+    def _fontLetterSpacingChanged(self, spacing: float):
         font = self.font_display_label.font()
         
         font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
         self.setStyleProperty(self.font_display_label, "letter-spacing", f"{spacing}px")
     
-    def getFontSection(self):
+    def _textAlignment(self, alignment: str):
+        self.setStyleProperty(self.font_display_label, "text-align", alignment.lower())
+    
+    def _getFontSection(self):
         font_section = BaseWidget()
         font_section.setProperty("class", "ExportEditorOptionsBG")
         
@@ -1338,10 +1350,12 @@ class FontEditor(IconToolBarOption):
         f_widget = BaseWidget() ; f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
         self.font_cb = QFontComboBox()
-        self.s_sb = QSpinBox() ; self.s_sb.setValue(self.font_display_label.font().pointSize())
+        self.s_sb = QSpinBox() ; self.s_sb.setValue(self.font_display_label.font().pointSize()) ; self.s_sb.setMaximum(500)
         self.ls_sb = QSpinBox() ; self.ls_sb.setValue(int(self.font_display_label.font().letterSpacing()))
         self.c_cb = ColorComboBox("white")
-        self.st_cb = QComboBox() ; self.st_cb.addItems(["Regular", "Bold", "Italic", "Bold Italic"])
+        fs_widget = BaseWidget(QHBoxLayout) ; fs_widget.setContentsMargins(0, 5, 0, 5)
+        fs_widget.addWidget(b_cb := QCheckBox("Bold"))
+        fs_widget.addWidget(i_cb := QCheckBox("Italic"))
         uss_widget = BaseWidget(QHBoxLayout) ; uss_widget.setContentsMargins(0, 5, 0, 5)
         uss_widget.addWidget(ul_cb := QCheckBox("Underline"))
         uss_widget.addWidget(ol_cb := QCheckBox("Overline"))
@@ -1354,12 +1368,15 @@ class FontEditor(IconToolBarOption):
         self.o_sb = o_sb
         self.ul_cb = ul_cb
         self.ol_cb = ol_cb
+        self.b_cb = b_cb
+        self.i_cb = i_cb
         
         f_widget.addWidget(LabeledWidget("Font Name", self.font_cb))
         f_widget.addWidget(LabeledWidget("Size", self.s_sb))
         f_widget.addWidget(LabeledWidget("Letter Spacing", self.ls_sb))
         f_widget.addWidget(LabeledWidget("Color", self.c_cb))
-        f_widget.addWidget(LabeledWidget("Style", self.st_cb))
+        f_widget.addWidget(SeparatorLabel("Style"))
+        f_widget.addWidget(fs_widget)
         f_widget.addWidget(uss_widget)
         f_widget.addWidget(LabeledWidget("Opacity", o_widget))
         
@@ -1367,11 +1384,10 @@ class FontEditor(IconToolBarOption):
         
         a_widget = BaseWidget() ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
-        ta_cb = QComboBox() ; ta_cb.addItems(["Left", "Center", "Right"])
-        va_cb = QComboBox() ; va_cb.addItems(["Left", "Center", "Right"])
+        self.ta_cb = QComboBox() ; self.ta_cb.addItems(["Left", "Center", "Right"])
+        self.ta_cb.currentTextChanged.connect(self._textAlignment)
         
-        a_widget.addWidget(LabeledWidget("Text Alignment", ta_cb))
-        a_widget.addWidget(LabeledWidget("Vertical Alignment", va_cb))
+        a_widget.addWidget(LabeledWidget("Text Alignment", self.ta_cb))
         
         # -----------------------------------------------------------------------------------------------------------
         
@@ -1382,128 +1398,6 @@ class FontEditor(IconToolBarOption):
         font_section.addStretch()
         
         return font_section
-    
-    def getOutlineSection(self):
-        outline_section = BaseWidget()
-        outline_section.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        ou_widget = BaseWidget() ; ou_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
-        c_ccb = ColorComboBox("black")
-        j_cb = QComboBox() ; j_cb.addItems(["Round", "Square", "Bevel"])
-        s_widget = BaseWidget(QHBoxLayout)
-        s_widget.addWidget(s_slider := QSlider(Qt.Orientation.Horizontal))
-        s_widget.addWidget(s_sb := QSpinBox())
-        o_widget = BaseWidget(QHBoxLayout)
-        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
-        o_widget.addWidget(o_sb := QSpinBox())
-        
-        ou_widget.addWidget(LabeledWidget("Style", s_cb))
-        ou_widget.addWidget(LabeledWidget("Color", c_ccb))
-        ou_widget.addWidget(LabeledWidget("Join", j_cb))
-        ou_widget.addWidget(LabeledWidget("Size", s_widget))
-        ou_widget.addWidget(LabeledWidget("Opacity", o_widget))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        outline_section.addWidget(SeparatorLabel("Outline"))
-        outline_section.addWidget(ou_widget)
-        outline_section.addStretch()
-        
-        return outline_section
-    
-    def getShadowSection(self):
-        shadow_section = BaseWidget()
-        shadow_section.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        sh_widget = BaseWidget() ; sh_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        s_cb = QComboBox() ; s_cb.addItems(["None", "Outer", "Center", "Inner"])
-        c_ccb = ColorComboBox("black")
-        a_widget = BaseWidget(QHBoxLayout) ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        a_widget.addWidget(a_dial := QDial())
-        a_widget.addWidget(a_sb := QSpinBox())
-        off_widget = BaseWidget(QHBoxLayout)
-        off_widget.addWidget(off_slider := QSlider(Qt.Orientation.Horizontal))
-        off_widget.addWidget(off_sb := QSpinBox())
-        b_widget = BaseWidget(QHBoxLayout)
-        b_widget.addWidget(b_slider := QSlider(Qt.Orientation.Horizontal))
-        b_widget.addWidget(b_sb := QSpinBox())
-        o_widget = BaseWidget(QHBoxLayout)
-        o_widget.addWidget(o_slider := QSlider(Qt.Orientation.Horizontal))
-        o_widget.addWidget(o_sb := QSpinBox())
-        
-        sh_widget.addWidget(LabeledWidget("Style", s_cb))
-        sh_widget.addWidget(LabeledWidget("Color", c_ccb))
-        sh_widget.addWidget(LabeledWidget("Angle", a_widget))
-        sh_widget.addWidget(LabeledWidget("Offset", off_widget))
-        sh_widget.addWidget(LabeledWidget("Blur", b_widget))
-        sh_widget.addWidget(LabeledWidget("Opacity", o_widget))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        shadow_section.addWidget(SeparatorLabel("Shadow"))
-        shadow_section.addWidget(sh_widget)
-        shadow_section.addStretch()
-        
-        return shadow_section
-    
-    def getMarginSection(self):
-        margins_section = BaseWidget()
-        margins_section.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        m_widget = BaseWidget() ; m_widget.setSpacing(10)
-        
-        m_widget.addWidget(LabeledWidget(LabeledWidget("Left", l_sb := QSpinBox()), LabeledWidget("Top", t_sb := QSpinBox())))
-        m_widget.addWidget(LabeledWidget(LabeledWidget("Right", r_sb := QSpinBox()), LabeledWidget("Bottom", b_sb := QSpinBox())))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        margins_section.addWidget(SeparatorLabel("Margins"))
-        margins_section.addWidget(m_widget)
-        margins_section.addStretch()
-        
-        return margins_section
-    
-    def getFormatSection(self):
-        format_section = BaseWidget()
-        format_section.setProperty("class", "ExportEditorOptionsBG")
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        as_widget = BaseWidget()
-        
-        as_widget.addWidget(dnast_rb := QRadioButton("Do not auto size text"))
-        as_widget.addWidget(rttfe_rb := QRadioButton("Resize text to fit element"))
-        ntsas_widget = BaseWidget() ; ntsas_widget.addWidget(ntsas_cb := QCheckBox("Normalize text size across slides"))
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        fmt_widget = BaseWidget()
-        
-        fmt_widget.addWidget(ww_cb := QCheckBox("Word Wrapping"))
-        fmt_widget.addWidget(caw_cb := QCheckBox("Capitalize all words"))
-        fmt_widget.addWidget(cfwoel_cb := QCheckBox("Capitalize first word of each line"))
-        fmt_widget.addWidget(acfcotw_cb := QCheckBox("Automatically capitalize first character of these words"))
-        acfcotw_widget = BaseWidget() ; acfcotw_widget.addWidget(acfcotw_te := QTextEdit())
-        fmt_widget.addWidget(acfcotw_widget)
-        
-        # -----------------------------------------------------------------------------------------------------------
-        
-        format_section.addWidget(SeparatorLabel("Auto Sizing"))
-        format_section.addWidget(as_widget)
-        format_section.addWidget(SeparatorLabel("Formatting"))
-        format_section.addWidget(fmt_widget)
-        format_section.addStretch()
-        
-        return format_section
 
 class ColorComboBox(IconToolBarOption):
     colorSelected = pyqtSignal(str)
@@ -1527,13 +1421,16 @@ class ColorComboBox(IconToolBarOption):
         wrapper_widget.addWidget(self.selected_color_hex_label)
         
         color_picker = QColorDialog()
-        color_picker.currentColorChanged.connect(self._setColor)
+        color_picker.currentColorChanged.connect(self.setColor)
         
         self._is_init = True
-        self._setColor(color)
+        self.setColor(color)
         self._is_init = False
         
         self.initialize(color_picker, title=wrapper_widget, font_size=10)
+        
+        wrapper_widget.getWidget().mousePressEvent = self._clicked
+        self.getWidget().mousePressEvent = lambda _: None
         
         self.setContentsMargins(5, 5, 5, 5)
     
@@ -1547,24 +1444,25 @@ class ColorComboBox(IconToolBarOption):
         
         return f"#{"0" + r if len(r) == 1 else r}{"0" + g if len(g) == 1 else g}{"0" + b if len(b) == 1 else b}"
     
-    def _setColor(self, color: QColor):
-        color = self._colorToHex(color)
+    def setColor(self, color: QColor | str):
+        str_color = self._colorToHex(QColor(color))
         
-        self.selected_color_hex_label.setText(color)
-        self.selected_color_display.setStyleSheet(f"background-color: {color};")
+        self.selected_color_hex_label.setText(str_color)
+        self.selected_color_display.setStyleSheet(f"background-color: {str_color};")
         
         if not self._is_init:
-            self.colorSelected.emit(color)
+            self.colorSelected.emit(str_color)
         
-        self._color = color
-
+        self._color = str_color
 
 
 class ExportsEditorDialogWidget(BaseDialogWidget):
     def __init__(self):
         super().__init__("Export Editor", BaseWidget)
+    
+    def _init(self, file_manager: FileManager):
+        self.file_manager = file_manager
         
-        self.export_mode = 0
         self._initGeometry()
         
         self.setProperty("class", "ExportEditor")
@@ -1577,31 +1475,52 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         et_widget.addWidget(s_rb := QRadioButton("School")) ; s_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         et_widget.addWidget(l_rb := QRadioButton("Level")) ; l_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         et_widget.addWidget(c_rb := QRadioButton("Class")) ; c_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        s_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("School Export File Path" if b else path_edit.placeholderText()))
-        l_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("Level Export Folder Path" if b else path_edit.placeholderText()))
-        c_rb.clicked.connect(lambda b: path_edit.setPlaceholderText("Class Export Folder Path" if b else path_edit.placeholderText()))
         e_widget.addWidget(et_widget, alignment=Qt.AlignmentFlag.AlignHCenter)
-        e_widget.addWidget(LabeledWidget("Export File Type", eft_cb := QComboBox())) ; eft_cb.addItems(["PNG", "JPG", "HTML", "PDF", "MSIX"])
-        s_rb.clicked.connect(lambda b: self._set_export_mode(0 if b else self.export_mode))
-        l_rb.clicked.connect(lambda b: self._set_export_mode(1 if b else self.export_mode))
-        c_rb.clicked.connect(lambda b: self._set_export_mode(2 if b else self.export_mode))
+        e_widget.addWidget(LabeledWidget("Export File Type", eft_cb := QComboBox())) ; eft_cb.addItems(["PNG", "JPG", "HTML", "CSV"])
+        self.s_rb = s_rb ; self.s_rb.clicked.connect(lambda b: self._set_export_mode(0 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        self.l_rb = l_rb ; self.l_rb.clicked.connect(lambda b: self._set_export_mode(1 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        self.c_rb = c_rb ; self.c_rb.clicked.connect(lambda b: self._set_export_mode(2 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        
+        def csv_disable(text: str): 
+            f_widget.setDisabled(text == "CSV")
+            t_widget.setDisabled(text == "CSV")
+            
+            SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type = text
+        
         self.eft_cb = eft_cb
+        self.eft_cb.currentTextChanged.connect(csv_disable)
+        
+        self.cls_title_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme)
+        self.ttbl_content_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme)
+        self.weekday_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.weekday_text_theme)
+        self.break_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.break_text_theme)
         
         f_widget = BaseWidget() ; f_widget.setContentsMargins(35, 0, 35, 0)
-        f_widget.addWidget(LabeledWidget("Title", title_font := FontEditor()))
-        f_widget.addWidget(LabeledWidget("Timetable Title", tt_font := FontEditor()))
-        f_widget.addWidget(LabeledWidget("Timetable Content", tc_font := FontEditor()))
-        f_widget.addWidget(LabeledWidget("Break", b_font := FontEditor()))
+        f_widget.addWidget(LabeledWidget("Class Title Text Theme", self.cls_title_text_theme))
+        f_widget.addWidget(LabeledWidget("Timetable Content Text Theme", self.ttbl_content_text_theme))
+        f_widget.addWidget(LabeledWidget("Weekday Text Theme", self.weekday_text_theme))
+        f_widget.addWidget(LabeledWidget("Break Text Theme", self.break_text_theme))
+        
+        self.ttbl_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color)
+        self.ttbl_cell_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_cell_bg_color)
+        self.weekday_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.weekday_bg_color)
+        self.break_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color)
+        self.border_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.border_color)
         
         t_widget = BaseWidget() ; t_widget.setContentsMargins(35, 0, 35, 0)
-        t_widget.addWidget(LabeledWidget("Weekday Background Color", wb_color := ColorComboBox("black")))
-        t_widget.addWidget(LabeledWidget("Timetable Background Color", ttbl_bg_color := ColorComboBox("black")))
-        t_widget.addWidget(LabeledWidget("Break Background Color", b_bg_color := ColorComboBox("black")))
-        t_widget.addWidget(LabeledWidget("Border Color", b_color := ColorComboBox("white")))
+        t_widget.addWidget(LabeledWidget("Timetable Background Color", self.ttbl_bg_color))
+        t_widget.addWidget(LabeledWidget("Timetable Cell Background Color", self.ttbl_cell_bg_color))
+        t_widget.addWidget(LabeledWidget("Weekday Background Color", self.weekday_bg_color))
+        t_widget.addWidget(LabeledWidget("Break Background Color", self.break_bg_color))
+        t_widget.addWidget(LabeledWidget("Border Color", self.border_color))
         thickness_widget = BaseWidget()
         thickness_widget.addWidget(t_l1_widg := LabeledWidget("  Vertical Line Thickness", vlt_sb := QSpinBox())) ; t_l1_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         thickness_widget.addWidget(t_l2_widg := LabeledWidget("Horizontal Line Thickness", hlt_sb := QSpinBox())) ; t_l2_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         t_widget.addWidget(thickness_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.vlt_sb = vlt_sb ; self.vlt_sb.setMaximum(30) ; self.vlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
+        self.hlt_sb = hlt_sb ; self.hlt_sb.setMaximum(30) ; self.hlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness)
+        
+        self.eft_cb.setCurrentText(SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type)
         
         main_widget.addWidget(SeparatorLabel("Export"))
         main_widget.addWidget(e_widget)
@@ -1613,20 +1532,17 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         base_widget = BaseWidget(QHBoxLayout)
         
         preview = QCheckBox("Preview Output")
-        export_button = QPushButton("Export") ; export_button.clicked.connect(self.export)
+        export_button = QPushButton("Export") ; export_button.clicked.connect(lambda: self.file_manager.export(min(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode, 1), f"{eft_cb.currentText().upper()} Files (*.{eft_cb.currentText().lower()})"))
         cancel_button = QPushButton("Cancel") ; cancel_button.clicked.connect(self.close)
         
         base_widget.addWidget(preview)
         base_widget.addStretch()
-        base_widget.addWidget(path_edit := QLineEdit(), alignment=Qt.AlignmentFlag.AlignBottom)
         base_widget.addWidget(export_button, alignment=Qt.AlignmentFlag.AlignBottom)
         base_widget.addWidget(cancel_button, alignment=Qt.AlignmentFlag.AlignBottom)
         
-        self.path_edit = path_edit
-        self.path_edit.setPlaceholderText("Export File Path")
-        self.path_edit.setFixedWidth(400)
-        
-        s_rb.setChecked(True)
+        self.s_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 0)
+        self.l_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 1)
+        self.c_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 2)
         
         self.addWidget(main_widget)
         self.addWidget(base_widget)
@@ -1639,74 +1555,87 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.setGeometry(int(screen_geom.width() / 2 - self.geometry().width() / 2), int(screen_geom.height() / 2 - self.geometry().height() / 2), self.geometry().width(), self.geometry().height())
     
     def _set_export_mode(self, mode: int):
-        self.export_mode = mode
+        SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = mode
     
-    def export(self):
-        path = self.path_edit.text()
-        file_type = self.eft_cb.currentText().lower()
+    def _set_timetable_export_theme(self):
+        SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme = self.cls_title_text_theme.text_theme()
+        SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme = self.ttbl_content_text_theme.text_theme()
+        SCHOOL.settings.EXPORT_timetable_export_theme.weekday_text_theme = self.weekday_text_theme.text_theme()
+        SCHOOL.settings.EXPORT_timetable_export_theme.break_text_theme = self.break_text_theme.text_theme()
         
-        if self.export_mode == 0:
-            if file_type == "html":
-                body = ""
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        body += get_export_html_text(cls)
-                    
-                html = HTML_TEXT.format(title="School", body=body)
+        SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color = self.ttbl_bg_color.currentColor()
+        SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_cell_bg_color = self.ttbl_cell_bg_color.currentColor()
+        SCHOOL.settings.EXPORT_timetable_export_theme.weekday_bg_color = self.weekday_bg_color.currentColor()
+        SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color = self.break_bg_color.currentColor()
+        SCHOOL.settings.EXPORT_timetable_export_theme.border_color = self.border_color.currentColor()
+        
+        SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness = self.hlt_sb.value()
+        SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness = self.vlt_sb.value()
+        
+        if self.s_rb.isChecked():
+            SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = 0
+        elif self.l_rb.isChecked():
+            SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = 1
+        elif self.c_rb.isChecked():
+            SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = 2
+    
+    def export_callback(self, path: str, file_type=None, a0=None):
+        self._set_timetable_export_theme()
+        
+        file_type = file_type or SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type
+        subject_count = str(max(max(d for d, _ in cls_level.weekdays.values()) for _, cls_level in SCHOOL.class_levels))
+        
+        html_style_replacements = dict(
+            cls_title_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme.stylesheet.replace(";", ";\n\t\t"),
+            ttbl_content_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme.stylesheet.replace(";", ";\n\t\t"),
+            weekday_text_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.weekday_text_theme.stylesheet.replace(";", ";\n\t\t"),
+            break_text_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.break_text_theme.stylesheet.replace(";", ";\n\t\t"),
+            
+            ttbl_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color,
+            ttbl_content_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_cell_bg_color,
+            weekday_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.weekday_bg_color,
+            break_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color,
+            border_color=SCHOOL.settings.EXPORT_timetable_export_theme.border_color,
+            
+            border_horizontal_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness),
+            border_vertical_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
+        )
+        
+        if file_type == "JPG":
+            for surface, p in self.export_callback(path, "PNG", True):
+                data = pygame.image.tostring(surface, "RGB")
+                img = PILImage.frombytes("RGB", surface.get_size(), data)
                 
-                with open(path, "w") as file:
-                    file.write(html)
-            elif file_type == "png":
-                surfs: list[pygame.Surface] = []
-                
-                width = 0
-                height = 0
-                
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        cls_surf = get_export_surface(cls)
-                        
-                        width = max(width, cls_surf.get_width())
-                        height += cls_surf.get_height()
-                        
-                        surfs.append(cls_surf)
-                
-                screen = pygame.Surface((width, height))
-                screen.fill("white")
-                
-                y = 0
-                for surf in surfs:
-                    screen.blit(surf, ((0, y), surf.get_size()))
-                    
-                    y += surf.get_height()
-                
-                pygame.image.save(screen, path)
-        elif self.export_mode == 1:
-            if file_type == "html":
-                for _, cls_level in SCHOOL.class_levels:
+                img.save(p.strip().removesuffix(".png") + ".jpg", quality=95)
+        else:
+            _l: list[tuple[pygame.Surface, str]] = []
+            internal = a0 is not None and a0 == True
+            
+            if SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 0:
+                if file_type == "HTML":
                     body = ""
+                    for _, cls_level in SCHOOL.class_levels:
+                        for cls in cls_level.classes.values():
+                            body += get_export_html_text(cls)
+                        
+                    html = HTML_TEXT.format(title="School", body=body, subject_count=subject_count, **html_style_replacements)
                     
-                    for cls in cls_level.classes.values():
-                        body += get_export_html_text(cls)
-                    
-                    html = HTML_TEXT.format(title=cls_level.name.full(), body=body)
-                    
-                    with open(path + f"/{cls_level.name.full()}.html", "w") as file:
+                    with open(path, "w") as file:
                         file.write(html)
-            elif file_type == "png":
-                for _, cls_level in SCHOOL.class_levels:
+                elif file_type == "PNG":
                     surfs: list[pygame.Surface] = []
                     
                     width = 0
                     height = 0
                     
-                    for cls in cls_level.classes.values():
-                        cls_surf = get_export_surface(cls)
-                        
-                        width = max(width, cls_surf.get_width())
-                        height += cls_surf.get_height()
-                        
-                        surfs.append(cls_surf)
+                    for _, cls_level in SCHOOL.class_levels:
+                        for cls in cls_level.classes.values():
+                            cls_surf = get_export_surface(cls)
+                            
+                            width = max(width, cls_surf.get_width())
+                            height += cls_surf.get_height()
+                            
+                            surfs.append(cls_surf)
                     
                     screen = pygame.Surface((width, height))
                     screen.fill("white")
@@ -1717,24 +1646,118 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         
                         y += surf.get_height()
                     
-                    pygame.image.save(screen, path + f"/{cls_level.name.full()}.png")
-        elif self.export_mode == 2:
-            if file_type == "html":
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        body = get_export_html_text(cls)
-                        html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body)
+                    if internal:
+                        _l.append((screen, path))
+                    else:
+                        pygame.image.save(screen, path)
+                elif file_type == "CSV":
+                    output = StringIO()
+                    writer = csv.writer(output)
+                    
+                    for i, (_, cls_level) in enumerate(SCHOOL.class_levels):
+                        for j, cls in enumerate(cls_level.classes.values()):
+                            if i + j:
+                                writer.writerow([])
+                            
+                            writer.writerow([f"{cls_level.name.full()} {cls.name}"])
+                            write_export_csv(writer, cls)
+                    
+                    with open(path, "w", newline="", encoding="utf-8") as file:
+                        file.write(output.getvalue().strip())
+            elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 1:
+                if file_type == "HTML":
+                    for _, cls_level in SCHOOL.class_levels:
+                        body = ""
                         
-                        with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                        for cls in cls_level.classes.values():
+                            body += get_export_html_text(cls)
+                        
+                        html = HTML_TEXT.format(title=cls_level.name.full(), body=body, subject_count=subject_count, **html_style_replacements)
+                        
+                        with open(path + f"/{cls_level.name.full()}.html", "w") as file:
                             file.write(html)
-            elif file_type == "png":
-                for _, cls_level in SCHOOL.class_levels:
-                    for cls in cls_level.classes.values():
-                        pygame.image.save(get_export_surface(cls), path + f"/{cls.level.name.full()} {cls.name}.png")
+                elif file_type == "PNG":
+                    for _, cls_level in SCHOOL.class_levels:
+                        surfs: list[pygame.Surface] = []
+                        
+                        width = 0
+                        height = 0
+                        
+                        for cls in cls_level.classes.values():
+                            cls_surf = get_export_surface(cls)
+                            
+                            width = max(width, cls_surf.get_width())
+                            height += cls_surf.get_height()
+                            
+                            surfs.append(cls_surf)
+                        
+                        screen = pygame.Surface((width, height))
+                        screen.fill("white")
+                        
+                        y = 0
+                        for surf in surfs:
+                            screen.blit(surf, ((0, y), surf.get_size()))
+                            
+                            y += surf.get_height()
+                        
+                        p = path + f"/{cls_level.name.full()}.png"
+                        
+                        if internal:
+                            _l.append((screen, p))
+                        else:
+                            pygame.image.save(screen, p)
+                elif file_type == "CSV":
+                    for i, (_, cls_level) in enumerate(SCHOOL.class_levels):
+                        output = StringIO()
+                        writer = csv.writer(output)
+                        
+                        for j, cls in enumerate(cls_level.classes.values()):
+                            if i + j:
+                                writer.writerow([])
+                            writer.writerow([f"{cls_level.name.full()} {cls.name}"])
+                            write_export_csv(writer, cls)
+                        
+                        with open(f"{path}/{cls_level.name.full()}.csv", "w", newline="", encoding="utf-8") as file:
+                            file.write(output.getvalue().strip())
+            elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 2:
+                if file_type == "HTML":
+                    for _, cls_level in SCHOOL.class_levels:
+                        for cls in cls_level.classes.values():
+                            body = get_export_html_text(cls)
+                            html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body, subject_count=subject_count, **html_style_replacements)
+                            
+                            with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                                file.write(html)
+                elif file_type == "PNG":
+                    for _, cls_level in SCHOOL.class_levels:
+                        for cls in cls_level.classes.values():
+                            p = path + f"/{cls.level.name.full()} {cls.name}.png"
+                            screen = get_export_surface(cls)
+                            
+                            if internal:
+                                _l.append((screen, p))
+                            else:
+                                pygame.image.save(screen, p)
+                elif file_type == "CSV":
+                    for i, (_, cls_level) in enumerate(SCHOOL.class_levels):
+                        for j, cls in enumerate(cls_level.classes.values()):
+                            output = StringIO()
+                            writer = csv.writer(output)
+                            
+                            write_export_csv(writer, cls)
+                            
+                            with open(f"{path}/{cls.level.name.full()} {cls.name}.csv", "w", newline="", encoding="utf-8") as file:
+                                file.write(output.getvalue().strip())
+            
+            if internal:
+                return _l
+        
+        QMessageBox.information(self, "Export", "Export Successful")
     
-
-
-
+    def closeEvent(self, a0):
+        self._set_timetable_export_theme()
+        
+        return super().closeEvent(a0)
 
 
 

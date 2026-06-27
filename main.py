@@ -45,6 +45,9 @@ class Window(QMainWindow):
         # Setting resize geometry
         self.setGeometry(100, 100, 1000, 700)
         
+        # Create menu bar
+        menu_bar = self.create_menu_bar()
+        
         # Get saved data
         self._init_save_data()
         
@@ -53,8 +56,6 @@ class Window(QMainWindow):
         self.prev_display_index = 0
         
         self.go_focus_index = 0
-        
-        menu_bar = self.create_menu_bar()
         
         # Make settings widgets
         self.timetable_widget = SchoolTimetableEditor()
@@ -133,8 +134,8 @@ class Window(QMainWindow):
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
-            self.file = FileManager(self, None, f"Timetable Files {TABLE_EXTENSION_TYPE};;Template Files {TEMPLATE_EXTENSION_TYPE}")
-            self.file.set_callbacks(self.save_callback, self.open_callback, self.load_callback)
+            self.export_editor = ExportsEditorDialogWidget()
+            self.file = FileManager(self, self.export_editor, None, f"{TABLE_EXTENSION_TYPE};;{TEMPLATE_EXTENSION_TYPE}")
         elif index == 1:
             self.file.path = arg
     
@@ -169,14 +170,35 @@ class Window(QMainWindow):
         self.saved = True
         
         if self.file.path is not None:
-            school = self.file.get_data(self._open_file_type)
-            SCHOOL.set(school)
+            SCHOOL.set(self.load())
             
             self.saved_callback()
         else:
             self.setWindowTitle(self.title)
         
         THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
+        
+        self.export_editor._init(self.file)
+        self.file.set_callbacks(self.save_callback, self.open_callback, self.export_editor.export_callback)
+    
+    def load(self):
+        assert self.file.path
+        
+        if self._open_file_type is None:
+            print("No file type specified; Defaulting to default file type")
+            
+            self._open_file_type = TABLE_EXTENSION_TYPE
+        
+        if self._open_file_type == TABLE_EXTENSION_TYPE:
+            with open(self.file.path, "rb") as file:
+                data = pickle.load(file)
+        elif self._open_file_type == TEMPLATE_EXTENSION_TYPE:
+            with open(self.file.path, "r") as file:
+                data = SCHOOL.from_template(file.read())
+        else:
+            raise TypeError(f"Unsupported file type: {self._open_file_type}")
+        
+        return data
     
     def unsaved_callback(self):
         self.saved = False
@@ -190,40 +212,30 @@ class Window(QMainWindow):
         self.saved = True
         self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
     
-    def load_callback(self, path: str, file_type: str):
-        if file_type is None:
-            print("No file type specified; Defaulting to default file type")
-            
-            file_type = TABLE_EXTENSION_TYPE
-        
-        if file_type == TABLE_EXTENSION_TYPE:
-            with open(path, "rb") as file:
-                data = pickle.load(file)
-        elif file_type == TEMPLATE_EXTENSION_TYPE:
-            with open(path, "r") as file:
-                data = SCHOOL.from_template(file.read())
-        else:
-            raise TypeError(f"Unsupported file type: {file_type}")
-        
-        return data
-    
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
-        win = Window(["main.py", path, f'-ft={file_type}'] if None not in (path, file_type) else [])
-        win.showMaximized()
+        arguments = [c for i, c in enumerate(["main.py", f'-ft={file_type}', path]) if i == 0 or (i == 1 and file_type is not None) or (i == 2 and path is not None)]
+        
+        win = Window(arguments)
+        win.show()
         
         if not hasattr(self, '_windows'):
             self._windows = []
         self._windows.append(win)
     
-    def save_callback(self, path: str, file_type: Optional[str] = None):
+    def save_callback(self, path: str, file_type: Optional[str] = None, school: Optional[SchoolFrameWork] = None):
         self.file.path = path
+        
+        if school is None:
+            school = SCHOOL
+        
+        file_type = file_type or self._open_file_type
         
         if file_type == TABLE_EXTENSION_TYPE:
             with open(self.file.path, "wb") as file:
-                pickle.dump(SCHOOL, file)
+                pickle.dump(school, file)
         elif file_type == TEMPLATE_EXTENSION_TYPE:
-            with open(self.file.path, "w") as file:
-                file.write(SCHOOL.template())
+            with open(self.file.path, "w", encoding="utf-8") as file:
+                file.write(school.template())
         else:
             raise TypeError(f"Unsupported file type: {file_type}")
         
@@ -280,15 +292,13 @@ class Window(QMainWindow):
         help_menu = menubar.addMenu("Help")
         
         # Add all actions
-        export_editor = ExportsEditorDialogWidget()
-        
         file_menu.addAction("New", "Ctrl+N", self.file.new)
         file_menu.addSeparator()
         file_menu.addAction("Open", "Ctrl+O", self.file.open)
         file_menu.addSeparator()
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
-        file_menu.addAction("Export", "Ctrl+Shift+E", lambda: export_editor.exec())
+        file_menu.addAction("Export", "Ctrl+Shift+E", lambda: self.export_editor.exec())
         file_menu.addSeparator()
         file_menu.addAction("Close", self.close)
         
@@ -357,6 +367,12 @@ class Window(QMainWindow):
             elif reply == QMessageBox.StandardButton.Cancel:
                 event.ignore()
                 return
+        
+        if self.file.path and self._open_file_type == TABLE_EXTENSION_TYPE:
+            school = self.load()
+            school.settings.EXPORT_timetable_export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
+            
+            self.save_callback(self.file.path, TABLE_EXTENSION_TYPE, school)
         
         event.accept()
     

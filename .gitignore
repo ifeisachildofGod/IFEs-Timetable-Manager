@@ -185,4 +185,5 @@ cython_debug/
 
 # Others
 temp_core.py
+test.py
 *.css
