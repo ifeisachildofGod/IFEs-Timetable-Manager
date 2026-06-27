@@ -6,6 +6,7 @@ from utils import Thread
 from widgets.user_interface import *
 
 
+
 class _ExtrasDraggableSubjectLabel(QLabel):
     clicked = pyqtSignal(QMouseEvent)
     
@@ -99,6 +100,42 @@ class TimeTableItem(QTableWidgetItem):
         if color:
             self.setBackground(color)
 
+class TimetableTimeEditor(BaseWidget):
+    def __init__(self, t_time: TimetableTime):
+        super().__init__()
+        
+        self.t_time = t_time
+        
+        self.start_time_edit = QTimeEdit()
+        self.interval_sb = QSpinBox()
+        self.break_time_duration_sb = QSpinBox()
+        
+        self.interval_sb.setRange(1, 60 * 24)
+        self.break_time_duration_sb.setRange(1, 60 * 24)
+        
+        self.start_time_edit.setTime(QTime(self.t_time.start_time.hour, self.t_time.start_time.minute))
+        self.interval_sb.setValue(self.t_time.interval)
+        self.break_time_duration_sb.setValue(self.t_time.break_time_duration)
+        
+        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Start Time</span>", self.start_time_edit))
+        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Interval</span>", self.interval_sb))
+        self.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 0, None, 1))
+        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Break Time Duration</span>", self.break_time_duration_sb))
+        
+        self.start_time_edit.timeChanged.connect(self.start_time_changed)
+        self.interval_sb.valueChanged.connect(self.interval_changed)
+        self.break_time_duration_sb.valueChanged.connect(self.break_time_duration_changed)
+    
+    def start_time_changed(self, time: QTime):
+        self.t_time.start_time.hour = time.hour()
+        self.t_time.start_time.minute = time.minute()
+    
+    def interval_changed(self, interval: int):
+        self.t_time.interval = interval
+    
+    def break_time_duration_changed(self, duration: int):
+        self.t_time.break_time_duration = duration
+
 
 class TimetableSettings(BaseWidget):
     def __init__(self, editor: 'SchoolTimetableEditor'):
@@ -134,8 +171,8 @@ class TimetableSettings(BaseWidget):
         
         # left_sub_option_widget.addWidget(dotw_button)
         
-        left_option_widget.addWidget(self.period_amt_edit)
-        left_option_widget.addWidget(self.breakperiod_edit)
+        left_option_widget.addWidget(LabeledWidget("Period Amount", self.period_amt_edit))
+        left_option_widget.addWidget(LabeledWidget("Break Period", self.breakperiod_edit))
         # left_option_widget.addWidget(left_sub_option_widget)
         
         right_option_widget = BaseWidget()
@@ -618,6 +655,8 @@ class SchoolTimetableEditor(BaseWidget):
         self.label_data: dict[ID, QLabel] = {}
         self.timetable_widgets: dict[ID, dict[ID, ClassTimetable]] = {}
         self.classes_widget: dict[ID, tuple[WidgetDropdown, BaseWidget, dict[str, BaseWidget]]] = {}
+        self.everyday_widgets: dict[ID, Optional[BaseWidget]] = {}
+        self.ttbl_day_trackers: dict[ID, dict[QComboBox, list[str, list[str]]]] = {}
         
         # Create settings for timetables
         self.settings_widget = TimetableSettings(self)
@@ -644,17 +683,15 @@ class SchoolTimetableEditor(BaseWidget):
         return func
     
     def make_timetable_settings(self, cls_level: ClassLevel):
-        widget_menu = MenuFrame()
-        layout = widget_menu.layout()
-        
-        # break_updateable = True
+        widget = BaseWidget()
+        widget.setFixedWidth(350)
         
         def generating_finished():
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.populate_timetable()
             
             self.class_generator_threads.pop(cls_level.id)
-            
+        
         def period_amt_changed(curr_period_amt: int):
             # global break_updateable
             
@@ -701,12 +738,107 @@ class SchoolTimetableEditor(BaseWidget):
             
             self.update()
         
+        def _add_everyday(set_default: bool = True):
+            widg = BaseWidget() ; widg.setProperty("class", "Bordered")
+            
+            if set_default:
+                SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]["Everyday"] = SCHOOL.settings.DEFAULT_timetable_time_setting.copy()
+            
+            evd = SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]["Everyday"]
+            
+            widg.addWidget(QLabel("<b>Everyday</b>"))
+            widg.addWidget(TimetableTimeEditor(evd))
+            
+            self.everyday_widgets[cls_level.id] = widg
+            timing_widget.insertWidget(0, widg)
+        
+        def new_day_added(def_day: Optional[str], time_setting: TimetableTime):
+            days = [day for day in cls_level.weekdays if day not in SCHOOL.settings.TIMETABLE_time_settings[cls_level.id] or day == def_day]
+            
+            if time_setting is None:
+                time_setting = SCHOOL.settings.TIMETABLE_time_settings[cls_level.id][days[0]] = SCHOOL.settings.DEFAULT_timetable_time_setting.copy()
+            
+            days_0 = def_day or days[0]
+            
+            def _add_day(day: str):
+                for cb in self.ttbl_day_trackers[cls_level.id]:
+                    if cb != day_cb:
+                        if day not in self.ttbl_day_trackers[cls_level.id][cb][1]:
+                            cb.addItem(day)
+                            self.ttbl_day_trackers[cls_level.id][cb][1].append(day)
+            
+            def _remove_day(day: str):
+                for cb in self.ttbl_day_trackers[cls_level.id]:
+                    if cb != day_cb:
+                        if day in self.ttbl_day_trackers[cls_level.id][cb][1]:
+                            cb.removeItem(self.ttbl_day_trackers[cls_level.id][cb][1].index(day))
+                            self.ttbl_day_trackers[cls_level.id][cb][1].remove(day)
+            
+            def set_day(day: str):
+                prev_day = self.ttbl_day_trackers[cls_level.id][day_cb][0]
+                
+                SCHOOL.settings.TIMETABLE_time_settings[cls_level.id][day] = SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].pop(prev_day)
+                
+                _remove_day(day)
+                
+                for d in cls_level.weekdays:
+                    if d not in SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]:
+                        _add_day(d)
+                
+                self.ttbl_day_trackers[cls_level.id][day_cb][0] = day
+            
+            def removed():
+                if self.everyday_widgets[cls_level.id] is None:
+                    _add_everyday()
+                    add_new_day_pb.setDisabled(False)
+                
+                day_time_widget.delete()
+                SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].pop(day_cb.currentText())
+                self.ttbl_day_trackers[cls_level.id].pop(day_cb)
+                
+                _add_day(day_cb.currentText())
+            
+            day_cb = QComboBox()
+            day_cb.addItems(days)
+            day_cb.currentTextChanged.connect(set_day)
+            self.ttbl_day_trackers[cls_level.id][day_cb] = [days_0, days]
+            
+            if not def_day:
+                _remove_day(days[0])
+            
+            day_time_widget = BaseWidget() ; day_time_widget.setProperty("class", "Bordered")
+            
+            cancel_pb = QPushButton("×")
+            cancel_pb.setProperty("class", "SettingEntryClose")
+            cancel_pb.clicked.connect(removed)
+            
+            top_widget = BaseWidget(QHBoxLayout) ; top_widget.addWidget(day_cb) ; top_widget.addStretch() ; top_widget.addWidget(cancel_pb)
+            
+            day_time_widget.addWidget(top_widget)
+            day_time_widget.addWidget(TimetableTimeEditor(time_setting))
+            
+            timing_widget.addWidget(day_time_widget)
+            
+            if len(days) == 1 and self.everyday_widgets[cls_level.id] is not None:
+                self.everyday_widgets[cls_level.id].delete()
+                self.everyday_widgets[cls_level.id] = None
+                
+                SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].pop("Everyday")
+                add_new_day_pb.setDisabled(True)
+            
+            if def_day is not None:
+                day_cb.blockSignals(True)
+                day_cb.setCurrentIndex(days.index(def_day))
+                day_cb.blockSignals(False)
+            
+            QTimer.singleShot(50, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
+        
         period_amt_edit = NumberLineEdit(max(p_week for p_week, _ in cls_level.weekdays.values()), 1, 20)
-        period_amt_edit.setPlaceholderText("Periods Amt")
+        period_amt_edit.setPlaceholderText("     Periods Amt")
         period_amt_edit.textChanged.connect(period_amt_changed)
         
         breakperiod_edit = NumberLineEdit(max(b_period for _, b_period in cls_level.weekdays.values()), period_amt_edit.min_num, period_amt_edit.number())
-        breakperiod_edit.setPlaceholderText("Break period")
+        breakperiod_edit.setPlaceholderText("     Break period")
         breakperiod_edit.textChanged.connect(break_period_changed)
         
         # dotw_button = QPushButton("Weekdays")
@@ -721,21 +853,31 @@ class SchoolTimetableEditor(BaseWidget):
         show_clashes_cb = QCheckBox("Show Clashes")
         show_clashes_cb.clicked.connect(show_clashes)
         
-        timing_widget = BaseWidget()
+        timing_area_widget = BaseWidget()
         
-        # Add time widgets
+        timing_widget = BaseScrollWidget()
+        add_new_day_pb = QPushButton("Add new") ; add_new_day_pb.clicked.connect(lambda: new_day_added(None, None))
         
-        layout.addWidget(period_amt_edit)
-        layout.addWidget(breakperiod_edit)
-        # layout.addSpacing(5)
-        # layout.addWidget(dotw_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        layout.addSpacing(20)
-        layout.addWidget(generate_new_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        layout.addWidget(clear_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        layout.addWidget(show_clashes_cb)
-        layout.addWidget(timing_widget)
+        timing_area_widget.addWidget(timing_widget)
+        timing_area_widget.addWidget(add_new_day_pb, alignment=Qt.AlignmentFlag.AlignRight)
         
-        return widget_menu
+        for name, content in SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].items():
+            if name == "Everyday":
+                _add_everyday(False)
+            else:
+                new_day_added(name, content)
+        
+        widget.addWidget(LabeledWidget("Period Amount", period_amt_edit))
+        widget.addWidget(LabeledWidget("Break Period", breakperiod_edit))
+        # widget.addSpacing(5)
+        # widget.addWidget(dotw_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        widget.addSpacing(20)
+        widget.addWidget(generate_new_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        widget.addWidget(clear_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        widget.addWidget(show_clashes_cb)
+        widget.addWidget(timing_area_widget)
+        
+        return widget
     
     def add_timetable_level(self, cls_level: ClassLevel):
         self.timetable_widgets[cls_level.id] = {}
@@ -744,8 +886,9 @@ class SchoolTimetableEditor(BaseWidget):
         
         level_widget = WidgetDropdown(f"<span style='font-size: 40px'>{cls_level.name.full()}</span>", body_widget)
         level_widget.toogle_widget()
-        self.label_data[cls_level.id] = level_widget.title_label
         
+        self.ttbl_day_trackers[cls_level.id] = {}
+        self.label_data[cls_level.id] = level_widget.title_label
         self.classes_widget[cls_level.id] = level_widget, body_widget, {}
         
         settings_menu_widget = self.make_timetable_settings(cls_level)
@@ -815,6 +958,7 @@ class SchoolTimetableEditor(BaseWidget):
         
         self.classes_widget.pop(cls_level_id)
         self.timetable_widgets.pop(cls_level_id)
+        self.everyday_widgets.pop(cls_level_id)
     
     def delete_timetable_class(self, cls: Class):
         self.classes_widget[cls.level.id][2][cls.id].delete()

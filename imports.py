@@ -24,7 +24,7 @@ from PyQt6.QtGui import (
     QDragMoveEvent, QDropEvent, QPixmap, QFont
 )
 from PyQt6.QtCore import (
-    Qt, QTimer, QThread, QMimeData, QSize,
+    Qt, QTimer, QThread, QMimeData, QSize, QTime,
     pyqtSignal, pyqtBoundSignal, QPoint, QObject
 )
 from PyQt6.QtPrintSupport import QPrinter

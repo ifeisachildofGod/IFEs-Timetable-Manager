@@ -811,7 +811,7 @@ class SideBar(BaseWidget):
             option = (
                 _SideBarOption(name, self._mf_option_changed(index, action))
                 if name is not None else
-                SeperatorWidget(Qt.Orientation.Vertical, 10, None, 1)
+                SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1)
             )
                 
             self.widgets.append(option)
@@ -967,8 +967,8 @@ class SeperatorWidget(BaseWidget):
     def __init__(self, orientation: Qt.Orientation, spacing: int, width: Optional[int] = None, height: Optional[int] = None):
         super().__init__()
         
-        x_spacing = spacing // 2 if orientation == Qt.Orientation.Horizontal else 0
-        y_spacing = spacing // 2 if orientation == Qt.Orientation.Vertical else 0
+        x_spacing = spacing // 2 if orientation == Qt.Orientation.Vertical else 0
+        y_spacing = spacing // 2 if orientation == Qt.Orientation.Horizontal else 0
         
         self.setContentsMargins(x_spacing, y_spacing, x_spacing, y_spacing)
         
@@ -995,7 +995,7 @@ class SeparatorLabel(BaseWidget):
         label.setContentsMargins(0, 0, 5, 0)
         self.setStyleProperty(label, "font-weight", "bold")
         
-        sep_widget = SeperatorWidget(Qt.Orientation.Vertical, 0, None, 1)
+        sep_widget = SeperatorWidget(Qt.Orientation.Horizontal, 0, None, 1)
         sep_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum)
         sep_widget.setContentsMargins(0, 7, 0, 0)
         
@@ -1221,7 +1221,7 @@ class TitledWidget(BaseWidget):
 
 
 class TextThemeEditor(IconToolBarOption):
-    def __init__(self, text_theme: Optional[Font] = None):
+    def __init__(self, text_theme: Optional[TextTheme] = None):
         super().__init__()
         
         self.font_display_label = QLabel("Text")
@@ -1265,7 +1265,7 @@ class TextThemeEditor(IconToolBarOption):
         self._textAlignment(self.ta_cb.currentText())
     
     def text_theme(self):
-        return Font(
+        return TextTheme(
             self.font_cb.currentText(),
             
             self.s_sb.value(),

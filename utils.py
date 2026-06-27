@@ -2,9 +2,13 @@ import pygame
 
 from imports import *
 
+TABLE_EXTENSION_TYPE = "ttbl"
+TEMPLATE_EXTENSION_TYPE = "template"
 
-TABLE_EXTENSION_TYPE = "Timetable Files (*.ttbl)"
-TEMPLATE_EXTENSION_TYPE = "Template Files (*.template)"
+FT_MAPPING = {
+    TABLE_EXTENSION_TYPE: "Timetable Files (*.ttbl)",
+    TEMPLATE_EXTENSION_TYPE: "Template Files (*.template)"
+}
 
 pygame.init()
 

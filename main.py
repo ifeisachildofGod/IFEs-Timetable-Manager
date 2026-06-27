@@ -135,7 +135,7 @@ class Window(QMainWindow):
     def _file_init(self, index: int, arg: str):
         if index == 0:
             self.export_editor = ExportsEditorDialogWidget()
-            self.file = FileManager(self, self.export_editor, None, f"{TABLE_EXTENSION_TYPE};;{TEMPLATE_EXTENSION_TYPE}")
+            self.file = FileManager(self, self.export_editor, None, f"{FT_MAPPING[TABLE_EXTENSION_TYPE]};;{FT_MAPPING[TEMPLATE_EXTENSION_TYPE]}")
         elif index == 1:
             self.file.path = arg
     
@@ -196,7 +196,7 @@ class Window(QMainWindow):
             with open(self.file.path, "r") as file:
                 data = SCHOOL.from_template(file.read())
         else:
-            raise TypeError(f"Unsupported file type: {self._open_file_type}")
+            raise TypeError(f"Unsupported file type: '{self._open_file_type}'")
         
         return data
     
@@ -237,7 +237,7 @@ class Window(QMainWindow):
             with open(self.file.path, "w", encoding="utf-8") as file:
                 file.write(school.template())
         else:
-            raise TypeError(f"Unsupported file type: {file_type}")
+            raise TypeError(f"Unsupported file type: '{file_type}'")
         
         self.saved_callback()
     
@@ -370,6 +370,7 @@ class Window(QMainWindow):
         
         if self.file.path and self._open_file_type == TABLE_EXTENSION_TYPE:
             school = self.load()
+            
             school.settings.EXPORT_timetable_export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
             
             self.save_callback(self.file.path, TABLE_EXTENSION_TYPE, school)
