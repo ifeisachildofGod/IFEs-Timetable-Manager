@@ -141,10 +141,10 @@ class SchoolFrameWork:
                 {},
                 {"Monday": (10, 7), "Tuesday": (10, 7), "Wednesday": (10, 7), "Thursday": (10, 7), "Friday": (10, 7)}, {},
                 TimetableExportTheme(
-                    None, None, None, None,
+                    None, None, None,
                     "white", "white", "black", "black", "black",
                     1, 1,
-                    0, "School"
+                    0, "PNG"
                 )
             )
     

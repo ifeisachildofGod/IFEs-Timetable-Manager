@@ -5,8 +5,9 @@ from imports import *
 
 from widgets.base import *
 from widgets.settings import SubjectsMainWidget, TeachersMainWidget, ClassLevelsMainWidget
+from widgets.user_interface import MainTitleBar
 from widgets.timetable import SchoolTimetableEditor
-from widgets.user_interface import ExportsEditorDialogWidget, MainTitleBar
+from widgets.export import ExportsEditorDialogWidget
 
 pygame.init()
 
@@ -49,6 +50,8 @@ class Window(QMainWindow):
         menu_bar = self.create_menu_bar()
         
         # Get saved data
+        self.LOADED_SCHOOL = None
+        
         self._init_save_data()
         
         # Misc
@@ -170,7 +173,8 @@ class Window(QMainWindow):
         self.saved = True
         
         if self.file.path is not None:
-            SCHOOL.set(self.load())
+            self.LOADED_SCHOOL = self.load()
+            SCHOOL.set(self.LOADED_SCHOOL)
             
             self.saved_callback()
         else:
@@ -228,7 +232,7 @@ class Window(QMainWindow):
         if school is None:
             school = SCHOOL
         
-        file_type = file_type or self._open_file_type
+        file_type = REV_FT_MAPPING[file_type] if file_type is not None else self._open_file_type
         
         if file_type == TABLE_EXTENSION_TYPE:
             with open(self.file.path, "wb") as file:
@@ -373,7 +377,7 @@ class Window(QMainWindow):
             
             school.settings.EXPORT_timetable_export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
             
-            self.save_callback(self.file.path, TABLE_EXTENSION_TYPE, school)
+            self.save_callback(self.file.path, FT_MAPPING[TABLE_EXTENSION_TYPE], school)
         
         event.accept()
     

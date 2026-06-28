@@ -831,7 +831,7 @@ class SchoolTimetableEditor(BaseWidget):
                 day_cb.setCurrentIndex(days.index(def_day))
                 day_cb.blockSignals(False)
             
-            QTimer.singleShot(50, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
+            QTimer.singleShot(100, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
         
         period_amt_edit = NumberLineEdit(max(p_week for p_week, _ in cls_level.weekdays.values()), 1, 20)
         period_amt_edit.setPlaceholderText("     Periods Amt")

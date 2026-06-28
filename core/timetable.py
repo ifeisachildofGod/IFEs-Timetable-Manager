@@ -33,12 +33,11 @@ class TextTheme:
 class TimetableExportTheme:
     cls_title_text_theme: TextTheme
     ttbl_content_text_theme: TextTheme
-    weekday_text_theme: TextTheme
-    break_text_theme: TextTheme
+    ttbl_heading_text_theme: TextTheme
     
     ttbl_bg_color: str
-    ttbl_cell_bg_color: str
-    weekday_bg_color: str
+    ttbl_content_bg_color: str
+    ttbl_heading_bg_color: str
     break_bg_color: str
     border_color: str
     
@@ -52,6 +51,31 @@ class TimetableExportTheme:
 class Time:
     hour: int
     minute: int
+    
+    def copy(self):
+        return Time(self.hour, self.minute)
+    
+    def __repr__(self):
+        return f"{self.hour}:{"0" if self.minute < 10 else ""}{self.minute}"
+    
+    def __mul__(self, other: int):
+        return Time(self.hour * other, self.minute * other) + 0
+    
+    def __add__(self, other: "Time | int"):
+        if isinstance(other, Time):
+            min = other.hour * 60 + self.minute + other.minute
+        elif isinstance(other, int):
+            min = self.minute + other
+        else:
+            raise TypeError(f"Cannot add {type(other)} to Time")
+        
+        return Time(self.hour + min // 60, min % 60)
+    
+    def __radd__(self, other):
+        self.__add__(other)
+    
+    def __rmul__(self, other):
+        self.__mul__(other)
 
 @dataclass
 class TimetableTime:
