@@ -578,8 +578,8 @@ class MainTitleBar(CustomTitleBar):
         self.center_widget.insertWidget(1, self.go_forward_button)
 
 class WidgetDropdown(BaseWidget):
-    def __init__(self, title: str, widget: QWidget, parent=None):
-        super().__init__(parent)
+    def __init__(self, title: str, widget: BaseWidget | QWidget):
+        super().__init__()
         
         self.widget = widget
         self._disabled = False
@@ -609,6 +609,8 @@ class WidgetDropdown(BaseWidget):
         
         self.addWidget(self.header)
         self.addWidget(self.widget)
+        
+        self.widget.setVisible(False)
     
     def tdp_event_func(self, a0: QMouseEvent | None):
         if a0.button() == Qt.MouseButton.LeftButton and not self._disabled:

@@ -121,6 +121,9 @@ class BaseWidget(QWidget):
         for widget in self.getWidgets():
             widget.setFixedHeight(height)
     
+    def indexWidget(self, index: int):
+        return self.getChildren()[index]
+    
     def removeWidget(self, a0: Optional[QWidget]):
         self.getLayout().removeWidget(a0)
         
@@ -128,7 +131,10 @@ class BaseWidget(QWidget):
             self._children.remove(a0)
     
     def popWidget(self, index: int):
-        self.getLayout().removeWidget(self.getChildren()[index])
+        widget = self.getChildren()[index]
+        
+        widget.deleteLater()
+        self.getLayout().removeWidget(widget)
         
         self._children.pop(index)
     
@@ -682,7 +688,7 @@ class BaseSettingWidget(BaseWidget):
         else:
             self.scroll_widget.insertWidget(index, widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
         
-        self.widgets[entry.id] = widget
+        self.widgets[widget.entry.id] = widget
         
         QTimer.singleShot(
             100,

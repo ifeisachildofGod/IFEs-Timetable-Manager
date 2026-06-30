@@ -86,6 +86,9 @@ class GlobalClassLevels(Global):
     def remove_class(self, id: ID, cls_id: Class):
         self[id].classes[cls_id].delete()
         
+        if cls_id in SCHOOL.settings.EXPORT_selected_classes[id]:
+            SCHOOL.settings.EXPORT_selected_classes[id].remove(cls_id)
+        
         self.school.timetables_data.pop(cls_id)
 
 
@@ -103,6 +106,7 @@ class Settings:
     TIMETABLE_time_settings: dict[ID, dict[str, TimetableTime]]
     
     EXPORT_timetable_export_theme: TimetableExportTheme
+    EXPORT_selected_classes: dict[ID, list[ID]]
     
     def set(self, value):
         self.__dict__ = value.__dict__
@@ -145,7 +149,7 @@ class SchoolFrameWork:
                     "white", "white", "black", "black", "black",
                     1, 1,
                     0, "PNG"
-                )
+                ), {}
             )
     
     def set(self, school: "SchoolFrameWork"):

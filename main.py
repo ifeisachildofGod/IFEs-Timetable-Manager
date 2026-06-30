@@ -372,13 +372,6 @@ class Window(QMainWindow):
                 event.ignore()
                 return
         
-        if self.file.path and self._open_file_type == TABLE_EXTENSION_TYPE:
-            school = self.load()
-            
-            school.settings.EXPORT_timetable_export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
-            
-            self.save_callback(self.file.path, FT_MAPPING[TABLE_EXTENSION_TYPE], school)
-        
         event.accept()
     
     def make_option_button_func(self, name: str, index: int):

@@ -149,7 +149,6 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
         
         self.entry = entry
         self.timetable_editor = timetable_editor
-        self.timetable_editor.add_timetable_level(self.entry)
         
         super().__init__(
             parent,
@@ -166,6 +165,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
         self.timetable_editor.delete_timetable_level(self.entry.id)
         
         SCHOOL.settings.TEACHER_rsma_mapping.pop(self.entry.id)
+        SCHOOL.settings.EXPORT_selected_classes.pop(self.entry.id)
         
         for cls_id in self.entry.classes.copy():
             SCHOOL.class_levels.remove_class(self.entry.id, cls_id)
@@ -175,7 +175,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
     def get_init_text(self):
         return self.entry.name, None
     
-    def simple_name_changed(self, text):
+    def simple_name_changed(self, text, _):
         self.entry.name = ClassLevelName(text)
         self.timetable_editor.set_label_text(self.entry.id, text)
 
@@ -234,6 +234,8 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         
         if entry is None:
             SCHOOL.class_levels.add(new_entry)
+        
+        self.timetable_editor.add_timetable_level(new_entry)
         
         for cls in new_entry.classes.values():
             self.timetable_editor.add_timetable_class(cls)
