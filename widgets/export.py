@@ -225,6 +225,7 @@ class ColorComboBox(IconToolBarOption):
         wrapper_widget.addWidget(self.selected_color_hex_label)
         
         color_picker = QColorDialog()
+        color_picker.setCurrentColor(color)
         color_picker.currentColorChanged.connect(self.setColor)
         
         self._is_init = True
@@ -264,59 +265,149 @@ class ExportPreviewDialog(BaseDialogWidget):
     def __init__(
         self,
         title_label: QLabel,
+        
         p1_time_heading_label: QLabel,
         p2_time_heading_label: QLabel,
         p3_time_heading_label: QLabel,
         p4_time_heading_label: QLabel,
         p5_time_heading_label: QLabel,
+        
         m_weekday_heading_label: QLabel,
         t_weekday_heading_label: QLabel,
-        content_label: QLabel,
+        
+        content1_label: QLabel,
+        content2_label: QLabel,
+        content3_label: QLabel,
+        content4_label: QLabel,
+        
+        ttbl_bg_color: ColorComboBox,
+        ttbl_heading_bg_color: ColorComboBox,
+        ttbl_content_bg_color: ColorComboBox,
+        break_bg_color: ColorComboBox,
+        border_color: ColorComboBox,
+        
+        horizontal_thickness: QSpinBox,
+        vertical_thickness: QSpinBox
     ):
         super().__init__("Preview Export", BaseWidget)
         
+        self.FONT_SIZE = 30
+        
+        self.labels = [
+            title_label, p1_time_heading_label, p2_time_heading_label,
+            p3_time_heading_label, p4_time_heading_label, p5_time_heading_label,
+            m_weekday_heading_label, t_weekday_heading_label, content1_label,
+            content2_label, content3_label, content4_label
+        ]
+        
+        for _ in range(11):
+            self.labels.append(QLabel())
+        
+        for l in self.labels:
+            l.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        
+        self.ttbl_bg_color = ttbl_bg_color
+        self.ttbl_heading_bg_color = ttbl_heading_bg_color
+        self.ttbl_content_bg_color = ttbl_content_bg_color
+        self.break_bg_color = break_bg_color
+        self.border_color = border_color
+        
+        self.horizontal_thickness = horizontal_thickness
+        self.vertical_thickness = vertical_thickness
+        
         self.setSpacing(0)
-        self.setContentsMargins(0, 0, 0, 0)
+        self.setFixedSize(1120, 260)
+        self.setContentsMargins(20, 20, 20, 20)
         self.setStyleSheet(f"background-color: {"white"};")
         
-        row1 = BaseWidget(QHBoxLayout) ; row1.setSpacing(0) ; row1.setContentsMargins(0, 0, 0, 0)
-        row2 = BaseWidget(QHBoxLayout) ; row2.setSpacing(0) ; row2.setContentsMargins(0, 0, 0, 0)
-        row3 = BaseWidget(QHBoxLayout) ; row3.setSpacing(0) ; row3.setContentsMargins(0, 0, 0, 0)
+        self.row1 = BaseWidget(QHBoxLayout) ; self.row1.setSpacing(0) ; self.row1.setContentsMargins(0, 0, 0, 0)
+        self.row2 = BaseWidget(QHBoxLayout) ; self.row2.setSpacing(0) ; self.row2.setContentsMargins(0, 0, 0, 0)
+        self.row3 = BaseWidget(QHBoxLayout) ; self.row3.setSpacing(0) ; self.row3.setContentsMargins(0, 0, 0, 0)
         
-        row1.addWidget(self.getCell(QLabel(), "white"))
-        row1.addWidget(self.getCell(p1_time_heading_label, "black"))
-        row1.addWidget(self.getCell(p2_time_heading_label, "black"))
-        row1.addWidget(self.getCell(p3_time_heading_label, "black"))
-        row1.addWidget(self.getCell(p4_time_heading_label, "black"))
-        row1.addWidget(self.getCell(p5_time_heading_label, "black"))
+        self.row1.addWidget(self.getCell(self.labels[-1], "transparent"))
+        self.row1.addWidget(self.getCell(p1_time_heading_label, "black"))
+        self.row1.addWidget(self.getCell(p2_time_heading_label, "black"))
+        self.row1.addWidget(self.getCell(p3_time_heading_label, "black"))
+        self.row1.addWidget(self.getCell(p4_time_heading_label, "black"))
+        self.row1.addWidget(self.getCell(p5_time_heading_label, "black"))
         
-        row2.addWidget(self.getCell(m_weekday_heading_label, "black"))
-        row2.addWidget(self.getCell(content_label, "white"))
-        row2.addWidget(self.getCell(QLabel(), "white"))
-        row2.addWidget(self.getCell(QLabel(), "grey"))
-        row2.addWidget(self.getCell(QLabel(), "white"))
-        row2.addWidget(self.getCell(QLabel(), "white"))
+        self.row2.addWidget(self.getCell(m_weekday_heading_label, "black"))
+        self.row2.addWidget(self.getCell(content1_label, "white"))
+        self.row2.addWidget(self.getCell(self.labels[-2], "white"))
+        self.row2.addWidget(self.getCell(self.labels[-3], "grey"))
+        self.row2.addWidget(self.getCell(content2_label, "white"))
+        self.row2.addWidget(self.getCell(self.labels[-5], "white"))
         
-        row3.addWidget(self.getCell(t_weekday_heading_label, "black"))
-        row3.addWidget(self.getCell(QLabel(), "white"))
-        row3.addWidget(self.getCell(QLabel(), "white"))
-        row3.addWidget(self.getCell(QLabel(), "grey"))
-        row3.addWidget(self.getCell(QLabel(), "white"))
-        row3.addWidget(self.getCell(QLabel(), "white"))
+        self.row3.addWidget(self.getCell(t_weekday_heading_label, "black"))
+        self.row3.addWidget(self.getCell(self.labels[-6], "white"))
+        self.row3.addWidget(self.getCell(content3_label, "white"))
+        self.row3.addWidget(self.getCell(self.labels[-8], "grey"))
+        self.row3.addWidget(self.getCell(self.labels[-9], "white"))
+        self.row3.addWidget(self.getCell(content4_label, "white"))
         
         self.addWidget(title_label)
-        self.addWidget(row1)
-        self.addWidget(row2)
-        self.addWidget(row3)
+        
+        self.addWidget(self.row1)
+        self.addWidget(self.row2)
+        self.addWidget(self.row3)
     
     def getCell(self, label: QLabel, bg_color: str):
         w = BaseWidget()
+        
+        w.setFixedWidth(180)
+        w.setFixedHeight(self.FONT_SIZE + 30)
         w.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         w.setStyleSheet(f"background-color: {bg_color}")
         
         w.addWidget(label)
         
         return w
+    
+    def exec(self):
+        self.setStyleSheet(f"background-color: {self.ttbl_bg_color.currentColor()};")
+        
+        border_left = (f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}", )
+        border_bottom = (f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", )
+        
+        heading = self.ttbl_heading_bg_color.currentColor(), f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
+        content = self.ttbl_content_bg_color.currentColor(), f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
+        break_time = self.break_bg_color.currentColor(), f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
+        
+        heading_start = heading + (f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}")
+        
+        BaseWidget.setStyleProperty(self.row1.indexWidget(1), ("background-color", "border-bottom", "border-right", "border-top", "border-left",), heading_start)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(2), ("background-color", "border-bottom", "border-right"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(3), ("background-color", "border-bottom", "border-right"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(4), ("background-color", "border-bottom", "border-right"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(5), ("background-color", "border-bottom", "border-right"), heading)
+        
+        BaseWidget.setStyleProperty(self.row2.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading_start)
+        BaseWidget.setStyleProperty(self.row2.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row2.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row2.indexWidget(3), ("background-color", "border-right"), break_time)
+        BaseWidget.setStyleProperty(self.row2.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row2.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
+        
+        BaseWidget.setStyleProperty(self.row3.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-left"), heading + border_left)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(3), ("background-color", "border-right", "border-bottom"), break_time + border_bottom)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
+        
+        curr_max_font_size = max(float(BaseWidget.getStyleProperty(l, "font-size")[:-2]) for l in self.labels if l.text())
+        
+        for l in self.labels:
+            if l.text():
+                alignment = BaseWidget.getStyleProperty(l, "text-align")
+                font_size = int(BaseWidget.getStyleProperty(l, "font-size")[:-2])
+                
+                BaseWidget.setStyleProperty(l, "font-size", f"{int(font_size / curr_max_font_size * self.FONT_SIZE)}px")
+                l.setAlignment(Qt.AlignmentFlag.AlignRight if alignment == "right" else (Qt.AlignmentFlag.AlignLeft if alignment == "left" else (Qt.AlignmentFlag.AlignCenter if alignment == "center" else -1)))
+            
+            BaseWidget.setStyleProperty(l, "border", "none")
+        
+        return super().exec()
 
 
 class ExportsEditorDialogWidget(BaseDialogWidget):
@@ -389,7 +480,15 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                 QLabel("Tuesday"),
             ]
         )
-        self.ttbl_content_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme, c_labels := [QLabel("Mathematics")])
+        self.ttbl_content_text_theme = TextThemeEditor(
+            SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme,
+            c_labels := [
+                QLabel("Mathematics"),
+                QLabel("English"),
+                QLabel("Chemistry"),
+                QLabel("Physics")
+            ]
+        )
         
         f_widget = BaseWidget() ; f_widget.setContentsMargins(35, 0, 35, 0)
         f_widget.addWidget(LabeledWidget("Class Title Text Theme", self.cls_title_text_theme))
@@ -397,23 +496,23 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         f_widget.addWidget(LabeledWidget("Timetable Content Text Theme", self.ttbl_content_text_theme))
         
         self.ttbl_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color)
-        self.ttbl_content_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color)
         self.ttbl_heading_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color)
+        self.ttbl_content_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color)
         self.break_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color)
         self.border_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.border_color)
         
         t_widget = BaseWidget() ; t_widget.setContentsMargins(35, 0, 35, 0)
         t_widget.addWidget(LabeledWidget("Timetable Background Color", self.ttbl_bg_color))
-        t_widget.addWidget(LabeledWidget("Timetable Content Background Color", self.ttbl_content_bg_color))
         t_widget.addWidget(LabeledWidget("Timetabel Heading Background Color", self.ttbl_heading_bg_color))
+        t_widget.addWidget(LabeledWidget("Timetable Content Background Color", self.ttbl_content_bg_color))
         t_widget.addWidget(LabeledWidget("Break Background Color", self.break_bg_color))
         t_widget.addWidget(LabeledWidget("Border Color", self.border_color))
         thickness_widget = BaseWidget()
-        thickness_widget.addWidget(t_l1_widg := LabeledWidget("  Vertical Line Thickness", vlt_sb := QSpinBox())) ; t_l1_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         thickness_widget.addWidget(t_l2_widg := LabeledWidget("Horizontal Line Thickness", hlt_sb := QSpinBox())) ; t_l2_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        thickness_widget.addWidget(t_l1_widg := LabeledWidget("       Vertical Line Thickness", vlt_sb := QSpinBox())) ; t_l1_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         t_widget.addWidget(thickness_widget, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.vlt_sb = vlt_sb ; self.vlt_sb.setMaximum(30) ; self.vlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
         self.hlt_sb = hlt_sb ; self.hlt_sb.setMaximum(30) ; self.hlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness)
+        self.vlt_sb = vlt_sb ; self.vlt_sb.setMaximum(30) ; self.vlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
         
         self.eft_cb.setCurrentText(SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type)
         
@@ -426,7 +525,16 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         base_widget = BaseWidget(QHBoxLayout)
         
-        export_dialog = ExportPreviewDialog(*(t_labels + p_labels + c_labels))
+        export_dialog = ExportPreviewDialog(
+            *(t_labels + p_labels + c_labels),
+            self.ttbl_bg_color,
+            self.ttbl_heading_bg_color,
+            self.ttbl_content_bg_color,
+            self.break_bg_color,
+            self.border_color,
+            self.hlt_sb,
+            self.vlt_sb
+        )
         
         preview_button = QPushButton("Preview")
         preview_button.clicked.connect(lambda: export_dialog.exec())

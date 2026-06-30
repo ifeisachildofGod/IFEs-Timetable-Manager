@@ -193,8 +193,8 @@ class SubjectsMainWidget(BaseSettingWidget):
     def get_widget_type(self):
         return SubjectsSettingEntry, (self.timetable_editor, )
     
-    def add(self, entry: Subject = None, index = None):
-        new_entry = super().add(entry, index)
+    def add(self, entry: Subject = None, index = None, focus = None):
+        new_entry = super().add(entry, index, focus)
         
         if entry is None:
             SCHOOL.subjects.add(new_entry)
@@ -211,8 +211,8 @@ class TeachersMainWidget(BaseSettingWidget):
     def get_widget_type(self):
         return TeachersSettingEntry, (self.timetable_editor, )
     
-    def add(self, entry: Teacher = None, index = None):
-        new_entry = super().add(entry, index)
+    def add(self, entry: Teacher = None, index = None, focus = None):
+        new_entry = super().add(entry, index, focus)
         
         if entry is None:
             SCHOOL.teachers.add(new_entry)
@@ -229,8 +229,8 @@ class ClassLevelsMainWidget(BaseSettingWidget):
     def get_widget_type(self):
         return ClassLevelsSettingEntry, (self.timetable_editor, )
     
-    def add(self, entry: ClassLevel = None, index = None):
-        new_entry: ClassLevel = super().add(entry, index)
+    def add(self, entry: ClassLevel = None, index = None, focus = None):
+        new_entry: ClassLevel = super().add(entry, index, focus)
         
         if entry is None:
             SCHOOL.class_levels.add(new_entry)

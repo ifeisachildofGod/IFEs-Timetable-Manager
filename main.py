@@ -145,11 +145,12 @@ class Window(QMainWindow):
     def _set_file_type(self, arg: str):
         self._open_file_type = arg
     
-    def _goto_search(self, sw: QWidget):
+    def _goto_search(self, sw: BaseSettingEntry):
         current_display_widget = self.stack.currentWidget()
         
         if isinstance(current_display_widget, BaseSettingWidget):
             current_display_widget.scroll_widget.getScrollWidget().verticalScrollBar().setValue(sw.y())
+            sw.focusInput()
     
     def _get_search_scope(self):
         display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels

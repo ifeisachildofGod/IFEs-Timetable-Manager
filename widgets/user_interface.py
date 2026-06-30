@@ -254,6 +254,8 @@ class _SearchEditOption(BaseWidget):
         
         self.addWidget(w1)
         self.addWidget(self.end_label, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        self.clicked.connect(self.selected)
     
     def update_highlights(self, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
         score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
@@ -269,16 +271,15 @@ class _SearchEditOption(BaseWidget):
         else:
             self.setVisible(False)
     
-    def mousePressEvent(self, a0):
+    def selected(self):
         self.se.hide()
+        
         self.se.search_le.blockSignals(True)
         self.se.search_le.clear()
         self.se.search_le.blockSignals(False)
         
         if self.se.goto_search_callback:
             self.se.goto_search_callback(self.data_point)
-        
-        return super().mousePressEvent(a0)
 
 class SearchEdit(QFrame):
     DEBOUNCE_MS = 120
