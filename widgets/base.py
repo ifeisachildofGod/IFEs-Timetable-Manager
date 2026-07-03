@@ -19,8 +19,8 @@ class BaseWidget(QWidget):
     clicked = pyqtSignal(QMouseEvent)
     key_pressed = pyqtSignal(int)
     
-    def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None):
-        super().__init__()
+    def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None, parent=None):
+        super().__init__(parent)
         
         self.layout_type = layout_type or QVBoxLayout
         self._children: list[QObject] = []

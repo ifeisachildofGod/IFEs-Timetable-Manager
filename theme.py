@@ -393,7 +393,7 @@ STYLESHEET = '''
         background-color: {fg2};
     }}
     QRadioButton::indicator:hover {{
-        border-color: {fg2};
+        border-color: {fg3};
     }}
     
     
@@ -826,7 +826,7 @@ STYLESHEET = '''
     }}
     
     QWidget.ExportEditorSideBar {{
-        background-color: {bg4};
+        background-color: {bg5};
     }}
 '''
 

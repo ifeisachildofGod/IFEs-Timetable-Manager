@@ -291,6 +291,7 @@ class ExportPreviewDialog(BaseDialogWidget):
     ):
         super().__init__("Preview Export", BaseWidget)
         
+        self.WIDTH = 200
         self.FONT_SIZE = 30
         
         self.labels = [
@@ -316,9 +317,10 @@ class ExportPreviewDialog(BaseDialogWidget):
         self.vertical_thickness = vertical_thickness
         
         self.setSpacing(0)
-        self.setFixedSize(1120, 260)
         self.setContentsMargins(20, 20, 20, 20)
-        self.setStyleSheet(f"background-color: {"white"};")
+        self.setStyleSheet(f"background-color: white;")
+        
+        self.setFixedSize(self.WIDTH * 6 + 40, 260)
         
         self.row1 = BaseWidget(QHBoxLayout) ; self.row1.setSpacing(0) ; self.row1.setContentsMargins(0, 0, 0, 0)
         self.row2 = BaseWidget(QHBoxLayout) ; self.row2.setSpacing(0) ; self.row2.setContentsMargins(0, 0, 0, 0)
@@ -354,7 +356,7 @@ class ExportPreviewDialog(BaseDialogWidget):
     def getCell(self, label: QLabel, bg_color: str):
         w = BaseWidget()
         
-        w.setFixedWidth(180)
+        w.setFixedWidth(200)
         w.setFixedHeight(self.FONT_SIZE + 30)
         w.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         w.setStyleSheet(f"background-color: {bg_color}")
@@ -369,17 +371,17 @@ class ExportPreviewDialog(BaseDialogWidget):
         border_left = (f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}", )
         border_bottom = (f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", )
         
-        heading = self.ttbl_heading_bg_color.currentColor(), f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
+        heading = self.ttbl_heading_bg_color.currentColor(), f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}"
         content = self.ttbl_content_bg_color.currentColor(), f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
         break_time = self.break_bg_color.currentColor(), f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}"
         
-        heading_start = heading + (f"{self.horizontal_thickness.value()}px solid {self.border_color.currentColor()}", f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}")
+        heading_start = heading + (f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}", )
         
         BaseWidget.setStyleProperty(self.row1.indexWidget(1), ("background-color", "border-bottom", "border-right", "border-top", "border-left",), heading_start)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(2), ("background-color", "border-bottom", "border-right"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(3), ("background-color", "border-bottom", "border-right"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(4), ("background-color", "border-bottom", "border-right"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(5), ("background-color", "border-bottom", "border-right"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(2), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(3), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(4), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.setStyleProperty(self.row1.indexWidget(5), ("background-color", "border-bottom", "border-right", "border-top"), heading)
         
         BaseWidget.setStyleProperty(self.row2.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading_start)
         BaseWidget.setStyleProperty(self.row2.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
@@ -388,7 +390,7 @@ class ExportPreviewDialog(BaseDialogWidget):
         BaseWidget.setStyleProperty(self.row2.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
         BaseWidget.setStyleProperty(self.row2.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
         
-        BaseWidget.setStyleProperty(self.row3.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-left"), heading + border_left)
+        BaseWidget.setStyleProperty(self.row3.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading + border_left)
         BaseWidget.setStyleProperty(self.row3.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
         BaseWidget.setStyleProperty(self.row3.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
         BaseWidget.setStyleProperty(self.row3.indexWidget(3), ("background-color", "border-right", "border-bottom"), break_time + border_bottom)
@@ -421,22 +423,77 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self.setProperty("class", "ExportEditor")
         
-        main_widget = BaseScrollWidget()
-        main_widget.setProperty("class", "ExportEditorOptionsBG")
+        self.t_labels = [
+            QLabel("SS3 A")
+        ]
+        self.p_labels = [
+            QLabel("8:10 - 8:45"),
+            QLabel("8:45 - 9:20"),
+            QLabel("9:20 - 9:55"),
+            QLabel("9:55 - 10:30"),
+            QLabel("10:30 - 11:05"),
+            QLabel("Monday"),
+            QLabel("Tuesday"),
+        ]
+        self.c_labels = [
+            QLabel("Mathematics"),
+            QLabel("English"),
+            QLabel("Chemistry"),
+            QLabel("Physics")
+        ]
         
-        e_widget = BaseWidget() ; e_widget.setContentsMargins(35, 0, 35, 0)
-        et_widget = BaseWidget(QHBoxLayout) ; et_widget.setSpacing(50)
-        et_widget.addWidget(s_rb := QRadioButton("School")) ; s_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        et_widget.addWidget(l_rb := QRadioButton("Level")) ; l_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        et_widget.addWidget(c_rb := QRadioButton("Class")) ; c_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        eft_widget = LabeledWidget("Export File Type", eft_cb := QComboBox()) ; eft_cb.addItems(["PNG", "JPG", "HTML", "CSV"])
-        self.s_rb = s_rb ; self.s_rb.clicked.connect(lambda b: self._set_export_mode(0 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
-        self.l_rb = l_rb ; self.l_rb.clicked.connect(lambda b: self._set_export_mode(1 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
-        self.c_rb = c_rb ; self.c_rb.clicked.connect(lambda b: self._set_export_mode(2 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        central_widget = BaseWidget(QHBoxLayout)
+        
+        central_widget.addWidget(self._initSideBarWidget(), stretch=2)
+        central_widget.addWidget(self._initTimetableSection(), stretch=8)
+        
+        self.addWidget(central_widget)
+        self.addWidget(self._initBaseWidget())
+        
+        for lvl_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+            for cls_id in cls_ids:
+                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(True)
+                self.select_cb_dict[lvl_id][1][cls_id].setChecked(True)
+                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(False)
+                
+                self.export_button.setDisabled(False)
+    
+    def _initBaseWidget(self):
+        base_widget = BaseWidget(QHBoxLayout)
+        
+        export_dialog = ExportPreviewDialog(
+            *(self.t_labels + self.p_labels + self.c_labels),
+            self.ttbl_bg_color,
+            self.ttbl_heading_bg_color,
+            self.ttbl_content_bg_color,
+            self.break_bg_color,
+            self.border_color,
+            self.hlt_sb,
+            self.vlt_sb
+        )
+        
+        preview_button = QPushButton("Preview")
+        preview_button.clicked.connect(lambda: export_dialog.exec())
+        
+        self.export_button = QPushButton("Export")
+        self.export_button.setDisabled(True)
+        self.export_button.clicked.connect(lambda: self.file_manager.export(min(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode, 1), f"{self.eft_cb.currentText().upper()} Files (*.{self.eft_cb.currentText().lower()})"))
+        
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.close)
+        
+        base_widget.addWidget(preview_button)
+        base_widget.addStretch()
+        base_widget.addWidget(self.export_button)
+        base_widget.addWidget(cancel_button)
+        
+        return base_widget
+    
+    def _initSideBarWidget(self):
+        side_bar_widget = BaseWidget()
+        side_bar_widget.setProperty("class", "ExportEditorSideBar")
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
-        
-        e_bottom_widget = BaseWidget(QHBoxLayout)
         
         self.select_all_cb = QCheckBox("All")
         self.select_all_cb.clicked.connect(self._select_sch)
@@ -445,13 +502,42 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.sch_subject_selection_widget.getScrollWidget().setFixedHeight(300)
         self.sch_subject_selection_widget.addStretch()
         
-        widget_dp = WidgetDropdown("Select Classes", self.sch_subject_selection_widget)
-        widget_dp.header.addWidget(self.select_all_cb)
+        sch_subject_selection_widget_dp = WidgetDropdown("Select Classes", self.sch_subject_selection_widget)
+        sch_subject_selection_widget_dp.header.addWidget(self.select_all_cb)
         
         for _, cls_level in SCHOOL.class_levels:
             self.sch_subject_selection_widget.insertWidget(len(self.sch_subject_selection_widget.getChildren()), self.get_level_widget(cls_level))
         
-        e_bottom_widget.addWidget(widget_dp)
+        side_bar_widget.addWidget(sch_subject_selection_widget_dp)
+        side_bar_widget.addStretch()
+        
+        return side_bar_widget
+    
+    def _initTimetableSection(self):
+        main_widget = BaseScrollWidget()
+        main_widget.setProperty("class", "ExportEditorOptionsBG")
+        
+        self.s_rb = QRadioButton("School")
+        self.l_rb = QRadioButton("Level")
+        self.c_rb = QRadioButton("Class")
+        self.s_rb.clicked.connect(lambda b: self._set_export_mode(0 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        self.l_rb.clicked.connect(lambda b: self._set_export_mode(1 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        self.c_rb.clicked.connect(lambda b: self._set_export_mode(2 if b else SCHOOL.settings.EXPORT_timetable_export_theme.export_mode))
+        self.s_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        self.l_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        self.c_rb.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        
+        self.eft_cb = QComboBox() ; self.eft_cb.addItems(["PNG", "JPG", "HTML", "CSV"])
+        
+        e_widget = BaseWidget() ; e_widget.setContentsMargins(35, 0, 35, 0)
+        et_widget = BaseWidget(QHBoxLayout) ; et_widget.setSpacing(50)
+        et_widget.addWidget(self.s_rb)
+        et_widget.addWidget(self.l_rb)
+        et_widget.addWidget(self.c_rb)
+        eft_widget = LabeledWidget("Export File Type", self.eft_cb)
+        
+        e_bottom_widget = BaseWidget(QHBoxLayout)
+        
         e_bottom_widget.addStretch()
         e_bottom_widget.addWidget(eft_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
@@ -464,30 +550,16 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             
             SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type = text
         
-        self.eft_cb = eft_cb
         self.eft_cb.currentTextChanged.connect(csv_disable)
         
-        self.cls_title_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme, t_labels := [QLabel("SS3 A")])
+        self.cls_title_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme, self.t_labels)
         self.ttbl_heading_text_theme = TextThemeEditor(
             SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme,
-            p_labels := [
-                QLabel("8:10 - 8:45"),
-                QLabel("8:45 - 9:20"),
-                QLabel("9:20 - 9:55"),
-                QLabel("9:55 - 10:30"),
-                QLabel("10:30 - 11:05"),
-                QLabel("Monday"),
-                QLabel("Tuesday"),
-            ]
+            self.p_labels
         )
         self.ttbl_content_text_theme = TextThemeEditor(
             SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme,
-            c_labels := [
-                QLabel("Mathematics"),
-                QLabel("English"),
-                QLabel("Chemistry"),
-                QLabel("Physics")
-            ]
+            self.c_labels
         )
         
         f_widget = BaseWidget() ; f_widget.setContentsMargins(35, 0, 35, 0)
@@ -523,48 +595,11 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         main_widget.addWidget(SeparatorLabel("Table"))
         main_widget.addWidget(t_widget)
         
-        base_widget = BaseWidget(QHBoxLayout)
-        
-        export_dialog = ExportPreviewDialog(
-            *(t_labels + p_labels + c_labels),
-            self.ttbl_bg_color,
-            self.ttbl_heading_bg_color,
-            self.ttbl_content_bg_color,
-            self.break_bg_color,
-            self.border_color,
-            self.hlt_sb,
-            self.vlt_sb
-        )
-        
-        preview_button = QPushButton("Preview")
-        preview_button.clicked.connect(lambda: export_dialog.exec())
-        
-        self.export_button = QPushButton("Export")
-        self.export_button.setDisabled(True)
-        self.export_button.clicked.connect(lambda: self.file_manager.export(min(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode, 1), f"{eft_cb.currentText().upper()} Files (*.{eft_cb.currentText().lower()})"))
-        
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(self.close)
-        
-        base_widget.addWidget(preview_button)
-        base_widget.addStretch()
-        base_widget.addWidget(self.export_button)
-        base_widget.addWidget(cancel_button)
-        
         self.s_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 0)
         self.l_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 1)
         self.c_rb.setChecked(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 2)
         
-        self.addWidget(main_widget)
-        self.addWidget(base_widget)
-        
-        for lvl_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-            for cls_id in cls_ids:
-                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(True)
-                self.select_cb_dict[lvl_id][1][cls_id].setChecked(True)
-                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(False)
-                
-                self.export_button.setDisabled(False)
+        return main_widget
     
     def _select_sch(self, state: bool):
         for _, cls_cbs in self.select_cb_dict.values():
@@ -624,7 +659,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         return cls_cb_func
     
     def _initGeometry(self):
-        self.setMinimumSize(800, 550)
+        self.setMinimumSize(900, 550)
         
         screen_geom = self.screen().geometry()
         
