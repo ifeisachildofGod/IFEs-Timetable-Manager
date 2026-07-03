@@ -6,6 +6,7 @@ from imports import *
 # for use by other dependant files
 from theme import THEME_MANAGER
 
+_T = TypeVar("_T")
 
 
 class Status(Enum):
@@ -258,8 +259,8 @@ class BaseWidget(QWidget):
     def getLayout(self):
         return self.main_layout
     
-    def getChildren(self, a0: Optional[type[QWidget]] = None, is_generator: bool = False):
-        c_gen = (c for c in self._children if isinstance(c, a0 or QWidget))
+    def getChildren(self, a0: Optional[type[_T] | tuple[type[_T]]] = None, is_generator: bool = False):
+        c_gen: Generator[_T, None, None] = (c for c in self._children if isinstance(c, a0 or QWidget))
         
         return c_gen if is_generator else list(c_gen)
 
@@ -341,7 +342,7 @@ class BaseDialogWidget(QDialog):
     def getLayout(self):
         return self.widget.getLayout()
 
-class BaseGridWidget(BaseScrollWidget):
+class BaseFlowGridWidget(BaseScrollWidget):
     def __init__(self, row_max: int):
         super().__init__()
         
@@ -393,7 +394,9 @@ class BaseGridWidget(BaseScrollWidget):
                     row_widget.removeWidget(a0)
                     coord = row, col
                     break
-            else: continue
+            else:
+                continue
+            
             break
         
         if not coord:
@@ -401,16 +404,19 @@ class BaseGridWidget(BaseScrollWidget):
         
         row, col = coord
         
-        for i in range(col - len(self.widgets)):
-            prev_row_widget = self.widgets[-(i + 2)]
-            row_widget = self.widgets[-(i + 1)]
+        for i in range(len(self.widgets) - col - 1):
+            prev_row_widget = self.widgets[col + i]
+            row_widget = self.widgets[col + i + 1]
             
-            widgets = row_widget.getLayout().children()[0]
+            widget = row_widget.indexWidget(0)
             
-            row_widget.removeWidget(widgets)
-            prev_row_widget.addWidget(widgets)
-        
-        self.row_max -= 1
+            row_widget.removeWidget(widget)
+            prev_row_widget.insertWidget(len(prev_row_widget.getChildren(QWidget)), widget)
+            
+            if not row_widget.getChildren(QWidget):
+                row_widget.delete()
+                self.widgets.remove(row_widget)
+
 
 class StatusBar(BaseWidget):
     def __init__(self):
@@ -419,22 +425,9 @@ class StatusBar(BaseWidget):
         self.setSpacing(10)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self.statuses = {}
+        self.statuses: dict[str, tuple[QLabel, QLabel]] = {}
         
         self.addStretch()
-    
-    def _addMessage(self, key: str, message: str, color: str):
-        assert key not in self.statuses
-        
-        sep_label = None
-        if self.statuses:
-            self.addWidget(sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
-        
-        label = QLabel(message)
-        label.setStyleSheet(f"color: {color}")
-        
-        self.addWidget(label)
-        self.statuses[key] = [label, sep_label]
     
     def _insertMessage(self, index: int, key: str, message: str, color: str):
         assert key not in self.statuses
@@ -476,13 +469,7 @@ class StatusBar(BaseWidget):
             dot.deleteLater()
     
     def addMessage(self, msg_type: Status, key: str, message: str):
-        match msg_type:
-            case Status.MESSAGE:
-                self._addMessage(key, message, "white")
-            case Status.WARN:
-                self._addMessage(key, f"<i>{message}</i>", "yellow")
-            case Status.ERROR:
-                self._addMessage(key, f"<b>{message}</b>", "#ff3030")
+        self.insertMessage(msg_type, len(self.statuses), key, message)
     
     def insertMessage(self, msg_type: Status, index: int, key: str, message: str):
         match msg_type:
@@ -518,8 +505,9 @@ class BaseSettingEntry(BaseWidget):
         self.entry = entry
         self.i_parent = i_parent
         self.option_dialogs = option_dialogs
+        self.general_entry_name = general_entry_name
         
-        simple_placeholder = f"Enter {general_entry_name} Name"
+        simple_placeholder = f"Enter {self.general_entry_name} Name"
         
         self.dialog_widget_funcs = []
         
@@ -538,7 +526,6 @@ class BaseSettingEntry(BaseWidget):
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
-        
         
         menu_area.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignLeft)
         menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -567,14 +554,11 @@ class BaseSettingEntry(BaseWidget):
                 line_edit.setPlaceholderText(placeholder)
                 
                 extended_edits_widget.addWidget(line_edit)
+                self.extended_line_edits.append(line_edit)
             
-            self.extended_line_edits.extend(extended_edits_widget.getChildren(QLineEdit))
             extended_edits_widget.setVisible(False)
             
             edits_area.addWidget(extended_edits_widget)
-        
-        self.simple_line_edit.textChanged.connect(lambda text: self.simple_name_changed(text, self.extended_line_edits))
-        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
         
         edits_area.addWidget(self.simple_line_edit)
         
@@ -586,11 +570,13 @@ class BaseSettingEntry(BaseWidget):
         
         self.status_widget = StatusBar()
         
-        self.simple_line_edit.textChanged.connect(lambda text: self.status_widget.removeLinient("EmptyNameWarning") if text else self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{general_entry_name} has no name"))
+        self.simple_line_edit.textChanged.connect(self.simple_name_empty)
+        self.simple_line_edit.textChanged.connect(lambda text: self.simple_name_changed(text, self.extended_line_edits))
+        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
         
         # ----------------------------------------------------------------------------------------
         
-        if extended_placeholders:
+        if self.extended_line_edits:
             def rb_clicked(s: bool):
                 self.simple_line_edit.setVisible(s)
                 extended_edits_widget.setVisible(not s)
@@ -607,8 +593,9 @@ class BaseSettingEntry(BaseWidget):
                 elif self.extended_line_edits:
                     self.extended_line_edits[0].setFocus()
                     
-                    for le in self.extended_line_edits:
+                    for i, le in enumerate(self.extended_line_edits):
                         le.setText(le.text())
+                        self.extended_name_empty(i, le.text())
             
             sn_rb = QRadioButton("Short Name")
             ln_rb = QRadioButton("Long Name")
@@ -624,16 +611,43 @@ class BaseSettingEntry(BaseWidget):
             for i, line_edit in enumerate(self.extended_line_edits):
                 line_edit.textChanged.connect(self._make_ext_name_empty(i))
                 line_edit.setText(extended[i])
+        else:
+            options_option.setDisabled(True)
         
         self.addWidget(menu_area)
         self.addWidget(edits_area)
         self.addWidget(self.status_widget)
+        
+        self.simple_name_empty(self.simple_line_edit.text())
+        for i, line_edit in enumerate(self.extended_line_edits):
+            self.extended_name_changed(i, line_edit.text(), self.simple_line_edit)
     
     def _focusInput(self):
         if self.simple_line_edit.isVisible():
             self.simple_line_edit.setFocus()
         else:
             self.extended_line_edits[0].setFocus()
+    
+    def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
+        def func(text: str):
+            self.extended_name_changed(index, text, simple_line_edit)
+        
+        return func
+    
+    def _make_ext_name_empty(self, index: int):
+        def func(text: str):
+            self.extended_name_empty(index, text)
+        
+        return func
+    
+    def _make_extended_return_pressed_func(self, index):
+        def func():
+            if index + 1 < len(self.extended_line_edits):
+                self.extended_line_edits[index + 1].setFocus()
+            else:
+                self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
+        
+        return func
     
     def focusInput(self):
         QTimer.singleShot(100, self._focusInput)
@@ -667,34 +681,19 @@ class BaseSettingEntry(BaseWidget):
     def get_init_text(self):
         raise NotImplementedError()
     
-    def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
-        def func(text: str):
-            self.extended_name_changed(text, index, simple_line_edit)
-        
-        return func
-    
-    def _make_ext_name_empty(self, index: int):
-        def func(text: str):
-            self.extended_name_empty(text, index)
-        
-        return func
-    
-    def _make_extended_return_pressed_func(self, index):
-        def func():
-            if index + 1 < len(self.extended_line_edits):
-                self.extended_line_edits[index + 1].setFocus()
-            else:
-                self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
-        
-        return func
+    def simple_name_empty(self, text: str):
+        if text:
+            self.status_widget.removeLinient("EmptyNameWarning")
+        else:
+            self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{self.general_entry_name} has no name")
     
     def simple_name_changed(self, text: str, extended_line_edits: tuple[QLineEdit, ...]):
         raise NotImplementedError()
     
-    def extended_name_changed(self, text: str, index: int, simple_line_edit: QLineEdit):
+    def extended_name_changed(self, index: int, text: str, simple_line_edit: QLineEdit):
         raise NotImplementedError()
     
-    def extended_name_empty(self, text: str, index: int):
+    def extended_name_empty(self, index: int, text: str):
         raise NotImplementedError()
 
 class BaseSettingWidget(BaseWidget):
@@ -718,11 +717,6 @@ class BaseSettingWidget(BaseWidget):
         
         for _, entry in self.get_global():
             self.add(entry)
-        
-        QTimer.singleShot(
-            150,
-            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(0)
-        )
     
     def get_global(self) -> Global:
         raise NotImplementedError()
@@ -768,10 +762,11 @@ class BaseSettingWidget(BaseWidget):
         if focus is not None and focus:
             widget.focusInput()
         
-        QTimer.singleShot(
-            100,
-            lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
-        )
+        if entry is None:
+            QTimer.singleShot(
+                100,
+                lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
+            )
         
         return widget.entry
     

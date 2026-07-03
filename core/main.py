@@ -75,6 +75,7 @@ class GlobalClassLevels(Global):
     def add(self, entry: ClassLevel):
         self.school.settings.TEACHER_rsma_mapping[entry.id] = None
         self.school.settings.TIMETABLE_time_settings[entry.id] = {"Everyday": SCHOOL.settings.DEFAULT_timetable_time_setting.copy()}
+        self.school.settings.EXPORT_selected_classes[entry.id] = []
         
         return super().add(entry)
     
@@ -117,6 +118,7 @@ class SchoolFrameWork:
     subjects: Optional[GlobalSubjects] = None
     teachers: Optional[GlobalTeachers] = None
     class_levels: Optional[GlobalClassLevels] = None
+    
     settings: Optional[Settings] = None
     
     timetables_data: Optional[dict[ID, tuple[Optional[TimetableFW], list[Subject]]]] = None
@@ -555,7 +557,7 @@ class SchoolFrameWork:
                     if "■" in t_name:
                         names = [n.strip() if n.strip() else None for n in t_name.split("■")]
                     else:
-                        names = [t_name, None, None, t_name]
+                        names = [t_name, None, None, ""]
                     
                     teacher = Teacher(t_id, TeacherName(*names), {})
                 
@@ -687,7 +689,7 @@ class SchoolFrameWork:
         
         return school_framework
     
-    def template(self):
+    def framework(self):
         text = ""
         
         l_subjects = list(s_id for s_id, _ in self.subjects)
@@ -763,7 +765,7 @@ if __name__ == "__main__":
                     print()
                 print()
     
-    with open(r"test_files\test-frmwk.template") as file:
+    with open(r"test.save\test.frmwk") as file:
         data = file.read()
     
     sch = SchoolFrameWork.from_template(data)

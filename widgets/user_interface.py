@@ -64,6 +64,8 @@ class NumberLineEdit(BaseWidget):
     def __init__(self, number: int, min_validatorAmt: int = 0, max_validatorAmt: int = 10):
         super().__init__(QHBoxLayout)
         
+        self.setProperty("class", "NumberLineEdit")
+        
         self._min_num = min_validatorAmt
         self._max_num = max_validatorAmt
         
@@ -650,14 +652,13 @@ class EditableCancelableEntry(BaseWidget):
         self.input.setProperty("class", "OptionEdit")
         self.input.setText(self.text)
         self.input.setPlaceholderText("Enter option")
-        self.input.setFixedWidth(80)  # Fix input width
+        self.input.setFixedWidth(100)  # Fix input width
         self.input.returnPressed.connect(self.input.clearFocus)
         self.input.editingFinished.connect(self.finish_editing)
         
         self.close_btn = QPushButton("×")
-        self.close_btn.setProperty("class", "Close")
+        self.close_btn.setProperty("class", "SettingEntryClose")
         self.close_btn.clicked.connect(self.remove)
-        self.close_btn.setFixedSize(20, 20)
         
         self.deleted.connect(self.deleteLater)
         self.started_editing_signal.connect(self.start_editing)
@@ -665,18 +666,18 @@ class EditableCancelableEntry(BaseWidget):
         
         # Label mode widget
         self.label = QLabel(self.text)
-        self.label.setMinimumWidth(80)
+        self.label.setMinimumWidth(100)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.mousePressEvent = lambda _: self.started_editing_signal.emit()
         
         # Initialize both widgets but hide input initially
         self.addWidget(self.label)
         self.addWidget(self.input)
-        self.addWidget(self.close_btn)
+        self.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.input.hide()
         
-        self.setFixedHeight(30)
         self.setFixedWidth(130)
+        self.setFixedHeight(40)
     
     def _finished_editing(self):
         if self.is_editing:
@@ -684,7 +685,6 @@ class EditableCancelableEntry(BaseWidget):
             self.is_editing = False
             self.setup_display_mode()
             self.label.setText(self.text)
-            self.label.show()
     
     def setup_display_mode(self):
         self.label.show()
@@ -692,9 +692,9 @@ class EditableCancelableEntry(BaseWidget):
         self.close_btn.show()
     
     def setup_edit_mode(self):
-        self.label.hide()
-        self.input.show()
-        self.close_btn.show()
+        self.label.setVisible(False)
+        self.input.setVisible(True)
+        self.close_btn.setVisible(True)
     
     def start_editing(self):
         if not self.is_editing:

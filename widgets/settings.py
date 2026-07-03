@@ -41,13 +41,12 @@ class SubjectsSettingEntry(BaseSettingEntry):
         return self.entry.name.full_name, (self.entry.name.full_name, self.entry.name.abbrev)
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit]):
-        self.entry.name.abbrev = text
         self.entry.name.full_name = text
         
         full_name_e = extended_line_edits[0]
         full_name_e.setText(text)
     
-    def extended_name_changed(self, text, index, simple_line_edit):
+    def extended_name_changed(self, index, text, simple_line_edit):
         match index:
             case 0:
                 self.entry.name.full_name = text
@@ -57,7 +56,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
             case 1:
                 self.entry.name.abbrev = text
     
-    def extended_name_empty(self, text, index):
+    def extended_name_empty(self, index, text):
         key = f"E{index}EmptyNameWarning"
         
         match index:
@@ -98,26 +97,25 @@ class TeachersSettingEntry(BaseSettingEntry):
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
         self.entry.name.start = text
-        self.entry.name.abbrev = text
         
-        full_name_e = extended_line_edits[1]
+        full_name_e = extended_line_edits[0]
         full_name_e.setText(text)
     
-    def extended_name_changed(self, text, index, simple_line_edit):
+    def extended_name_changed(self, index, text, simple_line_edit):
         match index:
             case 0:
                 self.entry.name.start = text
-            case 1:
-                self.entry.name.first = text
                 
                 if text != simple_line_edit.text():
                     simple_line_edit.setText(text)
+            case 1:
+                self.entry.name.first = text
             case 2:
                 self.entry.name.other = text
             case 3:
                 self.entry.name.abbrev = text
     
-    def extended_name_empty(self, text, index):
+    def extended_name_empty(self, index, text):
         key = f"E{index}EmptyNameWarning"
         
         match index:
@@ -155,7 +153,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
             "Class Level",
             None,
             {
-                "Sub Classes": ("Make and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),
+                "Classes": ("Create and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),
                 "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor, (self.timetable_editor, ))
             },
             self.entry

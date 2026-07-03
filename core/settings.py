@@ -23,7 +23,7 @@ class SubjectName:
         return self.full_name
     
     def short(self):
-        return self.abbrev
+        return self.abbrev if self.abbrev else self.full_name
 @dataclass
 class Subject(Entry):
     name: SubjectName
@@ -55,7 +55,7 @@ class TeacherName:
         return f"{self.start} {self.first} {self.other}" if None not in (self.first, self.other) else self.start
     
     def short(self):
-        return self.abbrev
+        return self.abbrev if self.abbrev else self.start
 @dataclass
 class Teacher(Entry):
     name: TeacherName

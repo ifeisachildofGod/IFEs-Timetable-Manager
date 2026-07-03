@@ -151,10 +151,10 @@ PALETTES = {
             "primary_text": "#f0f0f0",
             "primary_hover": "#17bb11",
             "fg1": "#0e9c15",
-            "fg2": "#15810b",
-            "fg3": "#064900",
-            "fg4": "#1fff0c",
-            "fg5": "#11f717",
+            "fg2": "#20b812",
+            "fg3": "#5CD451",
+            "fg4": "#25b917",
+            "fg5": "#137c16",
             "highlight": "#00cc00",
         },
 
@@ -557,7 +557,7 @@ STYLESHEET = '''
         min-height: 0px;
     }}
     QPushButton.SettingEntryClose:hover {{
-        color: {fg1};
+        color: {fg3};
     }}
     
     
@@ -585,9 +585,13 @@ STYLESHEET = '''
         color: #bbb;
     }}
     
+    QWidget.NumberLineEdit {{
+        background: none;
+    }}
+    
     QWidget.SubjectClassViewEntry {{
         border-radius: 8px;
-        background-color: {bg4};
+        background-color: {bg5};
     }}
     QWidget.SubjectClassViewEntry QLabel.SubjectClassViewEntryName {{
         font-size: 30px;
@@ -612,7 +616,7 @@ STYLESHEET = '''
         border-radius: 8px;
     }}
     QWidget.OptionTag {{
-        background-color: {fg1};
+        background-color: {fg5};
         border-radius: 8px;
         margin: 2px;
         padding: 2px 4px;
@@ -620,7 +624,7 @@ STYLESHEET = '''
     }}
     QWidget.OptionTag QLabel {{
         color: {primary_text};
-        background-color: {fg1};
+        background-color: transparent;
         font-size: 13px;
         border-radius: 8px;
         padding: 4px 8px;

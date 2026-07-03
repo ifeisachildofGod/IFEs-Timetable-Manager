@@ -3,11 +3,11 @@ import pygame
 from imports import *
 
 TABLE_EXTENSION_TYPE = "ttbl"
-TEMPLATE_EXTENSION_TYPE = "template"
+TEMPLATE_EXTENSION_TYPE = "frmwk"
 
 FT_MAPPING = {
     TABLE_EXTENSION_TYPE: "Timetable Files (*.ttbl)",
-    TEMPLATE_EXTENSION_TYPE: "Template Files (*.template)"
+    TEMPLATE_EXTENSION_TYPE: "Template Files (*.frmwk)"
 } ; REV_FT_MAPPING = {v: k for k, v in FT_MAPPING.items()}
 
 pygame.init()

@@ -96,7 +96,7 @@ class Window(QMainWindow):
         # Create navigation buttons
         subjects_btn = QPushButton("Subjects")
         teachers_btn = QPushButton("Teachers")
-        classes_btn = QPushButton("Classes")
+        classes_btn = QPushButton("Class Levels")
         timetable_btn = QPushButton("Timetable")
         
         # Add widgets to stack
@@ -240,7 +240,7 @@ class Window(QMainWindow):
                 pickle.dump(school, file)
         elif file_type == TEMPLATE_EXTENSION_TYPE:
             with open(self.file.path, "w", encoding="utf-8") as file:
-                file.write(school.template())
+                file.write(school.framework())
         else:
             raise TypeError(f"Unsupported file type: '{file_type}'")
         

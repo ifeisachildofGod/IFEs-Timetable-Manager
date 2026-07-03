@@ -18,10 +18,9 @@ from PyQt6.QtWidgets import (
     QTextEdit, QRadioButton, QColorDialog, QTimeEdit
 )
 from PyQt6.QtGui import (
-    QAction, QActionGroup, QIcon,
-    QFontMetrics, QIntValidator, QPainter,
-    QColor, QMouseEvent, QDrag, QDragEnterEvent,
-    QDragMoveEvent, QDropEvent, QPixmap, QFont
+    QAction, QActionGroup, QIcon, QPixmap, QFont,
+    QFontMetrics, QIntValidator, QPainter, QColor, QDrag,
+    QDragMoveEvent, QDropEvent, QEnterEvent, QMouseEvent, QDragEnterEvent
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,

@@ -399,6 +399,8 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         
         clicked_cbs: list[QCheckBox] = []
         
+        something_is_disabled = False
+        
         for cls_id, cls in lvl.classes.items():
             if subject.id not in SCHOOL.class_levels[lvl.id].classes[cls_id].subjects:
                 continue
@@ -432,12 +434,14 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 link_label.setProperty("class", "Link")
                 
                 option_widget.addWidget(link_label)
+                something_is_disabled = True
             else:
                 option_widget.addWidget(dp_checkbox)
             
             dp_widget.addWidget(option_widget)
         
         dp_widget.setVisible(False)
+        self.class_check_box_tracker[subject.id]["main_cb"][cls.level.id].setDisabled(something_is_disabled)
         
         return dp_widget, clicked_cbs
     
@@ -533,6 +537,9 @@ class OccuranceEditor(BaseSettingDialog):
     def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
         super().__init__(title)
         
+        self.setSpacing(20)
+        self.setContentsMargins(20, 20, 20, 20)
+        
         self.id = id
         self.timetable_editor = timetable_editor
         self.class_level = SCHOOL.class_levels[self.id]
@@ -544,8 +551,6 @@ class OccuranceEditor(BaseSettingDialog):
         
         self.subject_widgets: dict[str, QWidget] = {}
         self.number_edits: dict[str, tuple[NumberLineEdit, NumberLineEdit]] = {}
-        
-        self.setSpacing(20)
         
         for subject_id in self.class_level.subjects_occurence:
             self.add_subject(SCHOOL.subjects[subject_id])
@@ -655,7 +660,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         
         self.max_cols = 4  # Maximum number of columns before wrapping
         
-        self.main_area = BaseGridWidget(self.max_cols)
+        self.main_area = BaseFlowGridWidget(self.max_cols)
         self.main_area.setSpacing(4)
         self.main_area.getLayout().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         
