@@ -242,32 +242,42 @@ class SchoolFrameWork:
     def detect_clashes(self):
         """
         Returns {
-            (Day, Period Index): [Class IDs that clash at that point, ...]
+            ((Day, PeriodIndex), SubjectID + TeacherID): [Class, ...]
         }
         """
         
-        clashes = {}
+        clashes: dict[tuple[tuple[str, int], ID], list[Class]] = {}
         
-        days_uid_tracker = {}
+        days_uid_tracker: dict[str, list[tuple[ID, Class]]] = {}
         
         for c_id, (timetable, _) in self.timetables_data.items():
             for day, periods in timetable.items():
                 if day not in days_uid_tracker:
-                    days_uid_tracker[day] = [[(s.id + s.teacher.id) if s.id not in (FreePeriod.id, BreakPeriod.id) else None] for s in periods]
+                    days_uid_tracker[day] = [[(s.id + s.teacher.id, s.classes[c_id]) if s.id not in (FreePeriod.id, BreakPeriod.id) else (None, None)] for s in periods]
                     continue
                 
                 for i, subj in enumerate(periods):
                     if subj.id not in (FreePeriod.id, BreakPeriod.id):
                         s_uid = subj.id + subj.teacher.id
                         
+                        key = (day, i), s_uid
+                        cls = subj.classes[c_id]
+                        
                         if i < len(days_uid_tracker[day]):
-                            if s_uid in days_uid_tracker[day][i]:
-                                if s_uid not in clashes:
-                                    clashes[(day, i)] = []
+                            clash_subject_index = next((j for j, (uid, c) in enumerate(days_uid_tracker[day][i]) if s_uid == uid and c.id != cls.id), None)
+                            
+                            if clash_subject_index is not None:
+                                if key not in clashes:
+                                    clashes[key] = []
                                 
-                                clashes[(day, i)].append(c_id)
+                                clash_cls = days_uid_tracker[day][i][clash_subject_index][1]
+                                
+                                if clash_cls not in clashes[key]:
+                                    clashes[key].append(clash_cls)
+                                
+                                clashes[key].append(cls)
                             else:
-                                days_uid_tracker[day][i].append(s_uid)
+                                days_uid_tracker[day][i].append((s_uid, cls))
         
         return clashes
     

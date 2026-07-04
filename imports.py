@@ -18,13 +18,13 @@ from PyQt6.QtWidgets import (
     QTextEdit, QRadioButton, QColorDialog, QTimeEdit
 )
 from PyQt6.QtGui import (
-    QAction, QActionGroup, QIcon, QPixmap, QFont,
+    QAction, QActionGroup, QIcon, QPixmap, QFont, QPen,
     QFontMetrics, QIntValidator, QPainter, QColor, QDrag,
     QDragMoveEvent, QDropEvent, QEnterEvent, QMouseEvent, QDragEnterEvent
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,
-    pyqtSignal, pyqtBoundSignal, QPoint, QObject
+    pyqtSignal, pyqtBoundSignal, QPoint, QPointF, QObject, QRect, QRectF
 )
 from PyQt6.QtPrintSupport import QPrinter
 

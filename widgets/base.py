@@ -290,7 +290,7 @@ class BaseScrollWidget(BaseWidget):
         return self.scroll_widget
 
 class BaseDialogWidget(QDialog):
-    def __init__(self, title: str, widget_type: type[BaseWidget | BaseScrollWidget], layout_type = None):
+    def __init__(self, title: str, widget_type: type[BaseWidget | BaseScrollWidget], layout_type: type[QHBoxLayout | QVBoxLayout] = None):
         super().__init__()
         
         self.widget = widget_type(layout_type)

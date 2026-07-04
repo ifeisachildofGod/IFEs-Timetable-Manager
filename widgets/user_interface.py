@@ -623,14 +623,15 @@ class WidgetDropdown(BaseWidget):
         self.toogle_icon.setAngle(0 if self.toogle_icon.angle != 0 else 270)
         self.widget.setVisible(not self.widget.isVisible())
     
-    def beDisabled(self, a0: bool):
+    def beDisabled(self, a0: bool, close_true_open_false=None):
         if a0:
-            self._disabled = False
-        else:
-            if self.widget.isVisible():
-                self.toogle_widget()
+            if close_true_open_false is not None:
+                if close_true_open_false == self.widget.isVisible():
+                    self.toogle_widget()
             
             self._disabled = True
+        else:
+            self._disabled = False
 
 class EditableCancelableEntry(BaseWidget):
     deleted = pyqtSignal()

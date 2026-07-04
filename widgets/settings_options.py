@@ -480,7 +480,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 if not self.is_init:
                     rsma_func(None)
             
-            widget_dp.beDisabled(on)
+            widget_dp.beDisabled(not on, True)
             max_random_text_input.setVisible(on)
             self.class_check_box_tracker[subject.id]["icon"][class_id].setDisabled(on)
         
