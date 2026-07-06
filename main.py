@@ -12,8 +12,12 @@ from widgets.export import ExportsEditorDialogWidget
 pygame.init()
 
 class Window(QMainWindow):
+    crashed_signal = pyqtSignal(Exception)
+    
     def __init__(self, arguments: list[str]):
         super().__init__()
+        
+        self.crashed_signal.connect(lambda e: QMessageBox.critical(None, e.__class__.__name__, str(e)))
         
         self.flag_mapping = {
             "-ft": self._set_file_type,
@@ -218,7 +222,7 @@ class Window(QMainWindow):
         self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
     
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
-        arguments = [c for i, c in enumerate(["main.py", f'-ft={file_type}', path]) if i == 0 or (i == 1 and file_type is not None) or (i == 2 and path is not None)]
+        arguments = [c for i, c in enumerate(["main.py", f'-ft={REV_FT_MAPPING[file_type]}', path]) if i == 0 or (i == 1 and file_type is not None) or (i == 2 and path is not None)]
         
         win = Window(arguments)
         win.show()

@@ -107,12 +107,15 @@ class ClassLevel(Entry):
     classes: dict[ID, Class]
     subjects_occurence: dict[ID, SubjectOccurrance]
     
-    weekdays: dict[str, tuple[int, int]]
+    weekdays: list[str]
+    
+    period_amount: int
+    break_period: int
     
     def delete_subject(self, id: ID, teacher_id: Optional[ID] = None):
         for cls in self.classes.values():
             if id in cls.subjects:
-                if (cls.subjects[id].teacher.id == teacher_id if teacher_id is not None else True):
+                if cls.subjects[id].teacher is None or (cls.subjects[id].teacher.id == teacher_id if teacher_id is not None else True):
                     cls.delete_subject(id)
 
 

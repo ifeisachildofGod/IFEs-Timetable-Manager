@@ -702,9 +702,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             self.select_cb_dict.clear()
             self.select_cb_dict.update(dict(scd_lvl_list))
         
-        if cls_level.id not in SCHOOL.settings.EXPORT_selected_classes:
-            SCHOOL.settings.EXPORT_selected_classes[cls_level.id] = []
-        
         cls_widget = BaseWidget()
         
         cls_lvl_widget = WidgetDropdown(cls_level.name.full(), cls_widget)
@@ -740,7 +737,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self._set_timetable_export_theme()
         
         file_type = file_type or SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type
-        subject_count = str(max(max(d for d, _ in cls_level.weekdays.values()) for _, cls_level in SCHOOL.class_levels))
+        subject_count = str(max(cls_level.period_amount for _, cls_level in SCHOOL.class_levels))
         
         html_style_replacements = dict(
             cls_title_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme.stylesheet.replace(";", ";\n\t\t"),
@@ -1042,7 +1039,7 @@ def get_export_surface(cls: Class):
     
     width = max(_cell_content_width, _time_width) + TTBL_EXPORT_CELL_X_MARGIN * 2
     height = max(FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme)].get_height(), FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme)].get_height()) + TTBL_EXPORT_CELL_Y_MARGIN * 2
-    title_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, d).get_width() for d in SCHOOL.settings.TIMETABLE_weekdays) + TTBL_EXPORT_CELL_X_MARGIN * 2
+    title_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, d).get_width() for d in cls.level.weekdays) + TTBL_EXPORT_CELL_X_MARGIN * 2
     
     ttbl_width = title_width + width * max(len(p) for p in timetable.values())
     ttbl_height = height * (len(timetable) + len(SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]))
@@ -1089,7 +1086,7 @@ def get_export_surface(cls: Class):
                     pygame.draw.rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     pygame.draw.line(screen, SCHOOL.settings.EXPORT_timetable_export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if row == cls.level.weekdays[day][1] - 1 else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if row == cls.weekdays[day][1] - 1 else time_settings.interval)
                     
                     ttbl_time_surf = _get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, f"{start_time} - {end_time}")
                     ttbl_time_rect = pygame.Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
@@ -1132,7 +1129,7 @@ def get_export_surface(cls: Class):
                     pygame.draw.rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     pygame.draw.line(screen, SCHOOL.settings.EXPORT_timetable_export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if row == cls.level.weekdays[day][1] - 1 else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if row == cls.weekdays[day][1] - 1 else time_settings.interval)
                     
                     ttbl_time_surf = _get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, f"{start_time.hour}:{start_time.minute} - {end_time.hour}:{end_time.minute}")
                     ttbl_time_rect = pygame.Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
@@ -1300,7 +1297,7 @@ def get_export_html_text(cls: Class):
     
     ttbl_text = ""
     
-    for day in cls.level.weekdays:
+    for day in cls.weekdays:
         ttbl_text += f'<div class="weekday"><h3>{day}</h3></div>'
         
         for subject in timetable[day]:
@@ -1321,12 +1318,12 @@ def get_export_html_text(cls: Class):
 
 
 def write_export_csv(writer, cls: Class):
-    writer.writerow(cls.level.weekdays)
+    writer.writerow(cls.weekdays)
     
     timetable, _ = SCHOOL.timetables_data[cls.id]
     
-    for i in range(max(d for d, _ in cls.level.weekdays.values())):
-        writer.writerow([timetable[day][i].name.short() for day in cls.level.weekdays])
+    for i in range(cls.level.period_amount):
+        writer.writerow([timetable[day][i].name.short() for day in cls.weekdays])
 
 
 

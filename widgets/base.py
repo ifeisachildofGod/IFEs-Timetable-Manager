@@ -483,8 +483,8 @@ class StatusBar(BaseWidget):
 
 
 class BaseSettingDialog(BaseDialogWidget):
-    def __init__(self, title: str):
-        super().__init__(title, BaseScrollWidget)
+    def __init__(self, title: str, widget_type: Optional[type[BaseWidget | BaseScrollWidget]] = None):
+        super().__init__(title, widget_type or BaseScrollWidget)
     
     def go_to(self, widget: BaseWidget):
         self.getScrollWidget().verticalScrollBar().setValue(widget.y())
@@ -672,7 +672,7 @@ class BaseSettingEntry(BaseWidget):
     
     def make_open_dialogs_func(self, title, cls: type[BaseSettingDialog], *args):
         def make_dialog():
-            return cls(self.i_parent, self.entry.id, title, *args)
+            return cls(self.i_parent, self.entry.id, f"{title} - {self.entry.name.full()}", *args)
         
         self.dialog_widget_funcs.append(make_dialog)
         
@@ -748,8 +748,8 @@ class BaseSettingWidget(BaseWidget):
         widget = widget_type(self, entry, *variables)
         
         if index is None:
+            self.scroll_widget.insertWidget(len(self.widgets), widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
             self.widgets[widget.entry.id] = widget
-            self.scroll_widget.insertWidget(len(self.scroll_widget.getChildren()), widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
         else:
             widgets_items = list(self.widgets.items())
             widgets_items.insert(index, (widget.entry.id, widget))

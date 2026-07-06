@@ -67,7 +67,7 @@ class TeacherSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingWidget, id, title):
         self.teacher = SCHOOL.teachers[id]
         
-        super().__init__(id, title, iter(self.teacher.subjects.items()), SCHOOL.subjects)
+        super().__init__(id, title, iter(self.teacher.subjects.items()), ((s_id, s) for s_id, s in SCHOOL.subjects if next((True for cls in s.classes.values() if cls.subjects[s_id].teacher is None or cls.subjects[s_id].teacher.id == id), False)))
     
     def item_removed(self, id: ID):
         self.teacher.subjects.pop(id)
@@ -242,11 +242,13 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                 SCHOOL.class_levels[lvl_id].subjects_occurence.pop(self.id)
 
 class TeacherDropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
         super().__init__(title)
                 
         self.id = id
         self.i_parent = parent
+        self.timetable_editor = timetable_editor
+        
         self.teacher = SCHOOL.teachers[self.id]
         
         self.setFixedSize(400, 300)
@@ -514,10 +516,10 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 self.mini_guy_is_clicked = True
                 
                 if not self.is_init:
-                    if on:
-                        SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[subject.id].teacher = self.teacher
-                    else:
-                        SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[subject.id].teacher = None
+                    cls_level = SCHOOL.class_levels[lvl_id]
+                    
+                    cls_level.classes[cls_id].subjects[subject.id].teacher = self.teacher if on else None
+                    self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, (on * 2 - 1) * cls_level.subjects_occurence[subject.id].week_max)
                 
                 if on:
                     for c_id, cb in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
@@ -535,10 +537,16 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
 
 class OccuranceEditor(BaseSettingDialog):
     def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
-        super().__init__(title)
+        super().__init__(title, BaseWidget)
         
-        self.setSpacing(20)
-        self.setContentsMargins(20, 20, 20, 20)
+        self.central_widget = BaseScrollWidget()
+        self.remainder_slots_label = QLabel()
+        
+        self.setSpacing(5)
+        self.setContentsMargins(10, 10, 10, 10)
+        
+        self.central_widget.setSpacing(20)
+        self.central_widget.setContentsMargins(20, 20, 20, 20)
         
         self.id = id
         self.timetable_editor = timetable_editor
@@ -547,7 +555,7 @@ class OccuranceEditor(BaseSettingDialog):
         self.setFixedSize(600, 400)
         
         self.focuses_ids = {}
-        self.week_total = sum(week_amt for week_amt, _ in SCHOOL.settings.TIMETABLE_weekdays.values())
+        self.week_total = (self.class_level.period_amount - 1) * len(self.class_level.weekdays)
         
         self.subject_widgets: dict[str, QWidget] = {}
         self.number_edits: dict[str, tuple[NumberLineEdit, NumberLineEdit]] = {}
@@ -559,7 +567,10 @@ class OccuranceEditor(BaseSettingDialog):
             per_day_edit.textChanged.emit(self.class_level.subjects_occurence[subject_id].day_max)
             per_week_edit.textChanged.emit(self.class_level.subjects_occurence[subject_id].week_max)
         
-        self.addStretch()
+        self.central_widget.addStretch()
+        
+        self.addWidget(self.central_widget)
+        self.addWidget(self.remainder_slots_label, alignment=Qt.AlignmentFlag.AlignRight)
     
     def go_to(self, _id):
         for subject_id, widget in self.subject_widgets.items():
@@ -622,7 +633,7 @@ class OccuranceEditor(BaseSettingDialog):
         sub_widget.addWidget(per_day_widget)
         sub_widget.addWidget(per_week_widget)
         
-        self.addWidget(selection_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.central_widget.addWidget(selection_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         self.number_edits[subject.id] = per_day_edit, per_week_edit
         self.subject_widgets[subject.id] = selection_widget
@@ -630,22 +641,31 @@ class OccuranceEditor(BaseSettingDialog):
     def make_per_day_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
             self.class_level.subjects_occurence[subject_id].day_max = number
+            self.number_edits[subject_id][0].setNumber(self.number_edits[subject_id][0].number())
         
         return text_changed_func
     
     def make_per_week_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
+            wds = self.class_level.weekdays
             diff = number - self.class_level.subjects_occurence[subject_id].week_max
+            
             min_rem = min(self.week_total - (sum(self.class_level.subjects_occurence[s.id].week_max for s in cls.subjects.values()) + diff) for cls in self.class_level.classes.values())
             
-            for _, per_week_edit in self.number_edits.values():
-                per_week_edit.max_num = self.class_level.subjects_occurence[subject_id].week_max + min_rem
+            for per_day_edit, per_week_edit in self.number_edits.values():
+                d_amt = per_day_edit.number()
+                a_max_pw = len(wds) * d_amt
+                
+                self.class_level.subjects_occurence[subject_id].week_max = per_week_edit.number()
+                per_week_edit.max_num = min(a_max_pw, self.class_level.subjects_occurence[subject_id].week_max + min_rem)
             
-            self.number_edits[subject_id][0].max_num = number
+            self.remainder_slots_label.setText(f"Slots: <b>{min_rem}</b>")
+            
+            self.number_edits[subject_id][0].max_num = min(number, self.class_level.period_amount)
             self.class_level.subjects_occurence[subject_id].week_max = number
             
             for cls_id, cls in self.class_level.classes.items():
-                if subject_id in cls.subjects:
+                if subject_id in cls.subjects and cls.subjects[subject_id].teacher is not None:
                     self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, diff)
         
         return text_changed_func
@@ -749,8 +769,10 @@ class _SL_SelectedWidget(BaseWidget):
         
         self.addWidget(label)
         self.addStretch()
+        
+        self.clicked.connect(self.sl_clicked)
     
-    def mousePressEvent(self, a0):
+    def sl_clicked(self, a0):
         self.host_container_layout.removeWidget(self)
         
         widget = _SL_UnSelectedWidget(self.id, self.text, self.host_container_layout, self.on_add, self.on_delete)
@@ -767,8 +789,6 @@ class _SL_SelectedWidget(BaseWidget):
         self.deleteLater()
         
         self.on_delete(self.id)
-        
-        return super().mousePressEvent(a0)
 
 class _SL_UnSelectedWidget(BaseWidget):
     def __init__(self, id: ID, text: str, host_container_layout: QVBoxLayout, on_add: Callable[[ID, ID], None], on_delete: Callable[[ID, ID], None]):
@@ -790,8 +810,10 @@ class _SL_UnSelectedWidget(BaseWidget):
         
         self.addWidget(label)
         self.addStretch()
+        
+        self.clicked.connect(self.sl_clicked)
     
-    def mousePressEvent(self, a0):
+    def sl_clicked(self, a0):
         self.host_container_layout.removeWidget(self)
         
         widget = _SL_SelectedWidget(self.id, self.text, self.host_container_layout, self.on_add, self.on_delete)
@@ -806,7 +828,5 @@ class _SL_UnSelectedWidget(BaseWidget):
         self.deleteLater()
         
         self.on_add(self.id)
-        
-        return super().mousePressEvent(a0)
 
 

@@ -76,7 +76,7 @@ class TeachersSettingEntry(BaseSettingEntry):
             parent,
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
-            {"Classes": ("Select Classes", TeacherDropdownCheckBoxes), "Subjects": ("Select Subjects", TeacherSelectionList)},
+            {"Subjects": ("Select Subjects", TeacherSelectionList), "Classes": ("Select Classes", TeacherDropdownCheckBoxes, (self.timetable_editor, ))},
             entry
         )
         
@@ -85,10 +85,11 @@ class TeachersSettingEntry(BaseSettingEntry):
     def remove(self):
         for subject_id, subject in self.entry.subjects.items():
             for cls_id, cls in subject.classes.items():
-                if self.entry.id == cls.subjects[subject_id].teacher.id:
+                cls_subject = cls.subjects[subject_id]
+                
+                if cls_subject.teacher and self.entry.id == cls_subject.teacher.id:
                     self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
-                    
-                    cls.subjects.pop(subject_id)
+                    cls_subject.teacher = None
         
         return super().remove()
     
@@ -143,7 +144,7 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor):
-        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, deepcopy(SCHOOL.settings.TIMETABLE_weekdays))
+        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
         
         self.entry = entry
         self.timetable_editor = timetable_editor
@@ -162,11 +163,12 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
     def remove(self):
         self.timetable_editor.delete_timetable_level(self.entry.id)
         
-        SCHOOL.settings.TEACHER_rsma_mapping.pop(self.entry.id)
-        SCHOOL.settings.EXPORT_selected_classes.pop(self.entry.id)
-        
         for cls_id in self.entry.classes.copy():
             SCHOOL.class_levels.remove_class(self.entry.id, cls_id)
+        
+        SCHOOL.settings.TEACHER_rsma_mapping.pop(self.entry.id)
+        SCHOOL.settings.EXPORT_selected_classes.pop(self.entry.id)
+        SCHOOL.settings.TIMETABLE_time_settings.pop(self.entry.id)
         
         return super().remove()
     

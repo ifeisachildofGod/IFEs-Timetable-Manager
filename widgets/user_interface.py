@@ -991,7 +991,34 @@ class LabeledWidget(BaseWidget):
         self.addSpacing(10)
         self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignRight)
 
+class LabeledField(BaseWidget):
+    def __init__(
+        self,
+        title: str,
+        inner_widget: BaseWidget,
+        width_policy: QSizePolicy.Policy | None = None,
+        height_policy: QSizePolicy.Policy | None = None,
+    ):
+        super().__init__()
+        
+        self.inner_widget = inner_widget
 
+        if width_policy or height_policy:
+            self.setSizePolicy(
+                width_policy or QSizePolicy.Policy.Preferred,
+                height_policy or QSizePolicy.Policy.Preferred,
+            )
+        
+        self.label = QLabel(title, self)
+        self.label.setProperty("class", "LabeledContainerTitle")
+        self.label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.setProperty("class", "LabeledContainer")
+        self.setContentsMargins(8, 10, 8, 8)
+        self.setSpacing(6)
+        
+        self.addWidget(self.label)
+        self.addWidget(self.inner_widget)
 
 class IconToolBarOption(BaseWidget):
     def __init__(self, *args, **kwargs):

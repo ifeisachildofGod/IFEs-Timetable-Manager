@@ -34,6 +34,7 @@ PALETTES = {
             "bg2": "#d5d5d5",
             "bg3": "#b4b4b4",
             "bg4": "#d3d3d3",
+            "bg5": "#cfcfcf",
             "mute-bg": "#bfbfbf",
             "border1": "#afafaf",
             "bg6-border2": "#7e7e7e",
@@ -184,7 +185,6 @@ STYLESHEET = '''
         background-color: {bg1};
     }}
     
-    
     QWidget, QScrollArea {{
         background-color: {bg2};
         color: {text}; 
@@ -192,7 +192,6 @@ STYLESHEET = '''
     }}
     
     QWidget {{
-        background-color: {bg2};
         font-family: 'Segoe UI', sans-serif;
         font-size: 13px;
         margin: 0px;
@@ -270,6 +269,24 @@ STYLESHEET = '''
     }}
     
     
+    QWidget.LabeledContainer {{
+        border: 2px solid {border1};
+        border-radius: 8px;
+    }}
+    QWidget.LabeledContainer:disabled {{
+        border: 1px solid {disabled};
+    }}
+    
+    QLabel.LabeledContainerTitle {{
+        color: {bg3};
+        font-size: 11px;
+        font-weight: 500;
+        padding: 0 4px;
+    }}
+    QLabel.LabeledContainerTitle:disabled {{
+        color: {disabled};
+    }}
+    
     
     QLabel {{
         color: {text};
@@ -284,6 +301,17 @@ STYLESHEET = '''
     }}
     QLabel.Link:hover {{
         color: {hover__fg1};
+    }}
+    QLabel.Link2 {{
+        color: {text};
+        text-decoration: underline;
+        text-decoration-color: transparent;
+        
+    }}
+    QLabel.Link2:hover {{
+        color: {fg1};
+        font-weight: bold;
+        text-decoration-color: red;
     }}
     QLabel.StatusBarSeperator {{
         color: {pressed__text};
@@ -645,6 +673,7 @@ STYLESHEET = '''
         color: black;
         background-color: white;
     }}
+    
     QMessageBox QPushButton {{
         color: black;
         border-radius: 0px;
@@ -657,7 +686,6 @@ STYLESHEET = '''
         border: 1px solid #2c59d3;
         background-color: #eefbff;
     }}
-    
     
     QWidget.SettingEntry {{
         background-color: {bg5};

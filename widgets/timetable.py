@@ -2,9 +2,248 @@
 from imports import *
 
 from utils import Thread
+from theme import THEME_MANAGER
 
 from widgets.user_interface import *
 
+
+class UnMouseableOverlay(BaseWidget):
+    def __init__(self, parent: BaseWidget, editor: "SchoolTimetableEditor"):
+        super().__init__(parent=parent)
+        
+        self.editor = editor
+        self.rects: list[tuple[Class, str, int, QColor, Subject]] = []
+        
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setStyleSheet("background-color: transparent")
+        
+        self.hide()
+        self.raise_()
+    
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        
+        for cls, day, row, color, subject in self.rects:
+            col = list(SCHOOL.class_levels[cls.level.id].weekdays).index(day)
+            
+            rect = self.get_class_timetable_cell_rect(cls, row, col)
+            
+            painter.setBrush(color)
+            painter.drawRoundedRect(rect, 3, 3)
+            
+            if subject is not None:
+                painter.setPen(QPen(QColor("black" if (color.red() + color.green() + color.blue()) / 3 > 150 else "white"), 4))
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, subject.name.short())
+    
+    def setVisibilityState(self, visible):
+        if visible:
+            self.setGeometry(self.editor.central_widget.rect())
+            self.update()
+            self.show()
+        else:
+            self.hide()
+    
+    def get_class_timetable_rect(self, cls: Class):
+        widg = self.editor.classes_widget[cls.level.id][1][cls.id]
+        cls_ttbl = self.editor.timetable_widgets[cls.level.id][cls.id]
+        
+        return QRect(cls_ttbl.x() + 36 + 82, widg.y() + cls_ttbl.y() + 120 + 40, cls_ttbl.rect().width() - 82, cls_ttbl.rect().height() - 40)
+    
+    def get_class_timetable_cell_rect(self, cls: Class, row: int, col: int):
+        ttbl_rect = self.get_class_timetable_rect(cls)
+        
+        x_max = len(SCHOOL.class_levels[cls.level.id].weekdays)
+        y_max = cls.level.period_amount
+        
+        cell_width = ttbl_rect.width() / x_max
+        cell_height = ttbl_rect.height() / y_max
+        cell_x = ttbl_rect.x() + col * cell_width
+        cell_y = ttbl_rect.y() + row * cell_height
+        
+        return QRectF(cell_x, cell_y, cell_width, cell_height)
+
+class ClashOverlay(UnMouseableOverlay):
+    def __init__(self, parent, editor):
+        super().__init__(parent, editor)
+        
+        self.colors = QColor.colorNames()
+        
+        for c in ['aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', "pink", "transparent"]:
+            self.colors.remove(c)
+    
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        
+        clash_rects: list[tuple[QColor, list[tuple[QRectF, Subject, tuple[str, int]]]]] = []
+        positions_connections_alignment_mappings = {}
+        
+        for (pos, (s_id, _)), classes in SCHOOL.detect_clashes().items():
+            day, row = pos
+            
+            clash_rects.append([None, []])
+            
+            for cls in classes:
+                col = list(SCHOOL.class_levels[cls.level.id].weekdays).index(day)
+                positions_connections_alignment_mappings[day] = 0
+                
+                clash_rects[-1][1].append((self.get_class_timetable_cell_rect(cls, row, col), SCHOOL.subjects[s_id], day))
+            
+            cls_index = list(classes[0].level.classes).index(classes[0].id)
+            
+            col = list(SCHOOL.class_levels[classes[0].level.id].weekdays).index(day)
+            x_max = len(SCHOOL.class_levels[classes[0].level.id].weekdays)
+            
+            clash_rects[-1][0] = QColor(self.colors[(row * x_max + col + cls_index) % len(self.colors)])
+        
+        for color, rects_data in clash_rects:
+            for i, (rect, subject, day) in enumerate(rects_data):
+                index = positions_connections_alignment_mappings[day]
+                
+                painter.setPen(QPen(color, 6))
+                
+                i_mod = index % 2
+                
+                offset_factor = ((index + 1) // 2) * (i_mod * 2 - 1)
+                offset = QPointF(painter.pen().width() * 2 * offset_factor, 0)
+                
+                if i < len(rects_data) - 1:
+                    rect2 = rects_data[i + 1][0]
+                    
+                    p1 = rect.center() + offset
+                    p2 = rect2.center() + offset
+                    
+                    painter.drawLine(p1, p2)
+                    
+                    painter.drawLine(rect.center(), p1)
+                    painter.drawLine(rect2.center(), p2)
+                    
+                    positions_connections_alignment_mappings[day] += 1
+                
+                painter.setBrush(color)
+                painter.drawRoundedRect(rect, 5, 5)
+                
+                painter.setPen(QPen(QColor("black" if (color.red() + color.green() + color.blue()) / 3 > 150 else "white"), 4))
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, subject.name.short())
+        
+        return super().paintEvent(a0)
+
+class IslandOverlay(UnMouseableOverlay):
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        
+        for cls_id, (cls_level, islands) in SCHOOL.detect_islands().items():
+            cls = cls_level.classes[cls_id]
+            
+            for s_id, day, row in islands:
+                col = list(SCHOOL.class_levels[cls_level.id].weekdays).index(day)
+                
+                island_rect = self.get_class_timetable_cell_rect(cls, row, col)
+                
+                painter.setBrush(QColor(THEME_MANAGER.process_stylesheet("{fg1}")))
+                painter.drawRoundedRect(island_rect, 5, 5)
+                
+                painter.setPen(QColor(THEME_MANAGER.process_stylesheet("{primary_text}")))
+                painter.drawText(island_rect, Qt.AlignmentFlag.AlignCenter, cls.subjects[s_id].name.short())
+        
+        return super().paintEvent(a0)
+
+
+class ClashDisplayDialog(BaseDialogWidget):
+    def __init__(self, editor: "SchoolTimetableEditor"):
+        super().__init__("Clashes", BaseScrollWidget)
+        
+        self.editor = editor
+        self.setFixedSize(500, 300)
+        
+        self.main_teacher_widgets: dict[ID, WidgetDropdown] = {}
+        self.subjects_widgets: dict[ID, dict[ID, WidgetDropdown]] = {}
+        self.classes_widgets: dict[ID, dict[ID, dict[str, LabeledField]]] = {}
+    
+    def make_go_to_clash(self, cls: Class, day: str, row: int, subject_id: ID):
+        def func3():
+            def reset():
+                item.setBackground(prev_background)
+                self.editor.settings_widget.clash_overlay.rects.remove(rect_data)
+                self.editor.settings_widget.island_overlay.rects.remove(rect_data)
+                
+                self.editor.update()
+            
+            color = QColor(THEME_MANAGER.process_stylesheet("{fg2}"))
+            
+            ttbl = self.editor.timetable_widgets[cls.level.id][cls.id]
+            ttbl_wrapper_widget = self.editor.classes_widget[cls.level.id][1][cls.id]
+            
+            self.editor.scroll_widget.getScrollWidget().verticalScrollBar().setValue(ttbl_wrapper_widget.y())
+            
+            item = ttbl.item(row, cls.level.weekdays.index(day))
+            
+            prev_background = item.background()
+            item.setSelected(True)
+            
+            rect_data = cls, day, row, color, cls.subjects[subject_id]
+            
+            item.setBackground(color)
+            self.editor.settings_widget.clash_overlay.rects.append(rect_data)
+            self.editor.settings_widget.island_overlay.rects.append(rect_data)
+            
+            QTimer.singleShot(2500, reset)
+        
+        def func2():
+            cls_lvl_widget = self.editor.classes_widget[cls.level.id][0]
+            
+            if not cls_lvl_widget.widget.isVisible():
+                cls_lvl_widget.toogle_widget()
+                
+                QTimer.singleShot(100, func3)
+            else:
+                func3()
+        
+        def func(_):
+            self.close()
+            
+            QTimer.singleShot(100, func2)
+        
+        return func
+    
+    def exec(self):
+        self.main_teacher_widgets.clear()
+        self.subjects_widgets.clear()
+        self.classes_widgets.clear()
+        
+        self.getWidget().clearLayout()
+        
+        for ((day, row), (s_id, t_id)), classes in SCHOOL.detect_clashes().items():
+            for cls in classes:
+                subject = cls.subjects[s_id]
+                
+                if t_id not in self.main_teacher_widgets:
+                    self.main_teacher_widgets[t_id] = WidgetDropdown(subject.teacher.name.full(), BaseWidget())
+                    self.addWidget(self.main_teacher_widgets[t_id])
+                    
+                    self.subjects_widgets[t_id] = {}
+                    self.classes_widgets[t_id] = {}
+                
+                if s_id not in self.subjects_widgets[t_id]:
+                    self.subjects_widgets[t_id][s_id] = WidgetDropdown(subject.name.full(), BaseWidget())
+                    self.main_teacher_widgets[t_id].widget.addWidget(self.subjects_widgets[t_id][s_id])
+                    
+                    self.classes_widgets[t_id][s_id] = {}
+                
+                pos = f"{day}, Period {row + 1}"
+                
+                if pos not in self.classes_widgets[t_id][s_id]:
+                    self.classes_widgets[t_id][s_id][pos] = LabeledField(pos, BaseWidget())
+                    self.subjects_widgets[t_id][s_id].widget.addWidget(self.classes_widgets[t_id][s_id][pos])
+                
+                cls_label = QLabel(f"<span style='font-size: 30px; text-spacing: 2px;'>{cls.level.name.full()} {cls.name}</span>")
+                cls_label.setProperty("class", "Link2")
+                cls_label.mousePressEvent = self.make_go_to_clash(cls, day, row, s_id)
+                
+                self.classes_widgets[t_id][s_id][pos].inner_widget.addWidget(cls_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.addStretch()
+        
+        return super().exec()
 
 
 class _ExtrasDraggableSubjectLabel(QLabel):
@@ -46,104 +285,6 @@ class _ExtrasDraggableSubjectLabel(QLabel):
             self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: {sub_subject_names}")
         
         self.setText(name)
-
-class ClashDisplayDialog(BaseDialogWidget):
-    def __init__(self):
-        super().__init__("Clashes", BaseScrollWidget)
-
-class ClashOverlay(BaseWidget):
-    def __init__(self, parent: BaseWidget, editor: "SchoolTimetableEditor"):
-        super().__init__(parent=parent)
-        
-        self.editor = editor
-        
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setStyleSheet("background-color: transparent")
-        
-        self.colors = QColor.colorNames()
-        
-        for c in ['aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', "pink", "transparent"]:
-            self.colors.remove(c)
-        
-        self.hide()
-        self.raise_()
-    
-    def paintEvent(self, a0):
-        painter = QPainter(self)
-        
-        clash_rects: list[tuple[QColor, list[tuple[QRectF, Subject, tuple[str, int], ID]]]] = []
-        positions_connections_alignment_mappings = {}
-        
-        for (pos, uid), classes in SCHOOL.detect_clashes().items():
-            day, row = pos
-            
-            clash_rects.append([None, []])
-            
-            for cls in classes:
-                col = list(SCHOOL.class_levels[cls.level.id].weekdays).index(day)
-                
-                x_max = len(SCHOOL.class_levels[cls.level.id].weekdays)
-                y_max = max(p for p, _ in SCHOOL.class_levels[cls.level.id].weekdays.values())
-                
-                widg = self.editor.classes_widget[cls.level.id][2][cls.id]
-                cls_ttbl = self.editor.timetable_widgets[cls.level.id][cls.id]
-                
-                ttbl_rect = QRect(cls_ttbl.x() + 36 + 82, widg.y() + cls_ttbl.y() + 120 + 40, cls_ttbl.rect().width() - 82, cls_ttbl.rect().height() - 40)
-                
-                cell_width = ttbl_rect.width() / x_max
-                cell_height = ttbl_rect.height() / y_max
-                cell_x = ttbl_rect.x() + col * cell_width
-                cell_y = ttbl_rect.y() + row * cell_height
-                
-                positions_connections_alignment_mappings[day] = 0
-                
-                clash_rects[-1][1].append((QRectF(cell_x, cell_y, cell_width, cell_height), SCHOOL.subjects[uid.parents[0]], day, uid))
-            
-            cls_index = list(classes[0].level.classes).index(classes[0].id)
-            
-            col = list(SCHOOL.class_levels[classes[0].level.id].weekdays).index(day)
-            x_max = len(SCHOOL.class_levels[classes[0].level.id].weekdays)
-            
-            clash_rects[-1][0] = QColor(self.colors[(row * x_max + col + cls_index) % len(self.colors)])
-        
-        for color, rects_data in clash_rects:
-            for i, (rect, subject, day, uid) in enumerate(rects_data):
-                index = positions_connections_alignment_mappings[day]
-                
-                painter.setPen(QPen(color, 6))
-                
-                i_mod = index % 2
-                
-                offset_factor = ((index + 1) // 2) * (i_mod * 2 - 1)
-                offset = QPointF(painter.pen().width() * 2 * offset_factor, 0)
-                
-                if i < len(rects_data) - 1:
-                    rect2 = rects_data[i + 1][0]
-                    
-                    p1 = rect.center() + offset
-                    p2 = rect2.center() + offset
-                    
-                    painter.drawLine(p1, p2)
-                    
-                    painter.drawLine(rect.center(), p1)
-                    painter.drawLine(rect2.center(), p2)
-                    
-                    positions_connections_alignment_mappings[day] += 1
-                
-                painter.setBrush(color)
-                painter.drawRoundedRect(rect, 5, 5)
-                
-                painter.setPen(QPen(QColor("black" if (color.red() + color.green() + color.blue()) / 3 > 150 else "white"), 4))
-                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, subject.name.short())
-        
-        # painter.setPen(QColor(255, 100, 0))
-        
-        # for lvl_id, cls_ttbls in self.editor.timetable_widgets.items():
-        #     for cls_id, cls_ttbl in cls_ttbls.items():
-        #         widg = self.editor.classes_widget[lvl_id][2][cls_id]
-        #         ttbl_rect = QRect(cls_ttbl.x() + 36 + 82, widg.y() + cls_ttbl.y() + 120 + 40, cls_ttbl.rect().width() - 82, cls_ttbl.rect().height() - 40)
-                
-        #         painter.drawRect(ttbl_rect)
 
 class TimeTableItem(QTableWidgetItem):
     def __init__(self, subject: Subject | CombinedSubject, locked: bool = False):
@@ -243,28 +384,16 @@ class TimetableSettings(BaseWidget):
         
         self._can_generate_new = True
         
-        # Clashes
-        self.clash_viewer = ClashDisplayDialog()
+        # Clashes Viewer
+        self.clash_viewer = ClashDisplayDialog(self.editor)
+        
+        # Overlays
         self.clash_overlay = ClashOverlay(self.editor.central_widget, self.editor)
+        self.island_overlay = IslandOverlay(self.editor.central_widget, self.editor)
         
-        # Settings Menu
-        self.settings_menu = MenuFrame()
-        
-        show_clashes_cb = QCheckBox("Show Clashes") ; show_clashes_cb.clicked.connect(self.show_clashes)
         clashes_dialog_pb = QPushButton("Clashes Viewer") ; clashes_dialog_pb.clicked.connect(lambda: self.clash_viewer.exec())
-        
-        self.toogle_button = QPushButton("☰")
-        self.toogle_button.setProperty("class", "Timetable_DP_OptionText")
-        self.toogle_button.clicked.connect(self._toogle_self)
-        
-        self.addWidget(clashes_dialog_pb)
-        self.addWidget(show_clashes_cb)
-        self.addStretch()
-        self.addWidget(self.toogle_button)
-        
-        general_settings_widget = BaseWidget(QHBoxLayout)
-        
-        left_option_widget = BaseWidget()
+        self.show_clashes_cb = QCheckBox("Show Clashes") ; self.show_clashes_cb.clicked.connect(lambda: self.show_overlays(0))
+        self.show_islands_cb = QCheckBox("Show Islands") ; self.show_islands_cb.clicked.connect(lambda: self.show_overlays(1))
         
         self.period_amt_edit = NumberLineEdit(10, 1, 20)
         self.period_amt_edit.setPlaceholderText("Period amount")
@@ -274,63 +403,67 @@ class TimetableSettings(BaseWidget):
         self.breakperiod_edit.setPlaceholderText("Break period")
         self.breakperiod_edit.textChanged.connect(self._set_break_periods)
         
-        # left_sub_option_widget = BaseWidget(QHBoxLayout)
-        
-        # dotw_button = QPushButton("Days of the Week")
-        
-        # left_sub_option_widget.addWidget(dotw_button)
-        
-        left_option_widget.addWidget(LabeledWidget("Period Amount", self.period_amt_edit))
-        left_option_widget.addWidget(LabeledWidget("Break Period", self.breakperiod_edit))
-        # left_option_widget.addWidget(left_sub_option_widget)
-        
-        right_option_widget = BaseWidget()
-        
-        generate_button = QPushButton("Generate New School")
-        generate_button.clicked.connect(self.generate_new_school_timetable)
-        
-        clear_button = QPushButton("Clear Timetables")
-        clear_button.clicked.connect(self.clear_all_timetables)
-        
-        right_option_widget.addWidget(generate_button)
-        right_option_widget.addWidget(clear_button)
-        
-        general_settings_widget.addWidget(left_option_widget)
-        general_settings_widget.addWidget(right_option_widget)
-        
         # Settings Menu
-        settings_menu_layout = self.settings_menu.layout()
-        settings_menu_layout.addWidget(general_settings_widget)
+        settings_menu_widget = BaseWidget()
+        
+        settings_menu_widget.addWidget(LabeledWidget("Period Amount", self.period_amt_edit))
+        settings_menu_widget.addWidget(LabeledWidget("Break Period", self.breakperiod_edit))
+        settings_menu_widget.addSpacing(10)
+        # settings_menu_widget.addWidget(dotw_button := QPushButton("Days of the Week"))
+        settings_menu_widget.addWidget(generate_button := QPushButton("Generate School")) ; generate_button.clicked.connect(lambda: self.generate_school_timetable())
+        settings_menu_widget.addWidget(generate_new_button := QPushButton("Generate New School")) ; generate_new_button.clicked.connect(lambda: self.generate_school_timetable(self.clear_all_timetables))
+        settings_menu_widget.addWidget(clear_button := QPushButton("Clear Timetables")) ; clear_button.clicked.connect(self.clear_all_timetables)
+        settings_menu_widget.addSpacing(10)
+        settings_menu_widget.addWidget(randomize_button := QCheckBox("Randomize")) ; randomize_button.clicked.connect(self.randomize)
+        self.randomize_button = randomize_button
+        
+        self.addWidget(clashes_dialog_pb)
+        self.addWidget(self.show_clashes_cb)
+        self.addWidget(self.show_islands_cb)
+        self.addStretch()
+        self.addWidget(IconToolBarOption(settings_menu_widget, title="☰"))
     
     def _set_period_amt(self, period_amt: int):
+        self.breakperiod_edit.blockSignals(True)
+        self.breakperiod_edit.max_num = period_amt
+        self.breakperiod_edit.blockSignals(False)
+        
         for _, cls_level in SCHOOL.class_levels:
             for cls in cls_level.classes.values():
                 self.editor.timetable_widgets[cls_level.id][cls.id].set_period_amt(period_amt)
+            
+            cls_level.period_amount = period_amt
     
     def _set_break_periods(self, break_period: int):
         for _, cls_level in SCHOOL.class_levels:
             for cls in cls_level.classes.values():
                 self.editor.timetable_widgets[cls_level.id][cls.id].set_break_period(break_period)
+            
+            cls_level.break_period = break_period
     
     def _toogle_self(self):
         self.settings_menu.set_pos(self.toogle_button.mapToGlobal(QPoint(-470, self.toogle_button.height())))
         self.settings_menu.toogle()
     
-    def show_clashes(self, s: bool):
-        for lvl_dp, _, _ in self.editor.classes_widget.values():
-            lvl_dp.beDisabled(s, False)
+    def show_overlays(self, overlay_type: int):
+        c_state = self.show_clashes_cb.isChecked()
+        i_state = self.show_islands_cb.isChecked()
+        
+        state = c_state or i_state
+        
+        for lvl_dp, _ in self.editor.classes_widget.values():
+            lvl_dp.beDisabled(state, False)
             
-            lvl_dp.toogle_icon.setDisabled(s)
-            lvl_dp.title_label.setDisabled(s)
+            lvl_dp.toogle_icon.setDisabled(state)
+            lvl_dp.title_label.setDisabled(state)
         
-        if s:
-            self.clash_overlay.setGeometry(self.editor.central_widget.rect())
-            self.clash_overlay.update()
-            self.clash_overlay.show()
-        else:
-            self.clash_overlay.hide()
+        match overlay_type:
+            case 0:
+                self.clash_overlay.setVisibilityState(c_state)
+            case 1:
+                self.island_overlay.setVisibilityState(i_state)
         
-        self.update()
+        self.editor.update()
     
     def generating_finished(self):
         self._can_generate_new = True
@@ -344,26 +477,24 @@ class TimetableSettings(BaseWidget):
             for ttbl in lvl_ttbl_content.values():
                 ttbl.clear_timetable()
     
-    def generate(self):
-        for lvl_ttbl_content in self.editor.timetable_widgets.values():
-            for ttbl in lvl_ttbl_content.values():
-                ttbl.clear_remains()
-        
-        SCHOOL.generate_timetables()
-    
     def continue_with_irreversable_action(self):
-        return QMessageBox.StandardButton.Yes == QMessageBox.warning(self, "Action Irreversible", "This action cannot be reversed\n"
-                                                                                                  "All information will be overwritten",
-                                                                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        return QMessageBox.StandardButton.Yes == QMessageBox.warning(
+            self,
+            "Action Irreversible",
+            "This action cannot be reversed\n"
+            "All information will be overwritten",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
     
-    def generate_new_school_timetable(self):
+    def generate_school_timetable(self, pre_func: Optional[Callable] = None):
         if self._can_generate_new:
             if not self.continue_with_irreversable_action():
-                QMessageBox.critical(self, "TimetableGeneratorError", "Variables and connections are not sufficient to generate a timetable")
-                
                 return
             
-            self.generate_new = Thread(self.window(), self.generate)
+            if callable(pre_func):
+                pre_func()
+            
+            self.generate_new = Thread(self.window(), lambda: SCHOOL.generate_timetables())
             self.generate_new.finished.connect(self.generating_finished)
             self.generate_new.start()
             
@@ -372,6 +503,11 @@ class TimetableSettings(BaseWidget):
             return
         
         QMessageBox.critical(self, "ThreadingError", "School Timetable is already being generated")
+
+    def randomize(self, state: bool):
+        for lvl_id, _ in SCHOOL.class_levels:
+            if state != self.editor.level_randomize_cbs[lvl_id].isChecked():
+                self.editor.level_randomize_cbs[lvl_id].click()
 
 
 class ClassTimetable(QTableWidget):
@@ -391,13 +527,12 @@ class ClassTimetable(QTableWidget):
         
         self.remainder_labels: list[_ExtrasDraggableSubjectLabel] = []
         
-        self.period_amt = max(p_amt for p_amt, _ in self.cls.level.weekdays.values())
-        self.weekdays_data = self.cls.level.weekdays
-        self.weekdays = list(self.weekdays_data)
+        self.weekdays = self.cls.level.weekdays
+        self.period_amt = self.cls.level.period_amount
         
         self.setRowCount(self.period_amt)
-        self.setColumnCount(len(self.cls.level.weekdays))
-        self.setHorizontalHeaderLabels([day for day in self.cls.level.weekdays])
+        self.setColumnCount(len(self.weekdays))
+        self.setHorizontalHeaderLabels(self.weekdays)
         self.setVerticalHeaderLabels([f"Period {i+1}" for i in range(self.rowCount())])
         
         # Set size policies
@@ -426,19 +561,25 @@ class ClassTimetable(QTableWidget):
         self.drag_source_col = -1
     
     def set_period_amt(self, period_amt: int):
-        for col, (day, (prev_period_amt, _)) in enumerate(self.weekdays_data.items()):
-            if period_amt - prev_period_amt > 0:
-                self.timetable[day] += [FreePeriod() for _ in range(period_amt - prev_period_amt)]
-            elif period_amt - prev_period_amt < 0:
-                for subj in self.timetable[day][period_amt - prev_period_amt:]:
+        for col, day in enumerate(self.weekdays):
+            is_diff_positive = period_amt - self.cls.level.period_amount > 0
+            is_diff_negative = period_amt - self.cls.level.period_amount < 0
+            
+            if is_diff_positive:
+                self.timetable[day] += [FreePeriod() for _ in range(period_amt - self.cls.level.period_amount)]
+            elif is_diff_negative:
+                break_index = next(i for i, s in enumerate(self.timetable[day]) if s.id == BreakPeriod.id)
+                
+                if period_amt < break_index + 1:
+                    self.timetable_exchange(self.item(break_index, col), self.item(break_index - 1, col))
+                
+                for i, subj in enumerate(self.timetable[day][period_amt - self.cls.level.period_amount:]):
                     if subj.id not in (FreePeriod.id, BreakPeriod.id):
-                        self.timetable[day].remove(subj)
-                        
                         self.addRemainder(subj)
+                    
+                    self.timetable[day].pop(i + period_amt - self.cls.level.period_amount)
             else:
                 continue
-            
-            self.weekdays_data[day] = period_amt, self.weekdays_data[day][1]
         
         self.setRowCount(period_amt)
         self.setVerticalHeaderLabels([f"Period {i + 1}" for i in range(self.rowCount())])
@@ -452,10 +593,15 @@ class ClassTimetable(QTableWidget):
         self.period_amt = period_amt
     
     def set_break_period(self, break_period: int):
-        for col, (day, (_, prev_break_period)) in enumerate(self.weekdays_data.items()):
-            self.timetable_exchange(self.item(prev_break_period - 1, col), self.item(break_period - 1, col))
+        for col, day in enumerate(self.weekdays):
+            ls_key = day, break_period - 1
             
-            self.weekdays_data[day] = self.weekdays_data[day][0], break_period
+            break_index = next(i for i, s in enumerate(self.timetable[day]) if s.id == BreakPeriod.id)
+            
+            if ls_key in self.cls.locked_subjects:
+                self.cls.locked_subjects.pop(ls_key)
+            
+            self.timetable_exchange(self.item(break_index, col), self.item(break_period - 1, col))
     
     def update_break_time_color(self):
         for row in range(self.rowCount()):
@@ -490,14 +636,9 @@ class ClassTimetable(QTableWidget):
         self.timetable[self.weekdays[source_col]][source_row] = target
         self.timetable[self.weekdays[target_col]][target_row] = source
         
-        if source_row == self.weekdays_data[self.weekdays[source_col]][1] - 1:
-            self.weekdays_data[self.weekdays[source_col]] = self.weekdays_data[self.weekdays[source_col]][0], target_row + 1
-        if target_row == self.weekdays_data[self.weekdays[target_col]][1] - 1:
-            self.weekdays_data[self.weekdays[target_col]] = self.weekdays_data[self.weekdays[target_col]][0], source_row + 1
-        
         # Force refresh
         self.blockSignals(False)
-        self.update()
+        self.editor.update()
     
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -542,8 +683,8 @@ class ClassTimetable(QTableWidget):
             col = self.columnAt(int(event.position().x()))
             row = self.rowAt(int(event.position().y()))
             
-            _, break_time = self.weekdays_data[self.weekdays[col]]
-            _, source_break_time = self.weekdays_data[self.weekdays[self.drag_source_col]]
+            break_time = next(i + 1 for i, s in enumerate(self.timetable[self.weekdays[col]]) if s.id == BreakPeriod.id)
+            source_break_time = next(i + 1 for i, s in enumerate(self.timetable[self.weekdays[self.drag_source_col]]) if s.id == BreakPeriod.id)
             
             ignore = True
             if self.editor.remainder_source_ref is None:
@@ -574,8 +715,6 @@ class ClassTimetable(QTableWidget):
                 
                 # Handle swapping
                 if target_item is not None and not target_item.locked and isinstance(target_item, TimeTableItem):
-                    target_subject = target_item.subject
-                    
                     if source_cls.id == self.cls.id:
                         self.timetable_exchange(source_item, target_item)
                         
@@ -610,8 +749,9 @@ class ClassTimetable(QTableWidget):
                 self.timetable[self.weekdays[col]][row] = self.editor.remainder_source_ref.subject
                 
                 event.accept()
+                self.editor.update()
             
-            self.editor.remainder_source_ref = None
+            self.editor.remainder_unfocused()
             self.current_source = None
     
     def addRemainder(self, subject: Subject, index: int | None = None):
@@ -623,14 +763,17 @@ class ClassTimetable(QTableWidget):
             self.remainder_labels.insert(index - 1, remainder_label)
             self.timetable_remains.insert(index - 1, subject)
         else:
-            self.remainder_widget.insertWidget(len(self.remainder_widget.getChildren()) - 1, remainder_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            self.remainder_widget.insertWidget(len(self.remainder_widget.getChildren()), remainder_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.remainder_labels.append(remainder_label)
             self.timetable_remains.append(subject)
     
     def removeRemainder(self, remainder: _ExtrasDraggableSubjectLabel):
-        self.remainder_labels.remove(remainder)
-        self.remainder_widget.removeWidget(remainder)
-        self.timetable_remains.remove(remainder.subject)
+        try:
+            self.remainder_labels.remove(remainder)
+            self.remainder_widget.removeWidget(remainder)
+            self.timetable_remains.remove(remainder.subject)
+        except Exception as e:
+            QMessageBox.critical(None, e.__class__.__name__, str(e))
         
         remainder.deleteLater()
     
@@ -649,8 +792,11 @@ class ClassTimetable(QTableWidget):
         self.populate_timetable()
     
     def generate(self):
-        SCHOOL.generate_timetables([(self.cls.level.id, self.cls.id)])
-        self.populate_timetable()
+        try:
+            SCHOOL.generate_timetables([(self.cls.level.id, self.cls.id)])
+            self.populate_timetable()
+        except Exception as e:
+            QMessageBox.critical(None, e.__class__.__name__, str(e))
     
     def clear_and_generate(self):
         response = QMessageBox.warning(
@@ -665,11 +811,10 @@ class ClassTimetable(QTableWidget):
             return
         
         SCHOOL.fresh_timetable(self.cls)
-        SCHOOL.generate_timetables([(self.cls.level.id, self.cls.id)])
-        self.populate_timetable()
+        self.generate()
     
     def populate_timetable(self):
-        for col, day in enumerate(self.weekdays_data):
+        for col, day in enumerate(self.weekdays):
             for row, subject in enumerate(self.timetable[day] + [FreePeriod() for _ in range(self.period_amt - len(self.timetable[day]))]):
                 item = TimeTableItem(subject, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
                 
@@ -760,9 +905,6 @@ class SchoolTimetableEditor(BaseWidget):
     def __init__(self):
         super().__init__()
         
-        self._leave_updated = True
-        self.show_clashes = False
-        
         self.remainder_source_ref: Optional[TimeTableItem] = None
         
         self.class_generator_threads: dict[ID, Thread] = {}
@@ -779,9 +921,11 @@ class SchoolTimetableEditor(BaseWidget):
         self.scroll_widget.addWidget(self.central_widget)
         
         # Create timetable for each class
+        self.level_randomize_cbs: dict[ID, QCheckBox] = {}
+        self.cls_randomize_cbs: dict[ID, QCheckBox] = {}
         self.label_data: dict[ID, QLabel] = {}
         self.timetable_widgets: dict[ID, dict[ID, ClassTimetable]] = {}
-        self.classes_widget: dict[ID, tuple[WidgetDropdown, BaseWidget, dict[ID, BaseWidget]]] = {}
+        self.classes_widget: dict[ID, tuple[WidgetDropdown, dict[ID, BaseWidget]]] = {}
         self.everyday_widgets: dict[ID, Optional[BaseWidget]] = {}
         self.ttbl_day_trackers: dict[ID, dict[QComboBox, list[str, list[str]]]] = {}
         
@@ -790,6 +934,9 @@ class SchoolTimetableEditor(BaseWidget):
         
         self.addWidget(self.settings_widget)
         self.addWidget(self.scroll_widget)
+    
+    def remainder_unfocused(self):
+        self.remainder_source_ref = None
     
     def make_ds_func(self, label: _ExtrasDraggableSubjectLabel):
         def func(event):
@@ -805,43 +952,45 @@ class SchoolTimetableEditor(BaseWidget):
             drag.setPixmap(pixmap)
             drag.setHotSpot(event.pos())
             
+            drag.destroyed.connect(lambda: self.remainder_unfocused())
+            
             drag.exec()
         
         return func
     
-    def make_timetable_settings(self, cls_level: ClassLevel):
+    def make_class_level_settings(self, cls_level: ClassLevel):
         widget = BaseWidget()
         widget.setFixedWidth(350)
         
         def generating_finished():
+            self.class_generator_threads.pop(cls_level.id)
+            
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.populate_timetable()
-            
-            self.class_generator_threads.pop(cls_level.id)
         
         def period_amt_changed(curr_period_amt: int):
-            # global break_updateable
-            
+            breakperiod_edit.blockSignals(True)
             breakperiod_edit.max_num = curr_period_amt
-            if curr_period_amt < breakperiod_edit.number():
-                # break_updateable = False
-                breakperiod_edit.setNumber(curr_period_amt)
-                # break_updateable = True
+            breakperiod_edit.blockSignals(False)
             
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.set_period_amt(curr_period_amt)
+            
+            cls_level.period_amount = curr_period_amt
         
         def break_period_changed(curr_break_period: int):
-            # if break_updateable:
-                for ttbl in self.timetable_widgets[cls_level.id].values():
-                    ttbl.set_break_period(curr_break_period)
+            for ttbl in self.timetable_widgets[cls_level.id].values():
+                ttbl.set_break_period(curr_break_period)
+            
+            cls_level.break_period = curr_break_period
         
-        def generate_new_func():
+        def generate_func(pre_func: Optional[Callable] = None):
             if cls_level.id not in self.class_generator_threads:
                 if not self.settings_widget.continue_with_irreversable_action():
-                    QMessageBox.critical(self, "TimetableGeneratorError", "Variables and connections are not sufficient to generate a timetable")
-                    
                     return
+                
+                if callable(pre_func):
+                    pre_func()
                 
                 self.class_generator_threads[cls_level.id] = Thread(self.window(), lambda: SCHOOL.generate_timetables([(cls_level.id, cls.id) for cls in cls_level.classes.values()]))
                 self.class_generator_threads[cls_level.id].finished.connect(generating_finished)
@@ -854,6 +1003,17 @@ class SchoolTimetableEditor(BaseWidget):
         def clear_func():
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.clear_timetable()
+        
+        def randomize(state: bool):
+            if state and next((False for cb in self.level_randomize_cbs.values() if not cb.isChecked()), True):
+                self.settings_widget.randomize_button.setChecked(True)
+            else:
+                self.settings_widget.randomize_button.blockSignals(True)
+                self.settings_widget.randomize_button.setChecked(False)
+                self.settings_widget.randomize_button.blockSignals(False)
+            
+            for cls_id in SCHOOL.class_levels[cls_level.id].classes:
+                self.cls_randomize_cbs[cls_id].setChecked(state)
         
         def _add_everyday(set_default: bool = True):
             widg = BaseWidget() ; widg.setProperty("class", "Bordered")
@@ -950,19 +1110,25 @@ class SchoolTimetableEditor(BaseWidget):
             
             QTimer.singleShot(100, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
         
-        period_amt_edit = NumberLineEdit(max(p_week for p_week, _ in cls_level.weekdays.values()), 1, 20)
-        period_amt_edit.setPlaceholderText("     Periods Amt")
+        period_amt_edit = NumberLineEdit(cls_level.period_amount, 1, 20)
+        period_amt_edit.setPlaceholderText("Periods Amt")
         period_amt_edit.textChanged.connect(period_amt_changed)
         
-        breakperiod_edit = NumberLineEdit(max(b_period for _, b_period in cls_level.weekdays.values()), period_amt_edit.min_num, period_amt_edit.number())
-        breakperiod_edit.setPlaceholderText("     Break period")
+        breakperiod_edit = NumberLineEdit(cls_level.break_period, period_amt_edit.min_num, period_amt_edit.number())
+        breakperiod_edit.setPlaceholderText("Break period")
         breakperiod_edit.textChanged.connect(break_period_changed)
         
+        generate_button = QPushButton("Generate Level")
+        generate_button.clicked.connect(lambda: generate_func())
+        
         generate_new_button = QPushButton("Generate New Level")
-        generate_new_button.clicked.connect(generate_new_func)
+        generate_new_button.clicked.connect(lambda: generate_func(clear_func))
         
         clear_button = QPushButton("Clear Timetable")
         clear_button.clicked.connect(clear_func)
+        
+        randomize_button = QCheckBox("Randomize")
+        randomize_button.clicked.connect(randomize)
         
         timing_area_widget = BaseWidget()
         
@@ -981,11 +1147,17 @@ class SchoolTimetableEditor(BaseWidget):
         widget.addWidget(LabeledWidget("Period Amount", period_amt_edit))
         widget.addWidget(LabeledWidget("Break Period", breakperiod_edit))
         # widget.addSpacing(5)
-        # widget.addWidget(dotw_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        widget.addSpacing(20)
-        widget.addWidget(generate_new_button, alignment=Qt.AlignmentFlag.AlignHCenter)
-        widget.addWidget(clear_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        # widget.addWidget(dotw_button)
+        widget.addSpacing(10)
+        widget.addWidget(generate_button)
+        widget.addWidget(generate_new_button)
+        widget.addWidget(clear_button)
+        widget.addSpacing(10)
+        widget.addWidget(randomize_button)
+        widget.addSpacing(10)
         widget.addWidget(timing_area_widget)
+        
+        self.level_randomize_cbs[cls_level.id] = randomize_button
         
         return widget
     
@@ -999,16 +1171,29 @@ class SchoolTimetableEditor(BaseWidget):
         
         self.ttbl_day_trackers[cls_level.id] = {}
         self.label_data[cls_level.id] = level_widget.title_label
-        self.classes_widget[cls_level.id] = level_widget, body_widget, {}
+        self.classes_widget[cls_level.id] = level_widget, {}
         
-        settings_menu_widget = self.make_timetable_settings(cls_level)
-        toogle_option = IconToolBarOption(settings_menu_widget, title="☰")
+        settings_menu_widget = self.make_class_level_settings(cls_level)
         
-        level_widget.header.addWidget(toogle_option)
+        level_widget.header.addWidget(IconToolBarOption(settings_menu_widget, title="☰"))
         
         self.central_widget.insertWidget(len(self.central_widget.getChildren()), level_widget)
     
     def add_timetable_class(self, cls: Class):
+        def randomize(state: bool):
+            if state and next((False for cb in self.cls_randomize_cbs.values() if not cb.isChecked()), True):
+                self.level_randomize_cbs[cls.level.id].setChecked(True)
+            else:
+                self.level_randomize_cbs[cls.level.id].blockSignals(True)
+                self.level_randomize_cbs[cls.level.id].setChecked(False)
+                self.level_randomize_cbs[cls.level.id].blockSignals(False)
+                
+                self.settings_widget.randomize_button.blockSignals(True)
+                self.settings_widget.randomize_button.setChecked(False)
+                self.settings_widget.randomize_button.blockSignals(False)
+            
+            SCHOOL.gen_data.randomize[cls.id] = state
+        
         settings_menu = BaseWidget()
         settings_menu.setWindowFlags(Qt.WindowType.Popup)
         
@@ -1042,15 +1227,22 @@ class SchoolTimetableEditor(BaseWidget):
         generate_button = QPushButton("Generate")
         generate_button.clicked.connect(timetable.generate)
         
+        generate_new_button = QPushButton("Generate New")
+        generate_new_button.clicked.connect(timetable.clear_and_generate)
+        
         clear_button = QPushButton("Clear Timetable")
         clear_button.clicked.connect(timetable.clear_timetable)
         
-        clear_and_generate_button = QPushButton("Clear and Generate")
-        clear_and_generate_button.clicked.connect(timetable.clear_and_generate)
+        randomize_button = QCheckBox("Randomize")
+        randomize_button.clicked.connect(randomize)
+        if SCHOOL.gen_data.randomize.get(cls.id, False):
+            randomize_button.click()
         
         settings_menu.addWidget(generate_button)
+        settings_menu.addWidget(generate_new_button)
         settings_menu.addWidget(clear_button)
-        settings_menu.addWidget(clear_and_generate_button)
+        settings_menu.addSpacing(20)
+        settings_menu.addWidget(randomize_button)
         
         class_widget.addWidget(timetable)
         class_widget.addWidget(sidebar_widget)
@@ -1060,21 +1252,27 @@ class SchoolTimetableEditor(BaseWidget):
         widget.addWidget(class_header)
         widget.addWidget(class_widget)
         
-        self.classes_widget[cls.level.id][1].addWidget(widget)
-        self.classes_widget[cls.level.id][2][cls.id] = widget
+        self.classes_widget[cls.level.id][0].widget.addWidget(widget)
+        self.classes_widget[cls.level.id][1][cls.id] = widget
+        self.cls_randomize_cbs[cls.id] = randomize_button
     
     def delete_timetable_level(self, cls_level_id: ID):
         self.classes_widget[cls_level_id][0].delete()
         
         self.classes_widget.pop(cls_level_id)
-        self.timetable_widgets.pop(cls_level_id)
         self.everyday_widgets.pop(cls_level_id)
+        ttbl_content = self.timetable_widgets.pop(cls_level_id)
+        self.level_randomize_cbs.pop(cls_level_id)
+        
+        for cls_id in ttbl_content:
+            self.cls_randomize_cbs.pop(cls_id)
     
     def delete_timetable_class(self, cls: Class):
-        self.classes_widget[cls.level.id][2][cls.id].delete()
+        self.classes_widget[cls.level.id][1][cls.id].delete()
         
         self.timetable_widgets[cls.level.id].pop(cls.id)
-        self.classes_widget[cls.level.id][2].pop(cls.id)
+        self.classes_widget[cls.level.id][1].pop(cls.id)
+        self.cls_randomize_cbs.pop(cls.id)
     
     def set_label_text(self, id: ID, name: str | ClassLevelName):
         self.label_data[id].setText(name if isinstance(name, str) else f"<span style='font-size: 60px'>{name.full()}</span>")

@@ -88,15 +88,16 @@ class TimetableTime:
 
 @dataclass
 class GeneratingData:
-    randomize: bool
-    #                             ClassID    SubjectID    Day    DayWeight  PeriodProclivity
-    subject_positioning_weights: dict[str, dict[str, dict[str, tuple[float, int]]]]
+    #            ClassID
+    randomize: dict[ID, bool]
+    #                              ClassID  SubjectID   Day    DayWeight  PeriodProclivity
+    subject_positioning_weights: dict[ID, dict[ID, dict[str, tuple[float, int]]]]
     
-    #                          ClassID    SubjectID    Day  Weight
-    subject_clumping_weights: dict[str, dict[str, dict[str, float]]]
+    #                          ClassID  SubjectID    Day  Weight
+    subject_clumping_weights: dict[ID, dict[ID, dict[str, float]]]
     
     #                       SubjectID  ClassIDs
-    combined_subjects: dict[list[str], list[str]]
+    combined_subjects: dict[list[ID], list[ID]]
 
 
 @dataclass

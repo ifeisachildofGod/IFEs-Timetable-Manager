@@ -84,26 +84,28 @@ class GlobalClassLevels(Global):
         
         self.school.fresh_timetable(cls)
     
-    def remove_class(self, id: ID, cls_id: Class):
-        self[id].classes[cls_id].delete()
-        
+    def remove_class(self, id: ID, cls_id: ID):
         if cls_id in SCHOOL.settings.EXPORT_selected_classes[id]:
             SCHOOL.settings.EXPORT_selected_classes[id].remove(cls_id)
         
         self.school.timetables_data.pop(cls_id)
+        
+        self[id].classes[cls_id].delete()
 
 
 @dataclass
 class Settings:
     THEME: str
     
+    DEFAULT_period_amount: int
+    DEFAULT_break_period: int
     DEFAULT_max_classes: int
     DEFAULT_occurance_data: tuple[int, int]
     DEFAULT_timetable_time_setting: TimetableTime
     
     TEACHER_rsma_mapping: dict[ID, Optional[int]]
     
-    TIMETABLE_weekdays: dict[str, tuple[int, int]]
+    TIMETABLE_weekdays: list[str]
     TIMETABLE_time_settings: dict[ID, dict[str, TimetableTime]]
     
     EXPORT_timetable_export_theme: TimetableExportTheme
@@ -139,13 +141,13 @@ class SchoolFrameWork:
         if self._log_data is None:
             self._log_data = {}
         if self.gen_data is None:
-            self.gen_data = GeneratingData(False, {}, {}, {})
+            self.gen_data = GeneratingData({}, {}, {}, {})
         if self.settings is None:
             self.settings = Settings(
                 "dark-blue",
-                3, (2, 3), TimetableTime(Time(8, 10), 35, 35),
+                10, 7, 3, (2, 3), TimetableTime(Time(8, 10), 35, 35),
                 {},
-                {"Monday": (10, 7), "Tuesday": (10, 7), "Wednesday": (10, 7), "Thursday": (10, 7), "Friday": (10, 7)}, {},
+                ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], {},
                 TimetableExportTheme(
                     None, None, None,
                     "white", "white", "black", "black", "black",
@@ -169,15 +171,17 @@ class SchoolFrameWork:
     def fresh_timetable(self, cls: Class):
         if cls.id not in self.timetables_data:
             self.timetables_data[cls.id] = (
-                {d: [BreakPeriod() if i + 1 == b else FreePeriod() for i in range(p)] for d, (p, b) in cls.level.weekdays.items()},
+                {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays},
                 list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
             )
         else:
             timetable, timetable_remains = self.timetables_data[cls.id]
+            break_periods = {d: next(i for i, s in periods if s.id == BreakPeriod.id) for d, periods in timetable.items()}
             
-            for d, (p, b) in cls.level.weekdays.items():
+            for d in cls.level.weekdays:
+                cls.level.period_amount
                 timetable[d].clear()
-                timetable[d].extend([BreakPeriod() if i + 1 == b else FreePeriod() for i in range(p)])
+                timetable[d].extend([BreakPeriod() if i == break_periods[d] else FreePeriod() for i in range(cls.level.period_amount)])
             
             timetable_remains.clear()
             timetable_remains.extend(list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()])))
@@ -199,19 +203,23 @@ class SchoolFrameWork:
                     cls_ids.append((cl_id, c_id))
         
         for cls_lvl_id, cls_id in cls_ids:
-            cls = self.class_levels[cls_lvl_id].classes[cls_id]
+            cls_lvl = self.class_levels[cls_lvl_id]
+            cls = cls_lvl.classes[cls_id]
             
             timetable, timetable_remains = self.timetables_data[cls.id]
             
             assert timetable is not None
             assert timetable_remains is not None
             
-            total_available_periods = sum(amt for amt, _ in cls.level.weekdays.values())
+            total_available_periods = sum(len(periods) for periods in timetable.values())
             total_subj_amt = sum(cls.level.subjects_occurence[s_id].week_max for s_id in cls.subjects)
             
             assert total_available_periods > total_subj_amt, "Period slots are not enough for the amount of subjects"
             
-            if self.gen_data.randomize:
+            if cls_id not in self.gen_data.randomize:
+                self.gen_data.randomize[cls_id] = False
+            
+            if self.gen_data.randomize[cls_id]:
                 random.shuffle(timetable_remains)
             
             for subject in timetable_remains.copy():
@@ -227,10 +235,22 @@ class SchoolFrameWork:
                         selected_period = day, score.index(max_score)
                 
                 if not selected_period:
-                    print(cls.subjects[subject.id].name)
-                    print(json.dumps(self._log_data[cls_id][subject.id], indent=2))
+                    # print(cls.subjects[subject.id].name)
+                    # print(json.dumps(self._log_data[cls_id][subject.id], indent=2))
                     
-                    raise TimetableGeneratorError("No valid periods available")
+                    raise TimetableGeneratorError(
+                        f"Error Generating the {cls_lvl.name.full()} {cls.name} Timetable\n"
+                        "\n"
+                        "Try:\n"
+                        "1) Changing some parameters or connections\n"
+                        "2) Unlocking some subjects in this class or other classes\n"
+                        "3) Generating more classes in the school simultanously\n"
+                        "4) Removing some subjects currently in the timetable\n"
+                        "5) Randomizing the generation of the timetable\n"
+                        f"6) Performing a 'Generating New' action {"for this timetable" if len(cls_ids) == 1 else "for the timetables"}\n"
+                        "\n"
+                        "You could also do all or a combination of the above suggestions to clear this error"
+                    )
                 
                 day, index = selected_period
                 
@@ -246,19 +266,19 @@ class SchoolFrameWork:
         }
         """
         
-        clashes: dict[tuple[tuple[str, int], ID], list[Class]] = {}
+        clashes: dict[tuple[tuple[str, int], tuple[ID, ID]], list[Class]] = {}
         
-        days_uid_tracker: dict[str, list[tuple[ID, Class]]] = {}
+        days_uid_tracker: dict[str, list[tuple[tuple[ID, ID], Class]]] = {}
         
         for c_id, (timetable, _) in self.timetables_data.items():
             for day, periods in timetable.items():
                 if day not in days_uid_tracker:
-                    days_uid_tracker[day] = [[(s.id + s.teacher.id, s.classes[c_id]) if s.id not in (FreePeriod.id, BreakPeriod.id) else (None, None)] for s in periods]
+                    days_uid_tracker[day] = [[((s.id, s.teacher.id), s.classes[c_id]) if s.id not in (FreePeriod.id, BreakPeriod.id) else (None, None)] for s in periods]
                     continue
                 
                 for i, subj in enumerate(periods):
                     if subj.id not in (FreePeriod.id, BreakPeriod.id):
-                        s_uid = subj.id + subj.teacher.id
+                        s_uid = subj.id, subj.teacher.id
                         
                         key = (day, i), s_uid
                         cls = subj.classes[c_id]
@@ -280,6 +300,34 @@ class SchoolFrameWork:
                                 days_uid_tracker[day][i].append((s_uid, cls))
         
         return clashes
+    
+    def detect_islands(self):
+        islands: dict[ID, tuple[ClassLevel, list[tuple[ID, str, int]]]] = {}
+        
+        for c_id, (timetable, _) in self.timetables_data.items():
+            for day, periods in timetable.items():
+                seen_subjects = []
+                
+                for subject_index, subject in enumerate(periods):
+                    subj_id = subject.id
+                    
+                    if subj_id in (FreePeriod.id, BreakPeriod.id):
+                        continue
+                    
+                    prev_subj_id = periods[subject_index - 1].id if subject_index > 0 else None
+                    next_subj_id = periods[subject_index + 1].id if subject_index < len(periods) - 1 else None
+                    
+                    if subj_id not in (prev_subj_id, next_subj_id) and subj_id in seen_subjects:
+                        if c_id not in islands:
+                            islands[c_id] = subject.classes[c_id].level, []
+                        
+                        islands[c_id][1].append(((subj_id, day, subject_index)))
+                        if seen_subjects.count(subj_id) == 1:
+                            islands[c_id][1].append(((subj_id, day, periods.index(subject))))
+                    
+                    seen_subjects.append(subj_id)
+        
+        return islands
     
     def _sps(self, s_id: str, cls: Class):
         period_scores: dict[str, list[int | float]] = {day: [] for day in cls.level.weekdays}
@@ -452,7 +500,7 @@ class SchoolFrameWork:
             if l_operate or r_operate:
                 return l_operate + r_operate
             
-            period_amt, break_period = cls.level.weekdays[day]
+            period_amt = len(timetable[day])
             
             # l_p = [p.id for p_i, p in enumerate(periods) if p.id not in (FreePeriod.id, BreakPeriod.id) and (p_i < break_period - 1 if p_index < break_period else p_i > break_period - 1)]
             
@@ -556,7 +604,12 @@ class SchoolFrameWork:
             t_string = t_string.strip()
             
             if t_string:
-                t_info, value =  t_string.split(":")
+                if ":" in t_string:
+                    t_info, value =  t_string.split(":")
+                else:
+                    t_info = t_string
+                    value = None
+                
                 t_name, t_id = SchoolFrameWork.id_name_from_text(t_info)
                 
                 t_id = ID(t_id)
@@ -572,102 +625,118 @@ class SchoolFrameWork:
                     teacher = Teacher(t_id, TeacherName(*names), {})
                 
                 school_framework.teachers.add(teacher)
-                teacher_subject_indices[t_id] = tuple(int(v) - 1 for v in value.strip().split())
                 
-                for s_index in teacher_subject_indices[t_id]:
-                    school_framework.teachers[t_id].subjects[l_subjects[s_index].id] = l_subjects[s_index]
+                if value is not None:
+                    teacher_subject_indices[t_id] = tuple(int(v) - 1 for v in value.strip().split())
+                    
+                    for s_index in teacher_subject_indices[t_id]:
+                        school_framework.teachers[t_id].subjects[l_subjects[s_index].id] = l_subjects[s_index]
         
         weekdays_data = []
-        for dw_string in dotw_string.split("_"):
-            s_dotw_data = {}
-            
-            for s_dw_string in dw_string.splitlines():
-                s_dw_string = s_dw_string.strip()
+        if dotw_string:
+            for dw_string in dotw_string.split("_"):
+                cl_dw_info = dw_string.splitlines()
+                (p_amt, b_p), dw_info = cl_dw_info[0].split(), cl_dw_info[1:]
                 
-                if s_dw_string:
-                    day, values = s_dw_string.split(":")
-                    day, values = day.strip(), values.strip()
-                    
-                    p_amt, b_p = values.split()
-                    
-                    s_dotw_data[day] = int(p_amt), int(b_p)
-            
-            weekdays_data.append(s_dotw_data)
+                weekdays_data.append(([int(p_amt), int(b_p)], dw_info))
+        else:
+            weekdays_data = [
+                (
+                    (
+                        school_framework.settings.DEFAULT_period_amount,
+                        school_framework.settings.DEFAULT_break_period
+                    ),
+                    school_framework.settings.TIMETABLE_weekdays.copy()
+                )
+                for _ in
+                classes_string.split("_")
+            ]
         
         all_classes = []
         l_teachers = [t for _, t in school_framework.teachers]
-        for cls_lvl_index, cls_lvl_string in enumerate(classes_string.split("_")):
-            cls_lvl_data = cls_lvl_string.splitlines()
-            cls_lvl_info, cls_data = cls_lvl_data[0], cls_lvl_data[1:]
-            
-            cls_lvl_id_data, subjects_occurence_string = cls_lvl_info.split(";")
-            cls_lvl_name, lvl_id = SchoolFrameWork.id_name_from_text(cls_lvl_id_data)
-            
-            subject_occurence = {}
-            
-            for occ_string in subjects_occurence_string.strip().split():
-                occ_string = occ_string.strip()
+        if classes_string:
+            for cls_lvl_index, cls_lvl_string in enumerate(classes_string.split("_")):
+                cls_lvl_data = cls_lvl_string.splitlines()
+                cls_lvl_info, cls_data = cls_lvl_data[0], cls_lvl_data[1:]
                 
-                if occ_string:
-                    gs_index, day_max, week_max = occ_string.split("/")
+                if ":" in cls_lvl_info:
+                    cls_lvl_id_data, subjects_occurence_string = cls_lvl_info.split(":")
+                else:
+                    cls_lvl_id_data = cls_lvl_info.strip()
+                    subjects_occurence_string = None
+                
+                cls_lvl_name, lvl_id = SchoolFrameWork.id_name_from_text(cls_lvl_id_data)
+                
+                subject_occurence = {}
+                
+                if subjects_occurence_string is not None:
+                    for occ_string in subjects_occurence_string.strip().split():
+                        occ_string = occ_string.strip()
+                        
+                        if occ_string:
+                            gs_index, day_max, week_max = occ_string.split("/")
+                            
+                            subject_occurence[l_subjects[int(gs_index.strip()) - 1].id] = SubjectOccurrance(int(day_max.strip()), int(week_max.strip()))
                     
-                    subject_occurence[l_subjects[int(gs_index.strip()) - 1].id] = SubjectOccurrance(int(day_max.strip()), int(week_max.strip()))
-            
-            classes = {}
-            
-            lvl_id = ID(lvl_id)
-            cls_lvl = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subject_occurence, weekdays_data[cls_lvl_index])
-            school_framework.class_levels.add(cls_lvl)
-            
-            for c_string in cls_data:
-                c_string = c_string.strip()
+                lvl_id = ID(lvl_id) ; classes = {} ; (p_amt, b_p), weekdays = weekdays_data[cls_lvl_index]
+                cls_lvl = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subject_occurence, weekdays, p_amt, b_p)
+                school_framework.class_levels.add(cls_lvl)
                 
-                cls_info, value =  c_string.split(":")
-                cls_name, cls_id = SchoolFrameWork.id_name_from_text(cls_info)
-                
-                subject_mapping = {}
-                
-                cls_id = ID(cls_id.strip())
-                cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, {}, school_framework)
-                all_classes.append(cls)
-                
-                for v in value.strip().split():
-                    s_list = v.split("/")
+                for c_string in cls_data:
+                    c_string = c_string.strip()
                     
-                    if len(s_list) == 1:
-                        t_index = s_list
-                        s_index = "1"
-                    elif len(s_list) == 2:
-                        t_index, s_index = s_list
+                    if ":" in c_string:
+                        cls_info, value =  c_string.split(":")
                     else:
-                        raise Exception()
+                        cls_info = c_string.strip()
+                        value = None
                     
-                    t_index = int(t_index.strip()) - 1
-                    s_index = int(s_index.strip()) - 1
+                    cls_name, cls_id = SchoolFrameWork.id_name_from_text(cls_info)
                     
-                    if not (0 <= t_index <= len(l_teachers) - 1):
-                        raise IndexError(f"Invalid teacher index: {t_index + 1}")
+                    subject_mapping = {}
                     
-                    teacher = l_teachers[t_index]
-                    subject_indices = teacher_subject_indices[teacher.id]
+                    cls_id = ID(cls_id.strip())
+                    cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, {}, school_framework)
+                    all_classes.append(cls)
                     
-                    if not (0 <= s_index <= len(subject_indices) - 1):
-                        raise IndexError(f"Invalid teacher-subject index: {s_index + 1}")
-                    
-                    if not (0 <= subject_indices[s_index] <= len(l_subjects) - 1):
-                        raise IndexError(f"Invalid subject index: {subject_indices[s_index] + 1}")
-                    
-                    o_subject = l_subjects[subject_indices[s_index]]
-                    if isinstance(o_subject, Subject):
-                        o_subject.classes[cls_id] = classes[cls_id]
-                    
-                    subject = o_subject.passCopy()
-                    subject.teacher = teacher
-                    
-                    subject_mapping[subject.id] = subject
-                
-                school_framework.class_levels.add_class(lvl_id, cls)
-        
+                    if value is not None:
+                        for v in value.strip().split():
+                            s_list = v.split("/")
+                            
+                            if len(s_list) == 1:
+                                t_index = s_list
+                                s_index = "1"
+                            elif len(s_list) == 2:
+                                t_index, s_index = s_list
+                            else:
+                                raise Exception()
+                            
+                            t_index = int(t_index.strip()) - 1
+                            s_index = int(s_index.strip()) - 1
+                            
+                            if not (0 <= t_index <= len(l_teachers) - 1):
+                                raise IndexError(f"Invalid teacher index: {t_index + 1}")
+                            
+                            teacher = l_teachers[t_index]
+                            subject_indices = teacher_subject_indices[teacher.id]
+                            
+                            if not (0 <= s_index <= len(subject_indices) - 1):
+                                raise IndexError(f"Invalid teacher-subject index: {s_index + 1}")
+                            
+                            if not (0 <= subject_indices[s_index] <= len(l_subjects) - 1):
+                                raise IndexError(f"Invalid subject index: {subject_indices[s_index] + 1}")
+                            
+                            o_subject = l_subjects[subject_indices[s_index]]
+                            if isinstance(o_subject, Subject):
+                                o_subject.classes[cls_id] = classes[cls_id]
+                            
+                            subject = o_subject.passCopy()
+                            subject.teacher = teacher
+                            
+                            subject_mapping[subject.id] = subject
+                        
+                    school_framework.class_levels.add_class(lvl_id, cls)
+            
         # l_class_levels = [cl_id for cl_id, _ in school_framework.class_levels]
         # if timetable_string:
         #     for cls_i, ttbl_string in enumerate(timetable_string.split("_")):
@@ -730,7 +799,7 @@ class SchoolFrameWork:
         
         weekdays = ""
         for ci, (cl_id, cl) in enumerate(self.class_levels):
-            weekdays += "\n".join([f"{d}: {p} {b}" for d, (p, b) in cl.weekdays.items()])
+            weekdays += f"{cl.period_amount} {cl.break_period}\n" + "\n".join(cl.weekdays)
             
             subjects_occurence = " ".join([f"{l_subjects.index(cl_s_id) + 1}/{cl_so.day_max}/{cl_so.week_max}" for cl_s_id, cl_so in cl.subjects_occurence.items()])
             

@@ -35,8 +35,7 @@ class Thread(QThread):
         try:
             self.func()
         except Exception as e:
-            QMessageBox.critical(None, e.__class__.__name__, str(e))
-            self.crashed.emit(e)
+            self.main_window.crashed_signal.emit(e)
             self.exit(-1)
 
 class FileManager:
