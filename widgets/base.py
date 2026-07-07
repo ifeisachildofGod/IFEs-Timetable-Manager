@@ -500,6 +500,8 @@ class BaseSettingEntry(BaseWidget):
     def __init__(self, i_parent: "BaseSettingWidget", general_entry_name: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]], entry: Entry):
         super().__init__()
         
+        self.__init = True
+        
         self.setProperty("class", "SettingEntry")
         
         self.entry = entry
@@ -571,7 +573,7 @@ class BaseSettingEntry(BaseWidget):
         self.status_widget = StatusBar()
         
         self.simple_line_edit.textChanged.connect(self.simple_name_empty)
-        self.simple_line_edit.textChanged.connect(lambda text: self.simple_name_changed(text, self.extended_line_edits))
+        self.simple_line_edit.textChanged.connect(self._simple_name_changed)
         self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
         
         # ----------------------------------------------------------------------------------------
@@ -621,6 +623,8 @@ class BaseSettingEntry(BaseWidget):
         self.simple_name_empty(self.simple_line_edit.text())
         for i, line_edit in enumerate(self.extended_line_edits):
             self.extended_name_changed(i, line_edit.text(), self.simple_line_edit)
+        
+        self.__init = False
     
     def _focusInput(self):
         if self.simple_line_edit.isVisible():
@@ -628,8 +632,17 @@ class BaseSettingEntry(BaseWidget):
         else:
             self.extended_line_edits[0].setFocus()
     
+    def _simple_name_changed(self, text: str):
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
+        
+        self.simple_name_changed(text, self.extended_line_edits)
+    
     def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
         def func(text: str):
+            if not self.__init:
+                self.window().saved_state_changed.emit(True)
+            
             self.extended_name_changed(index, text, simple_line_edit)
         
         return func
@@ -653,6 +666,8 @@ class BaseSettingEntry(BaseWidget):
         QTimer.singleShot(100, self._focusInput)
     
     def remove(self):
+        self.window().saved_state_changed.emit(True)
+        
         self.i_parent.remove(self)
     
     def get_dialog_buttons(self):
@@ -737,6 +752,9 @@ class BaseSettingWidget(BaseWidget):
             self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None)
     
     def add(self, entry: Optional[Entry] = None, index: Optional[int] = None, focus: Optional[bool] = None):
+        if focus or index is not None:
+            self.window().saved_state_changed.emit(True)
+        
         widget_data = self.get_widget_type()
         
         if isinstance(widget_data, tuple):

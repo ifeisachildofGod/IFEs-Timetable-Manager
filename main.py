@@ -12,12 +12,21 @@ from widgets.export import ExportsEditorDialogWidget
 pygame.init()
 
 class Window(QMainWindow):
+    saved_state_changed = pyqtSignal(bool)
     crashed_signal = pyqtSignal(Exception)
     
     def __init__(self, arguments: list[str]):
         super().__init__()
         
         self.crashed_signal.connect(lambda e: QMessageBox.critical(None, e.__class__.__name__, str(e)))
+        
+        def ssc_func(state: bool):
+            if state:
+                self.unsaved_callback()
+            else:
+                self.saved_callback()
+        
+        self.saved_state_changed.connect(ssc_func)
         
         self.flag_mapping = {
             "-ft": self._set_file_type,
@@ -248,7 +257,7 @@ class Window(QMainWindow):
         else:
             raise TypeError(f"Unsupported file type: '{file_type}'")
         
-        self.saved_callback()
+        self.saved_state_changed.emit(False)
     
     def undo(self):
         undo_func = self.focusWidget().__dict__.get("undo")

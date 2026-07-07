@@ -25,6 +25,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
             if self.entry.id in cls.subjects:
                 self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
                 
+                self.entry.classes.pop(cls.id)
                 cls.subjects.pop(self.entry.id)
         
         for cls in self.entry.classes.values():
