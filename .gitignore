@@ -187,3 +187,4 @@ cython_debug/
 temp_core.py
 test*
 *.css
+bundle.py
