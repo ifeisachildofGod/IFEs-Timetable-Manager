@@ -1128,7 +1128,9 @@ class SchoolTimetableEditor(BaseWidget):
                     _add_everyday()
                     add_new_day_pb.setDisabled(False)
                 
-                day_time_widget.delete()
+                timing_widget.removeWidget(day_time_widget)
+                day_time_widget.deleteLater()
+                
                 SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].pop(day_cb.currentText())
                 self.ttbl_day_trackers[cls_level.id].pop(day_cb)
                 
@@ -1156,7 +1158,9 @@ class SchoolTimetableEditor(BaseWidget):
             timing_widget.addWidget(day_time_widget)
             
             if len(days) == 1 and self.everyday_widgets[cls_level.id] is not None:
-                self.everyday_widgets[cls_level.id].delete()
+                timing_widget.removeWidget(self.everyday_widgets[cls_level.id])
+                self.everyday_widgets[cls_level.id].deleteLater()
+                
                 self.everyday_widgets[cls_level.id] = None
                 
                 SCHOOL.settings.TIMETABLE_time_settings[cls_level.id].pop("Everyday")
@@ -1325,7 +1329,8 @@ class SchoolTimetableEditor(BaseWidget):
         self.cls_randomize_cbs[cls.id] = randomize_button
     
     def delete_timetable_level(self, cls_level_id: ID):
-        self.classes_widget[cls_level_id][0].delete()
+        self.central_widget.removeWidget(self.classes_widget[cls_level_id][0])
+        self.classes_widget[cls_level_id][0].deleteLater()
         
         self.classes_widget.pop(cls_level_id)
         self.everyday_widgets.pop(cls_level_id)
@@ -1336,7 +1341,8 @@ class SchoolTimetableEditor(BaseWidget):
             self.cls_randomize_cbs.pop(cls_id)
     
     def delete_timetable_class(self, cls: Class):
-        self.classes_widget[cls.level.id][1][cls.id].delete()
+        self.classes_widget[cls.level.id][0].widget.removeWidget(self.classes_widget[cls.level.id][1][cls.id])
+        self.classes_widget[cls.level.id][1][cls.id].deleteLater()
         
         self.timetable_widgets[cls.level.id].pop(cls.id)
         self.classes_widget[cls.level.id][1].pop(cls.id)

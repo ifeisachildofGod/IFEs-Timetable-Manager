@@ -150,7 +150,7 @@ class Window(QMainWindow):
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
-            self.export_editor = ExportsEditorDialogWidget()
+            self.export_editor = ExportsEditorDialogWidget(self)
             self.file = FileManager(self, self.export_editor, None, f"{FT_MAPPING[TABLE_EXTENSION_TYPE]};;{FT_MAPPING[TEMPLATE_EXTENSION_TYPE]}")
         elif index == 1:
             self.file.path = arg
@@ -222,7 +222,7 @@ class Window(QMainWindow):
         self.saved = False
         
         if self.file.path is not None:
-            self.setWindowTitle(f"{self.title} - {Path(self.file.path).as_posix()} *Unsaved")
+            self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()} *Unsaved")
         else:
             self.setWindowTitle(self.title)
     
@@ -247,6 +247,9 @@ class Window(QMainWindow):
             school = SCHOOL
         
         file_type = REV_FT_MAPPING[file_type] if file_type is not None else self._open_file_type
+        
+        if file_type is not None:
+            self._open_file_type = REV_FT_MAPPING[file_type]
         
         if file_type == TABLE_EXTENSION_TYPE:
             with open(self.file.path, "wb") as file:
@@ -318,7 +321,11 @@ class Window(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
-        file_menu.addAction("Export", "Ctrl+Shift+E", lambda: self.export_editor.exec())
+        file_menu.addSeparator()
+        file_menu.addAction("Export Subjects", coming_soon)
+        file_menu.addAction("Export Teachers", coming_soon)
+        file_menu.addAction("Export Class Levels", coming_soon)
+        file_menu.addAction("Export Timetable", lambda: self.export_editor.exec())
         file_menu.addSeparator()
         file_menu.addAction("Close", self.close)
         
@@ -334,12 +341,6 @@ class Window(QMainWindow):
         
         self.go_back_action = go_menu.addAction("Back", self.go_back)
         self.go_forward_action = go_menu.addAction("Forward", self.go_forward)
-        go_menu.addSeparator()
-        go_menu.addAction("Go to ID", coming_soon)
-        go_menu.addSeparator()
-        go_menu.addAction("Go to Subject", coming_soon)
-        go_menu.addAction("Go to Teacher", coming_soon)
-        go_menu.addAction("Go to Class", coming_soon)
         
         palette_action_group = QActionGroup(self)
         palette_action_group.setExclusive(True)
@@ -366,6 +367,7 @@ class Window(QMainWindow):
         help_menu.addAction("Check Updates", coming_soon)
         help_menu.addSeparator()
         help_menu.addAction("About", coming_soon)
+        help_menu.addAction("What Next", coming_soon)
         
         return menubar
     

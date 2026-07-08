@@ -127,8 +127,12 @@ class BaseWidget(QWidget):
     
     def delete(self):
         parent = self.parent()
-        if parent and isinstance(parent, QWidget):
-            parent.layout().removeWidget(self)
+        
+        if parent:
+            if isinstance(parent, (BaseWidget, BaseScrollWidget)):
+                parent.removeWidget(self)
+            elif isinstance(parent, QWidget):
+                parent.layout().removeWidget(self)
         
         self.deleteLater()
     
@@ -463,7 +467,8 @@ class StatusBar(BaseWidget):
         if index != 0 and index == len(l_statuses) - 1:
             list(self.statuses.values())[-1].popWidget(1)
         
-        widget.delete()
+        self.removeWidget(widget)
+        widget.deleteLater()
     
     def removeLinient(self, key: str):
         if key in self.statuses:
@@ -789,7 +794,9 @@ class BaseSettingWidget(BaseWidget):
         return widget.entry
     
     def remove(self, widget: BaseSettingEntry):
-        widget.delete()
+        self.scroll_widget.removeWidget(widget)
+        widget.deleteLater()
+        
         self.widgets.pop(widget.entry.id)
         self.get_global().remove(widget.entry.id)
         

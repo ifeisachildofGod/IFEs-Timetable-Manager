@@ -12,8 +12,12 @@ from PIL import Image as PILImage
 
 
 class TextThemeEditor(IconToolBarOption):
-    def __init__(self, text_theme: Optional[TextTheme] = None, cast_labels: Optional[list[QLabel]] = None):
+    def __init__(self, window: QMainWindow, text_theme: Optional[TextTheme] = None, cast_labels: Optional[list[QLabel]] = None):
         super().__init__()
+        
+        self._window = window
+        
+        self.__init = True
         
         self.font_display_label = QLabel("Text")
         
@@ -58,6 +62,12 @@ class TextThemeEditor(IconToolBarOption):
         self._fontLineStyleChanged(self.ul_cb.isChecked(), self.ol_cb.isChecked())
         self._fontColorChanged(self.c_cb.currentColor())
         self._textAlignment(self.ta_cb.currentText())
+        
+        self.__init = False
+    
+    def _unsaved(self):
+        if not self.__init:
+            self._window.saved_state_changed.emit(True)
     
     def text_theme(self):
         return TextTheme(
@@ -78,6 +88,8 @@ class TextThemeEditor(IconToolBarOption):
         )
     
     def _fontFamilyChanged(self, font_family: str):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -87,6 +99,8 @@ class TextThemeEditor(IconToolBarOption):
             self.setStyleProperty(label, "font-family", f"'{font_family}'")
     
     def _fontSizeChanged(self, size: int):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -95,10 +109,14 @@ class TextThemeEditor(IconToolBarOption):
             self.setStyleProperty(label, "font-size", f"{size}pt")
     
     def _fontOpacityChanged(self, opacity: int):
+        self._unsaved()
+        
         for label in self.cast_labels:
             self.setStyleProperty(label, "opacity", str(opacity))
     
     def _fontWeightChanged(self, bold: bool):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -106,6 +124,8 @@ class TextThemeEditor(IconToolBarOption):
             self.setStyleProperty(label, "font-weight", "bold" if bold else "normal")
     
     def _fontStyleChanged(self, italic: bool):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -113,6 +133,8 @@ class TextThemeEditor(IconToolBarOption):
             self.setStyleProperty(label, "font-style", "italic" if italic else "normal")
     
     def _fontLineStyleChanged(self, underline: bool, overline: bool):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -131,10 +153,14 @@ class TextThemeEditor(IconToolBarOption):
                 self.ul_cb.blockSignals(False)
     
     def _fontColorChanged(self, color: str):
+        self._unsaved()
+        
         for label in self.cast_labels:
             self.setStyleProperty(label, "color", color)
     
     def _fontLetterSpacingChanged(self, spacing: float):
+        self._unsaved()
+        
         for label in self.cast_labels:
             font = label.font()
             
@@ -142,6 +168,8 @@ class TextThemeEditor(IconToolBarOption):
             self.setStyleProperty(label, "letter-spacing", f"{spacing}px")
     
     def _textAlignment(self, alignment: str):
+        self._unsaved()
+        
         for label in self.cast_labels:
             self.setStyleProperty(label, "text-align", alignment.lower())
     
@@ -206,8 +234,12 @@ class TextThemeEditor(IconToolBarOption):
 class ColorComboBox(IconToolBarOption):
     colorSelected = pyqtSignal(str)
     
-    def __init__(self, color: QColor | str):
+    def __init__(self, color: QColor | str, window: Optional[QMainWindow] = None):
         super().__init__()
+        
+        self._window = window
+        
+        self.__init = True
         
         color = QColor(color)
         
@@ -238,6 +270,8 @@ class ColorComboBox(IconToolBarOption):
         self.getWidget().mousePressEvent = lambda _: None
         
         self.setContentsMargins(5, 5, 5, 5)
+        
+        self.__init = False
     
     def currentColor(self):
         return self._color
@@ -249,7 +283,13 @@ class ColorComboBox(IconToolBarOption):
         
         return f"#{"0" + r if len(r) == 1 else r}{"0" + g if len(g) == 1 else g}{"0" + b if len(b) == 1 else b}"
     
+    def _unsaved(self):
+        if self._window and not self.__init:
+            self._window.saved_state_changed.emit(True)
+    
     def setColor(self, color: QColor | str):
+        self._unsaved()
+        
         str_color = self._colorToHex(QColor(color))
         
         self.selected_color_hex_label.setText(str_color)
@@ -413,10 +453,14 @@ class ExportPreviewDialog(BaseDialogWidget):
 
 
 class ExportsEditorDialogWidget(BaseDialogWidget):
-    def __init__(self):
+    def __init__(self, window: QMainWindow):
+        self._window = window
+        
         super().__init__("Export Editor", BaseWidget)
     
     def _init(self, file_manager: FileManager):
+        self.__init = True
+        
         self.file_manager = file_manager
         
         self._initGeometry()
@@ -448,7 +492,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         central_widget.addWidget(self._initTimetableSection(), stretch=8)
         
         self.addWidget(central_widget)
-        self.addWidget(self._initBaseWidget())
+        self.addWidget(self._initBottomWidget())
         
         for lvl_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
             for cls_id in cls_ids:
@@ -457,8 +501,10 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                 self.select_cb_dict[lvl_id][1][cls_id].blockSignals(False)
                 
                 self.export_button.setDisabled(False)
+        
+        self.__init = False
     
-    def _initBaseWidget(self):
+    def _initBottomWidget(self):
         base_widget = BaseWidget(QHBoxLayout)
         
         export_dialog = ExportPreviewDialog(
@@ -545,6 +591,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         e_widget.addWidget(e_bottom_widget)
         
         def csv_disable(text: str): 
+            self._unsaved()
+            
             f_widget.setDisabled(text == "CSV")
             t_widget.setDisabled(text == "CSV")
             
@@ -552,12 +600,14 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self.eft_cb.currentTextChanged.connect(csv_disable)
         
-        self.cls_title_text_theme = TextThemeEditor(SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme, self.t_labels)
+        self.cls_title_text_theme = TextThemeEditor(self._window, SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme, self.t_labels)
         self.ttbl_heading_text_theme = TextThemeEditor(
+            self._window,
             SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme,
             self.p_labels
         )
         self.ttbl_content_text_theme = TextThemeEditor(
+            self._window,
             SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme,
             self.c_labels
         )
@@ -567,11 +617,11 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         f_widget.addWidget(LabeledWidget("Timetable Heading Text Theme", self.ttbl_heading_text_theme))
         f_widget.addWidget(LabeledWidget("Timetable Content Text Theme", self.ttbl_content_text_theme))
         
-        self.ttbl_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color)
-        self.ttbl_heading_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color)
-        self.ttbl_content_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color)
-        self.break_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color)
-        self.border_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.border_color)
+        self.ttbl_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color, self._window)
+        self.ttbl_heading_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, self._window)
+        self.ttbl_content_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color, self._window)
+        self.break_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color, self._window)
+        self.border_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.border_color, self._window)
         
         t_widget = BaseWidget() ; t_widget.setContentsMargins(35, 0, 35, 0)
         t_widget.addWidget(LabeledWidget("Timetable Background Color", self.ttbl_bg_color))
@@ -583,8 +633,10 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         thickness_widget.addWidget(t_l2_widg := LabeledWidget("Horizontal Line Thickness", hlt_sb := QSpinBox())) ; t_l2_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         thickness_widget.addWidget(t_l1_widg := LabeledWidget("       Vertical Line Thickness", vlt_sb := QSpinBox())) ; t_l1_widg.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         t_widget.addWidget(thickness_widget, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.hlt_sb = hlt_sb ; self.hlt_sb.setMaximum(30) ; self.hlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness)
-        self.vlt_sb = vlt_sb ; self.vlt_sb.setMaximum(30) ; self.vlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
+        self.hlt_sb = hlt_sb ; self.vlt_sb = vlt_sb
+        self.hlt_sb.setMaximum(30) ; self.vlt_sb.setMaximum(30) 
+        self.hlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness) ; self.vlt_sb.setValue(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
+        self.hlt_sb.valueChanged.connect(self._unsaved) ; self.vlt_sb.valueChanged.connect(self._unsaved)
         
         self.eft_cb.setCurrentText(SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type)
         
@@ -601,7 +653,13 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         return main_widget
     
+    def _unsaved(self):
+        if not self.__init:
+            self._window.saved_state_changed.emit(True)
+    
     def _select_sch(self, state: bool):
+        self._unsaved()
+        
         for _, cls_cbs in self.select_cb_dict.values():
             for cls_cb in cls_cbs.values():
                 if state != cls_cb.isChecked():
@@ -609,6 +667,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _make_lvl_cb_func(self, level_id: ID):
         def lvl_cb_func(state: bool):
+            self._unsaved()
+            
             for cls_cb in self.select_cb_dict[level_id][1].values():
                 if state != cls_cb.isChecked():
                     cls_cb.click()
@@ -630,6 +690,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _make_cls_cb_func(self, level_id: ID, cls_id: ID):
         def cls_cb_func(state: bool):
+            self._unsaved()
+            
             lvl_cb, cls_cbs = self.select_cb_dict[level_id]
             
             if state:
@@ -666,6 +728,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.setGeometry(int(screen_geom.width() / 2 - self.geometry().width() / 2), int(screen_geom.height() / 2 - self.geometry().height() / 2), self.geometry().width(), self.geometry().height())
     
     def _set_export_mode(self, mode: int):
+        self._unsaved()
+        
         SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = mode
     
     def _set_timetable_export_theme(self):
@@ -759,7 +823,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                 data = pygame.image.tostring(surface, "RGB")
                 img = PILImage.frombytes("RGB", surface.get_size(), data)
                 
-                img.save(p.strip().removesuffix(".png") + ".jpg", quality=95)
+                img.save(p.strip().removesuffix(".png") + ".jpg", quality=100)
         else:
             _l: list[tuple[pygame.Surface, str]] = []
             internal = a0 is not None and a0 == True
@@ -771,7 +835,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                     for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
                         for cls_id in cls_ids:
                             cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
-                            body += get_export_html_text(cls)
+                            body += get_export_html_text(cls).format(**html_style_replacements)
                         
                     html = HTML_TEXT.format(title="School", body=body, subject_count=subject_count, **html_style_replacements)
                     
@@ -839,7 +903,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         
                         for cls_id in cls_ids:
                             cls = cls_level.classes[cls_id]
-                            body += get_export_html_text(cls)
+                            body += get_export_html_text(cls).format(**html_style_replacements)
                         
                         html = HTML_TEXT.format(title=cls_level.name.full(), body=body, subject_count=subject_count, **html_style_replacements)
                         
@@ -909,7 +973,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         for cls_id in cls_ids:
                             cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
                             
-                            body = get_export_html_text(cls)
+                            body = get_export_html_text(cls).format(**html_style_replacements)
                             html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body, subject_count=subject_count, **html_style_replacements)
                             
                             with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
@@ -1081,7 +1145,7 @@ def get_export_surface(cls: Class):
                     pygame.draw.rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     pygame.draw.line(screen, SCHOOL.settings.EXPORT_timetable_export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if row == cls.weekdays[day][1] - 1 else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval)
                     
                     ttbl_time_surf = _get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, f"{start_time} - {end_time}")
                     ttbl_time_rect = pygame.Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
@@ -1124,7 +1188,7 @@ def get_export_surface(cls: Class):
                     pygame.draw.rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     pygame.draw.line(screen, SCHOOL.settings.EXPORT_timetable_export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if row == cls.weekdays[day][1] - 1 else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval)
                     
                     ttbl_time_surf = _get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, f"{start_time.hour}:{start_time.minute} - {end_time.hour}:{end_time.minute}")
                     ttbl_time_rect = pygame.Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
@@ -1229,10 +1293,6 @@ HTML_EXPORT_STYLE = """
     .timetable {{
         display: grid;
         grid-template-columns: 100px repeat({subject_count}, 1fr);
-        border-top: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-bottom: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-left: calc({border_vertical_width}px / 2) solid {border_color};
-        border-right: calc({border_vertical_width}px / 2) solid {border_color};
         margin-bottom: 100px;
     }}
     
@@ -1242,21 +1302,27 @@ HTML_EXPORT_STYLE = """
     
     .ttbl_content {{
         background-color: {ttbl_content_bg_color};
-        border-top: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-bottom: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-left: calc({border_vertical_width}px / 2) solid {border_color};
-        border-right: calc({border_vertical_width}px / 2) solid {border_color};
+        border-bottom: {border_horizontal_width}px solid {border_color};
+        border-right: {border_vertical_width}px solid {border_color};
     }}
     .ttbl_content h3 {{
         {ttbl_content_font_style}
     }}
     
+    .timing {{
+        background-color: {ttbl_heading_bg_color};
+        border-bottom: {border_horizontal_width}px solid {border_color};
+        border-right: {border_vertical_width}px solid {border_color};
+    }}
+    .timing h3 {{
+        {weekday_text_font_style}
+    }}
+    
     .weekday {{
         background-color: {ttbl_heading_bg_color};
-        border-top: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-bottom: calc({border_horizontal_width}px / 2) solid {border_color};
-        border-left: calc({border_vertical_width}px / 2) solid {border_color};
-        border-right: calc({border_vertical_width}px / 2) solid {border_color};
+        border-bottom: {border_horizontal_width}px solid {border_color};
+        border-right: {border_vertical_width}px solid {border_color};
+        border-left: {border_vertical_width}px solid {border_color};
     }}
     .weekday h3 {{
         {weekday_text_font_style}
@@ -1264,9 +1330,7 @@ HTML_EXPORT_STYLE = """
     
     .break {{
         background-color: {break_bg_color};
-    }}
-    .break h3 {{
-        {break_text_font_style}
+        border-right: {border_vertical_width}px solid {border_color};
     }}
 """
 
@@ -1289,15 +1353,53 @@ HTML_TEXT = f"""
 
 def get_export_html_text(cls: Class):
     timetable, _ = SCHOOL.timetables_data[cls.id]
+    timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
-    ttbl_text = ""
+    ttbl_text = '<div class="ttbl_content" style="background-color: {ttbl_bg_color};"><h3></h3></div>'
     
-    for day in cls.weekdays:
+    timing = timings["Everyday"]
+    for i in range(cls.level.period_amount):
+        bp_index = cls.level.break_period - 1
+        
+        b_pst = i > bp_index
+        n_b_pst = i + 1 > bp_index
+        
+        brk = timing.break_time_duration * (i != 0 and b_pst)
+        n_brk = timing.break_time_duration * n_b_pst
+        
+        time_str = f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}"
+        ttbl_text += f'<div class="timing" style="border-top: {{border_horizontal_width}}px solid {{border_color}};"><h3>{time_str}</h3></div>'
+    
+    ttbl_text += "\n\t\t\t"
+    
+    weekdays = list(timetable)
+    
+    for day, periods in timetable.items():
+        if day in timings:
+            timing = timings[day]
+            
+            b_pst = 0
+            n_b_pst = 0
+            
+            ttbl_text += f'<div class="weekday"><h3></h3></div>'
+            
+            for i, subject in enumerate(periods):
+                b_pst |= timetable[day][i - 1].id == BreakPeriod.id
+                n_b_pst |= subject.id == BreakPeriod.id
+                
+                brk = timing.break_time_duration * (i != 0 and b_pst)
+                n_brk = timing.break_time_duration * n_b_pst
+                
+                time_str = f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}"
+                ttbl_text += f'<div class="timing"{' style="border-top: {border_horizontal_width}px solid {border_color};"' if subject.id == BreakPeriod.id else ''}><h3>{time_str}</h3></div>'
+            
+            ttbl_text += "\n\t\t\t"
+        
         ttbl_text += f'<div class="weekday"><h3>{day}</h3></div>'
         
-        for subject in timetable[day]:
+        for subject in periods:
             ttbl_text += (
-                f'<div class="break"><h3></h3></div>'
+                f'<div class="break"{' style="border-bottom: {border_horizontal_width}px solid {border_color};"' if weekdays.index(day) == len(weekdays) - 1 else ''}><h3></h3></div>'
                 if subject and subject.id == BreakPeriod.id else
                 (f'<div class="ttbl_content"><h3>{"" if subject.id == FreePeriod.id else subject.name.short()}</h3></div>')
             )
@@ -1313,12 +1415,44 @@ def get_export_html_text(cls: Class):
 
 
 def write_export_csv(writer, cls: Class):
-    writer.writerow(cls.weekdays)
-    
     timetable, _ = SCHOOL.timetables_data[cls.id]
+    timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
+    timing = timings["Everyday"]
+    evd_timing_strings = [""]
     for i in range(cls.level.period_amount):
-        writer.writerow([timetable[day][i].name.short() for day in cls.weekdays])
+        bp_index = cls.level.break_period - 1
+        
+        b_pst = i > bp_index
+        n_b_pst = i + 1 > bp_index
+        
+        brk = timing.break_time_duration * (i != 0 and b_pst)
+        n_brk = timing.break_time_duration * n_b_pst
+        
+        evd_timing_strings.append(f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}")
+    
+    writer.writerow(evd_timing_strings)
+    
+    for day, periods in timetable.items():
+        if day in timings:
+            evd_timing_strings = [""]
+            timing = timings[day]
+            
+            b_pst = 0
+            n_b_pst = 0
+            
+            for i, subject in enumerate(periods):
+                b_pst |= timetable[day][i - 1].id == BreakPeriod.id
+                n_b_pst |= subject.id == BreakPeriod.id
+                
+                brk = timing.break_time_duration * (i != 0 and b_pst)
+                n_brk = timing.break_time_duration * n_b_pst
+                
+                evd_timing_strings.append(f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}")
+            
+            writer.writerow(evd_timing_strings)
+        
+        writer.writerow([day] + [subject.name.full() for subject in periods])
 
 
 

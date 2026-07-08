@@ -64,10 +64,9 @@ class SubjectSelectionList(BaseSelectionList):
     def item_removed(self, id: ID):
         SCHOOL.teachers[id].subjects.pop(self.id)
         
-        for _, cl in SCHOOL.class_levels:
-            for cls in cl.classes.values():
-                if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
-                    cls.subjects[self.id].teacher = None
+        for cls in self.subject.classes.values():
+            if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
+                cls.subjects[self.id].teacher = None
     
     def item_selected(self, id: ID):
         SCHOOL.teachers[id].subjects[self.id] = self.subject
@@ -83,10 +82,9 @@ class TeacherSelectionList(BaseSelectionList):
     def item_removed(self, id: ID):
         self.teacher.subjects.pop(id)
         
-        for _, cl in SCHOOL.class_levels:
-            for cls in cl.classes.values():
-                if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
-                    cls.subjects[id].teacher = None
+        for cls in self.subject.classes.values():
+            if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
+                cls.subjects[self.id].teacher = None
     
     def item_selected(self, id: ID):
         self.teacher.subjects[id] = SCHOOL.subjects[id]
