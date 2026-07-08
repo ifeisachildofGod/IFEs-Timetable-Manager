@@ -172,11 +172,11 @@ class SchoolFrameWork:
         if cls.id not in self.timetables_data:
             self.timetables_data[cls.id] = (
                 {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays},
-                list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()]))
+                list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.teacher is not None]))
             )
         else:
             timetable, timetable_remains = self.timetables_data[cls.id]
-            break_periods = {d: next(i for i, s in periods if s.id == BreakPeriod.id) for d, periods in timetable.items()}
+            break_periods = {d: next(i for i, s in enumerate(periods) if s.id == BreakPeriod.id) for d, periods in timetable.items()}
             
             for d in cls.level.weekdays:
                 cls.level.period_amount
@@ -184,8 +184,7 @@ class SchoolFrameWork:
                 timetable[d].extend([BreakPeriod() if i == break_periods[d] else FreePeriod() for i in range(cls.level.period_amount)])
             
             timetable_remains.clear()
-            timetable_remains.extend(list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values()])))
-        
+            timetable_remains.extend(list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.teacher is not None])))
         
         for (day, period), s_id in cls.locked_subjects.items():
             subject = cls.subjects[s_id]
@@ -208,8 +207,8 @@ class SchoolFrameWork:
             
             timetable, timetable_remains = self.timetables_data[cls.id]
             
-            assert timetable is not None
-            assert timetable_remains is not None
+            assert timetable is not None, "Timetable is None"
+            assert timetable_remains is not None, "Timetable Remains is None"
             
             total_available_periods = sum(len(periods) for periods in timetable.values())
             total_subj_amt = sum(cls.level.subjects_occurence[s_id].week_max for s_id in cls.subjects)
@@ -254,7 +253,7 @@ class SchoolFrameWork:
                 
                 day, index = selected_period
                 
-                assert timetable[day][index].id == FreePeriod.id
+                assert timetable[day][index].id == FreePeriod.id, f"Slot on {day} in Period {index + 1} is occupied"
                 
                 timetable[day][index] = cls.subjects[subject.id]
                 timetable_remains.remove(subject)
@@ -363,9 +362,7 @@ class SchoolFrameWork:
             self._log_data[cls.id][s_id] = []
         
         subject = cls.subjects[s_id]
-        timetable = self.timetables_data[cls.id][0]
-        
-        assert timetable
+        timetable, _ = self.timetables_data[cls.id]
         
         periods = timetable[day]
         
@@ -373,12 +370,7 @@ class SchoolFrameWork:
             self._log_data[cls.id][s_id].append(((day, p_index + 1), "Period out of timetable range"))
             return -math.inf
         
-        assert subject.teacher
-        
-        _l_d_freq = [cls.level.subjects_occurence[s.id].day_max for s in cls.subjects.values()] # type: ignore
-        avg_day_freq = sum(_l_d_freq) // len(_l_d_freq)
-        
-        assert isinstance(avg_day_freq, int)
+        assert subject.teacher, f"{cls.level.name.full()} {cls.name} does not have a {subject.name.full()} teacher"
         
         if (
                 period.id != FreePeriod.id or
@@ -803,7 +795,7 @@ class SchoolFrameWork:
             
             subjects_occurence = " ".join([f"{l_subjects.index(cl_s_id) + 1}/{cl_so.day_max}/{cl_so.week_max}" for cl_s_id, cl_so in cl.subjects_occurence.items()])
             
-            text += f"({cl.name.full()} - {cl_id}) ; {subjects_occurence}\n"
+            text += f"({cl.name.full()} - {cl_id}): {subjects_occurence}\n"
             
             for c_id, c in cl.classes.items():
                 t_s_mapping = " ".join([f"{l_teachers.index(c_s.teacher.id) + 1}/{s_t_index_mapping[c_s.teacher.id].index(l_subjects.index(c_s_id) + 1) + 1}" for c_s_id, c_s in c.subjects.items()])

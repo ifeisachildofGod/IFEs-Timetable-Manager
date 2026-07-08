@@ -81,6 +81,7 @@ class Class:
     
     def delete_subject(self, id: ID):
         self.subjects.pop(id)
+        self.school.subjects[id].classes.pop(self.id)
         
         for v, s_id in self.locked_subjects.copy().items():
             if s_id == id:
@@ -89,8 +90,9 @@ class Class:
     def delete(self):
         self.level.classes.pop(self.id)
         
-        for s_id in self.subjects:
+        for s_id in self.subjects.copy():
             self.school.subjects[s_id].classes.pop(self.id)
+            self.subjects.pop(s_id)
 class ClassLevelName(str):
     def __init__(self, *args):
         super().__init__()

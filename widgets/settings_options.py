@@ -51,15 +51,23 @@ class BaseSelectionList(BaseSettingDialog):
 
 class SubjectSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingWidget, id, title):
-        super().__init__(parent, id, title, ((t_id, teacher) for t_id, teacher in SCHOOL.teachers if id in teacher.subjects), SCHOOL.teachers)
+        self.subject = SCHOOL.subjects[id]
         
-        self.subject = SCHOOL.subjects[self.id]
+        selected_iter = list((t_id, teacher) for t_id, teacher in SCHOOL.teachers if id in teacher.subjects)
+        
+        scope = SCHOOL.teachers
+        if next((False for cls in self.subject.classes.values() if cls.subjects[id].teacher is None), True):
+            scope = selected_iter.copy()
+        
+        super().__init__(parent, id, title, iter(selected_iter), scope)
     
     def item_removed(self, id: ID):
         SCHOOL.teachers[id].subjects.pop(self.id)
         
         for _, cl in SCHOOL.class_levels:
-            cl.delete_subject(self.id, id)
+            for cls in cl.classes.values():
+                if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
+                    cls.subjects[self.id].teacher = None
     
     def item_selected(self, id: ID):
         SCHOOL.teachers[id].subjects[self.id] = self.subject
@@ -68,13 +76,17 @@ class TeacherSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingWidget, id, title):
         self.teacher = SCHOOL.teachers[id]
         
-        super().__init__(parent, id, title, iter(self.teacher.subjects.items()), ((s_id, s) for s_id, s in SCHOOL.subjects if next((True for cls in s.classes.values() if s_id in cls.subjects and (cls.subjects[s_id].teacher is None or cls.subjects[s_id].teacher.id == id)), False)))
+        scope_iter = ((s_id, s) for s_id, s in SCHOOL.subjects if next((True for cls in s.classes.values() if s_id in cls.subjects and (cls.subjects[s_id].teacher is None or cls.subjects[s_id].teacher.id == id)), False))
+        
+        super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope_iter)
     
     def item_removed(self, id: ID):
         self.teacher.subjects.pop(id)
         
         for _, cl in SCHOOL.class_levels:
-            cl.delete_subject(id, self.id)
+            for cls in cl.classes.values():
+                if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
+                    cls.subjects[id].teacher = None
     
     def item_selected(self, id: ID):
         self.teacher.subjects[id] = SCHOOL.subjects[id]
@@ -505,18 +517,26 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 
                 self.main_guy_is_clicked = True
                 
+                cls_level = SCHOOL.class_levels[lvl_id]
+                
                 if is_on:
                     if not self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id]:
                         self.main_guy_is_clicked = False
                         self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
                     else:
-                        for c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].values():
+                        for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
                             if not c_box.isChecked():
                                 c_box.click()
+                                
+                                cls_level.classes[c_id].subjects[subject.id].teacher = self.teacher
+                                self.timetable_editor.timetable_widgets[lvl_id][c_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
                 else:
-                    for c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].values():
+                    for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
                         if c_box.isChecked():
                             c_box.click()
+                            
+                            cls_level.classes[c_id].subjects[subject.id].teacher = None
+                            self.timetable_editor.timetable_widgets[lvl_id][c_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
                 
                 self.main_guy_is_clicked = False
         

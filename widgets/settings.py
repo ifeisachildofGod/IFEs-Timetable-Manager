@@ -21,7 +21,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
         self.entry = entry
     
     def remove(self):
-        for cls in self.entry.classes.values():
+        for cls in self.entry.classes.copy().values():
             if self.entry.id in cls.subjects:
                 self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
                 
@@ -88,7 +88,7 @@ class TeachersSettingEntry(BaseSettingEntry):
             for cls_id, cls in subject.classes.items():
                 cls_subject = cls.subjects[subject_id]
                 
-                if cls_subject.teacher and self.entry.id == cls_subject.teacher.id:
+                if cls_subject.teacher is not None and self.entry.id == cls_subject.teacher.id:
                     self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
                     cls_subject.teacher = None
         
@@ -98,49 +98,52 @@ class TeachersSettingEntry(BaseSettingEntry):
         return self.entry.name.start, (self.entry.name.start, self.entry.name.first, self.entry.name.other, self.entry.name.abbrev)
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
-        self.entry.name.start = text
-        
         full_name_e = extended_line_edits[0]
         full_name_e.setText(text)
+        
+        for le in extended_line_edits[1:]:
+            le.blockSignals(True)
+            le.setText("")
+            le.blockSignals(False)
+        
+        self.entry.name.first = None
+        self.entry.name.other = None
+        self.entry.name.abbrev = None
     
     def extended_name_changed(self, index, text, simple_line_edit):
         match index:
             case 0:
                 self.entry.name.start = text
-                
-                if text != simple_line_edit.text():
-                    simple_line_edit.setText(text)
             case 1:
                 self.entry.name.first = text
             case 2:
                 self.entry.name.other = text
             case 3:
                 self.entry.name.abbrev = text
+        
+        if self.extended_edits_widget.isVisible():
+            simple_line_edit.blockSignals(True)
+            simple_line_edit.setText(f"{self.entry.name.start or ""}{" " + self.entry.name.first if self.entry.name.first is not None else ""}{" " + self.entry.name.other if self.entry.name.other is not None else ""}")
+            simple_line_edit.blockSignals(False)
     
     def extended_name_empty(self, index, text):
         key = f"E{index}EmptyNameWarning"
         
+        if text:
+            self.status_widget.removeLinient(key)
+        
         match index:
             case 0:
-                if text:
-                    self.status_widget.removeLinient(key)
-                else:
+                if not text and self.extended_edits_widget.isVisible():
                     self.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
             case 1:
-                if text:
-                    self.status_widget.removeLinient(key)
-                else:
-                    self.status_widget.removeLinient("EmptyNameWarning")
+                if not text:
                     self.status_widget.addMessage(Status.WARN, key, f"First name is empty")
             case 2:
-                if text:
-                    self.status_widget.removeLinient(key)
-                else:
+                if not text:
                     self.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
             case 3:
-                if text:
-                    self.status_widget.removeLinient(key)
-                else:
+                if not text:
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
 class ClassLevelsSettingEntry(BaseSettingEntry):

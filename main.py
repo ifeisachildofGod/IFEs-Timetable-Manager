@@ -302,6 +302,8 @@ class Window(QMainWindow):
     def create_menu_bar(self):
         menubar = QMenuBar()
         
+        coming_soon = lambda: QMessageBox.information(self, "Coming Soon", "This feature has not been implemented yet")
+        
         # File Menu
         file_menu = menubar.addMenu("File")
         edit_menu = menubar.addMenu("Edit")
@@ -324,20 +326,20 @@ class Window(QMainWindow):
         edit_menu.addAction("Redo", "Ctrl+Y", self.redo)
         edit_menu.addAction("Undo", "Ctrl+Z", self.undo)
         edit_menu.addSeparator()
-        edit_menu.addAction("Cut", "Ctrl+X")
-        edit_menu.addAction("Copy", "Ctrl+C")
-        edit_menu.addAction("Paste", "Ctrl+V")
+        edit_menu.addAction("Cut", "Ctrl+X", coming_soon)
+        edit_menu.addAction("Copy", "Ctrl+C", coming_soon)
+        edit_menu.addAction("Paste", "Ctrl+V", coming_soon)
         edit_menu.addSeparator()
-        edit_menu.addAction("Find", "Ctrl+F")
+        edit_menu.addAction("Find", "Ctrl+F", coming_soon)
         
         self.go_back_action = go_menu.addAction("Back", self.go_back)
         self.go_forward_action = go_menu.addAction("Forward", self.go_forward)
         go_menu.addSeparator()
-        go_menu.addAction("Go to ID")
+        go_menu.addAction("Go to ID", coming_soon)
         go_menu.addSeparator()
-        go_menu.addAction("Go to Subject")
-        go_menu.addAction("Go to Teacher")
-        go_menu.addAction("Go to Class")
+        go_menu.addAction("Go to Subject", coming_soon)
+        go_menu.addAction("Go to Teacher", coming_soon)
+        go_menu.addAction("Go to Class", coming_soon)
         
         palette_action_group = QActionGroup(self)
         palette_action_group.setExclusive(True)
@@ -356,14 +358,14 @@ class Window(QMainWindow):
             palette_action_group.addAction(accent_action)
             palette_dict[main_color].addAction(accent_action)
         
-        help_menu.addAction("Welcome")
+        help_menu.addAction("Welcome", coming_soon)
         help_menu.addSeparator()
-        help_menu.addAction("Documentation")
-        help_menu.addAction("View License")
+        help_menu.addAction("Documentation", coming_soon)
+        help_menu.addAction("View License", coming_soon)
         help_menu.addSeparator()
-        help_menu.addAction("Check Updates")
+        help_menu.addAction("Check Updates", coming_soon)
         help_menu.addSeparator()
-        help_menu.addAction("About")
+        help_menu.addAction("About", coming_soon)
         
         return menubar
     

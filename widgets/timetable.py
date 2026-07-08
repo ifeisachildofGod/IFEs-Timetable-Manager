@@ -96,15 +96,16 @@ class ClashOverlay(UnMouseableOverlay):
             clash_rects[-1][0] = QColor(self.colors[(row * x_max + col + cls_index) % len(self.colors)])
         
         for color, rects_data in clash_rects:
+            d = rects_data[0][2]
+            
+            index = positions_connections_alignment_mappings[d]
+            i_mod = index % 2
+            
+            offset_factor = ((index + 1) // 2) * (i_mod * 2 - 1)
+            offset = QPointF(painter.pen().width() * 2 * offset_factor, 0)
+            
             for i, (rect, subject, day) in enumerate(rects_data):
-                index = positions_connections_alignment_mappings[day]
-                
                 painter.setPen(QPen(color, 6))
-                
-                i_mod = index % 2
-                
-                offset_factor = ((index + 1) // 2) * (i_mod * 2 - 1)
-                offset = QPointF(painter.pen().width() * 2 * offset_factor, 0)
                 
                 if i < len(rects_data) - 1:
                     rect2 = rects_data[i + 1][0]
@@ -116,14 +117,14 @@ class ClashOverlay(UnMouseableOverlay):
                     
                     painter.drawLine(rect.center(), p1)
                     painter.drawLine(rect2.center(), p2)
-                    
-                    positions_connections_alignment_mappings[day] += 1
                 
                 painter.setBrush(color)
                 painter.drawRoundedRect(rect, 5, 5)
                 
                 painter.setPen(QPen(QColor("black" if (color.red() + color.green() + color.blue()) / 3 > 150 else "white"), 4))
                 painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, subject.name.short())
+            
+            positions_connections_alignment_mappings[d] += 1
         
         return super().paintEvent(a0)
 
@@ -249,7 +250,7 @@ class ClashDisplayDialog(BaseDialogWidget):
 class _ExtrasDraggableSubjectLabel(QLabel):
     clicked = pyqtSignal(QMouseEvent)
     
-    def __init__(self, subject: Subject | CombinedSubject):
+    def __init__(self, subject: Subject | CombinedSubject, cls: Class):
         name = subject.name.full()
         
         if isinstance(subject, CombinedSubject):
@@ -259,9 +260,11 @@ class _ExtrasDraggableSubjectLabel(QLabel):
         super().__init__(name)
         
         self.subject = subject
+        self.cls = cls
         
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setProperty("class", 'RemSubjectItem')
+        
         if isinstance(self.subject, Subject):
             self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}")
         else:
@@ -287,13 +290,15 @@ class _ExtrasDraggableSubjectLabel(QLabel):
         self.setText(name)
 
 class TimeTableItem(QTableWidgetItem):
-    def __init__(self, subject: Subject | CombinedSubject, locked: bool = False):
+    def __init__(self, subject: Subject | CombinedSubject, cls: Class, locked: bool = False):
         super().__init__()
         
         self.subject = subject
+        self.cls = cls
+        self.locked = locked
+        
         self.break_time = BreakPeriod.id == self.subject.id
         self.free_period = FreePeriod.id == self.subject.id
-        self.locked = locked
         
         self.setFlags(self.flags() & Qt.ItemFlag.ItemIsEnabled)
         
@@ -340,9 +345,12 @@ class TimeTableItem(QTableWidgetItem):
             self.setBackground(color)
 
 class TimetableTimeEditor(BaseWidget):
-    def __init__(self, t_time: TimetableTime):
+    def __init__(self, parent: "SchoolTimetableEditor", t_time: TimetableTime):
         super().__init__()
         
+        self.__init = True
+        
+        self._parent = parent
         self.t_time = t_time
         
         self.start_time_edit = QTimeEdit()
@@ -364,15 +372,26 @@ class TimetableTimeEditor(BaseWidget):
         self.start_time_edit.timeChanged.connect(self.start_time_changed)
         self.interval_sb.valueChanged.connect(self.interval_changed)
         self.break_time_duration_sb.valueChanged.connect(self.break_time_duration_changed)
+        
+        self.__init = False
     
     def start_time_changed(self, time: QTime):
+        if not self.__init:
+            self._parent.window().saved_state_changed.emit(True)
+        
         self.t_time.start_time.hour = time.hour()
         self.t_time.start_time.minute = time.minute()
     
     def interval_changed(self, interval: int):
+        if not self.__init:
+            self._parent.window().saved_state_changed.emit(True)
+        
         self.t_time.interval = interval
     
     def break_time_duration_changed(self, duration: int):
+        if not self.__init:
+            self._parent.window().saved_state_changed.emit(True)
+        
         self.t_time.break_time_duration = duration
 
 
@@ -554,7 +573,7 @@ class ClassTimetable(QTableWidget):
         
         # Set size policies
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(self.rowCount() * 30 + 45)  # Adjust row height + header
+        self.setFixedHeight(self.rowCount() * 30 + 42)  # Adjust row height + header
         
         # Enable drag & drop
         self.setDragEnabled(True)
@@ -604,12 +623,12 @@ class ClassTimetable(QTableWidget):
         
         self.setRowCount(period_amt)
         self.setVerticalHeaderLabels([f"Period {i + 1}" for i in range(self.rowCount())])
-        self.setFixedHeight(self.rowCount() * 30 + 45)
+        self.setFixedHeight(self.rowCount() * 30 + 42)
         
         for col in range(self.columnCount()):
             for row in range(self.rowCount()):
                 if self.item(row, col) is None:
-                    self.setItem(row, col, TimeTableItem(FreePeriod()))
+                    self.setItem(row, col, TimeTableItem(FreePeriod(), self.cls))
         
         self.period_amt = period_amt
     
@@ -649,8 +668,8 @@ class ClassTimetable(QTableWidget):
         self.takeItem(target_row, target_col)
         
         # Create new items
-        new_target = TimeTableItem(source_item.subject)
-        new_source = TimeTableItem(target_item.subject)
+        new_target = TimeTableItem(source_item.subject, self.cls)
+        new_source = TimeTableItem(target_item.subject, self.cls)
         
         # Set new items
         self.setItem(target_row, target_col, new_target)
@@ -697,10 +716,10 @@ class ClassTimetable(QTableWidget):
             
             source: TimeTableItem = self.item(row, col)
             
-            if source is not None and  not source.locked and (self.editor.remainder_source_ref is not None or source.subject.id != FreePeriod.id):
+            if source is not None and not source.locked and (self.editor.remainder_source_ref is not None or source.subject.id != FreePeriod.id):
                 event.accept()
                 if self.editor.remainder_source_ref is None:
-                    self.current_source: tuple[TimeTableItem, Class] = source, self.cls
+                    self.current_source = source
     
     def dragMoveEvent(self, event: QDragMoveEvent):
         if event.mimeData().hasText():
@@ -721,7 +740,7 @@ class ClassTimetable(QTableWidget):
                         )
                     )
             else:
-                ignore = row == break_time - 1
+                ignore = self.editor.remainder_source_ref.cls.id != self.cls.id or row == break_time - 1
             
             ignore = ignore or (self.weekdays[col], row + 1) in self.cls.locked_subjects
             
@@ -733,28 +752,26 @@ class ClassTimetable(QTableWidget):
     def dropEvent(self, event: QDropEvent):
         if event.mimeData().hasText():
             if self.current_source is not None:
-                source_item, source_cls = self.current_source
-                
                 target_row = self.rowAt(int(event.position().y()))
                 target_col = self.columnAt(int(event.position().x()))
                 target_item = self.item(target_row, target_col)
                 
                 # Handle swapping
                 if target_item is not None and not target_item.locked and isinstance(target_item, TimeTableItem):
-                    if source_cls.id == self.cls.id:
-                        self.timetable_exchange(source_item, target_item)
+                    if self.current_source.cls.id == self.cls.id:
+                        self.timetable_exchange(self.current_source, target_item)
                         
                         event.accept()
                         
                         del target_item
-            elif self.editor.remainder_source_ref is not None:
+            elif self.editor.remainder_source_ref is not None and self.cls.id == self.editor.remainder_source_ref.cls.id:
                 row = self.rowAt(int(event.position().y()))
                 col = self.columnAt(int(event.position().x()))
                 target_item = self.item(row, col)
                 
                 self.blockSignals(True)  # Prevent unnecessary updates
                 
-                new_target = TimeTableItem(self.editor.remainder_source_ref.subject)
+                new_target = TimeTableItem(self.editor.remainder_source_ref.subject, self.cls)
                 
                 self.takeItem(row, col)
                 self.setItem(row, col, new_target)
@@ -784,7 +801,7 @@ class ClassTimetable(QTableWidget):
         if not self.__init:
             self.window().saved_state_changed.emit(True)
         
-        remainder_label = _ExtrasDraggableSubjectLabel(subject)
+        remainder_label = _ExtrasDraggableSubjectLabel(subject, self.cls)
         remainder_label.clicked.connect(self.editor.make_ds_func(remainder_label))
         
         if index is not None:
@@ -797,15 +814,12 @@ class ClassTimetable(QTableWidget):
             self.timetable_remains.append(subject)
     
     def removeRemainder(self, remainder: _ExtrasDraggableSubjectLabel):
-        try:
-            if not self.__init:
-                self.window().saved_state_changed.emit(True)
-            
-            self.remainder_labels.remove(remainder)
-            self.remainder_widget.removeWidget(remainder)
-            self.timetable_remains.remove(remainder.subject)
-        except Exception as e:
-            QMessageBox.critical(None, e.__class__.__name__, str(e))
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
+        
+        self.remainder_labels.remove(remainder)
+        self.remainder_widget.removeWidget(remainder)
+        self.timetable_remains.remove(remainder.subject)
         
         remainder.deleteLater()
     
@@ -851,7 +865,7 @@ class ClassTimetable(QTableWidget):
     def populate_timetable(self):
         for col, day in enumerate(self.weekdays):
             for row, subject in enumerate(self.timetable[day] + [FreePeriod() for _ in range(self.period_amt - len(self.timetable[day]))]):
-                item = TimeTableItem(subject, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
+                item = TimeTableItem(subject, self.cls, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
                 
                 self.setItem(row, col, item)
         
@@ -891,7 +905,7 @@ class ClassTimetable(QTableWidget):
                 
                 self.addRemainder(item.subject)
                 
-                self.setItem(row, col, TimeTableItem(free_period))
+                self.setItem(row, col, TimeTableItem(free_period, self.cls))
                 
                 self.timetable[self.weekdays[col]][row] = free_period
             elif action == lock_period_action:
@@ -928,7 +942,7 @@ class ClassTimetable(QTableWidget):
                     if subject.id == self.timetable[self.weekdays[col]][row].id:
                         free_period = FreePeriod()
                         
-                        self.setItem(row, col, TimeTableItem(free_period))
+                        self.setItem(row, col, TimeTableItem(free_period, self.cls))
                         self.timetable[self.weekdays[col]][row] = free_period
                         
                         ttbl_rem_amt -= 1
@@ -1066,7 +1080,7 @@ class SchoolTimetableEditor(BaseWidget):
             evd = SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]["Everyday"]
             
             widg.addWidget(QLabel("<b>Everyday</b>"))
-            widg.addWidget(TimetableTimeEditor(evd))
+            widg.addWidget(TimetableTimeEditor(self, evd))
             
             self.everyday_widgets[cls_level.id] = widg
             timing_widget.insertWidget(0, widg)
@@ -1137,7 +1151,7 @@ class SchoolTimetableEditor(BaseWidget):
             top_widget = BaseWidget(QHBoxLayout) ; top_widget.addWidget(day_cb) ; top_widget.addStretch() ; top_widget.addWidget(cancel_pb)
             
             day_time_widget.addWidget(top_widget)
-            day_time_widget.addWidget(TimetableTimeEditor(time_setting))
+            day_time_widget.addWidget(TimetableTimeEditor(self, time_setting))
             
             timing_widget.addWidget(day_time_widget)
             

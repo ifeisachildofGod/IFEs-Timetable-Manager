@@ -425,48 +425,49 @@ class StatusBar(BaseWidget):
         self.setSpacing(10)
         self.setContentsMargins(0, 0, 0, 0)
         
-        self.statuses: dict[str, tuple[QLabel, QLabel]] = {}
+        self.statuses: dict[str, BaseWidget] = {}
         
         self.addStretch()
     
     def _insertMessage(self, index: int, key: str, message: str, color: str):
         assert key not in self.statuses
         
-        sep_label = None
-        if self.statuses and index:
-            self.insertWidget(index + 1, sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
-        elif self.statuses:
-            self.insertWidget(index + 1, sep_label := QLabel("●")) ; sep_label.setProperty("class", "StatusBarSeperator")
-            
-            second_l = self.getChildren(QLabel)[1]
-            self.statuses[next(k for k, (l, s) in self.statuses.items() if second_l == l)][1] = sep_label
-            
-            sep_label = None
+        msg_widget = BaseWidget(QHBoxLayout)
+        msg_widget.setSpacing(10)
+        msg_widget.setContentsMargins(0, 0, 0, 0)
         
         label = QLabel(message)
         label.setStyleSheet(f"color: {color}")
         
-        self.insertWidget(index + bool(self.statuses and index) + 1, label)
-        self.statuses[key] = [label, sep_label]
+        msg_widget.addWidget(label)
+        
+        if index != len(self.statuses):
+            msg_widget.addWidget(QLabel("●"))
+        elif index != 0:
+            list(self.statuses.values())[index - 1].addWidget(QLabel("●"))
+        
+        self.insertWidget(index + 1, msg_widget)
+        
+        statuses = list(self.statuses.items())
+        statuses.insert(index, (key, msg_widget))
+        
+        self.statuses.clear()
+        self.statuses.update(dict(statuses))
+    
+    def remove(self, key: str):
+        l_statuses = list(self.statuses)
+        index = l_statuses.index(key)
+        
+        widget = self.statuses.pop(key)
+        
+        if index != 0 and index == len(l_statuses) - 1:
+            list(self.statuses.values())[-1].popWidget(1)
+        
+        widget.delete()
     
     def removeLinient(self, key: str):
         if key in self.statuses:
             self.remove(key)
-    
-    def remove(self, key: str):
-        label, dot = self.statuses.pop(key)
-        
-        if not self.getChildren(QLabel).index(label) and len(self.statuses) == 1:
-            dot = self.getChildren()[1]
-            
-            self.statuses[next(k for k, (_, d) in self.statuses.items() if d == dot)][1] = None
-        
-        self.removeWidget(label)
-        label.deleteLater()
-        
-        if dot:
-            self.removeWidget(dot)
-            dot.deleteLater()
     
     def addMessage(self, msg_type: Status, key: str, message: str):
         self.insertMessage(msg_type, len(self.statuses), key, message)
@@ -545,22 +546,22 @@ class BaseSettingEntry(BaseWidget):
         self.simple_line_edit.setPlaceholderText(simple_placeholder)
         
         self.extended_line_edits: list[QLineEdit] = []
+        
+        self.extended_edits_widget = BaseWidget()
+        self.extended_edits_widget.setContentsMargins(0, 0, 0, 0)
+        self.extended_edits_widget.setVisible(False)
+        
         if extended_placeholders:
-            extended_edits_widget = BaseWidget()
-            extended_edits_widget.setContentsMargins(0, 0, 0, 0)
-            
             for i, placeholder in enumerate(extended_placeholders):
                 line_edit = QLineEdit()
                 line_edit.textChanged.connect(self._make_ext_name_changed(i, self.simple_line_edit))
                 line_edit.returnPressed.connect(self._make_extended_return_pressed_func(i))
                 line_edit.setPlaceholderText(placeholder)
                 
-                extended_edits_widget.addWidget(line_edit)
+                self.extended_edits_widget.addWidget(line_edit)
                 self.extended_line_edits.append(line_edit)
             
-            extended_edits_widget.setVisible(False)
-            
-            edits_area.addWidget(extended_edits_widget)
+            edits_area.addWidget(self.extended_edits_widget)
         
         edits_area.addWidget(self.simple_line_edit)
         
@@ -581,7 +582,7 @@ class BaseSettingEntry(BaseWidget):
         if self.extended_line_edits:
             def rb_clicked(s: bool):
                 self.simple_line_edit.setVisible(s)
-                extended_edits_widget.setVisible(not s)
+                self.extended_edits_widget.setVisible(not s)
                 
                 options_option.disappear()
                 
@@ -592,6 +593,7 @@ class BaseSettingEntry(BaseWidget):
                         self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
                     
                     self.simple_line_edit.setText(self.simple_line_edit.text())
+                    self._simple_name_changed(self.simple_line_edit.text())
                 elif self.extended_line_edits:
                     self.extended_line_edits[0].setFocus()
                     
@@ -621,8 +623,6 @@ class BaseSettingEntry(BaseWidget):
         self.addWidget(self.status_widget)
         
         self.simple_name_empty(self.simple_line_edit.text())
-        for i, line_edit in enumerate(self.extended_line_edits):
-            self.extended_name_changed(i, line_edit.text(), self.simple_line_edit)
         
         self.__init = False
     

@@ -537,7 +537,6 @@ STYLESHEET = '''
         border-radius: 8px;
     }}
     
-    
     QWidget.DropdownCheckboxes {{
         background-color: {bg4};
         margin: 0px 8px 4px 8px;
@@ -730,13 +729,13 @@ STYLESHEET = '''
         background-color: {bg4};
         border: none;
         border-radius: 8px;
-        gridline-color: {bg6-border2};
+        gridline-color: {border1};
     }}
     QHeaderView::section {{
-        background-color: {bg4};
-        color: {text};
+        background-color: {fg5};
+        color: {primary_text};
         padding: 8px;
-        border: none;
+        gridline-color: {bg6-border2};
     }}
     QLabel.RemSubjectItem {{
         color: {text};

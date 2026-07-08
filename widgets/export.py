@@ -964,16 +964,11 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         lvl_widget.widget.popWidget(index)
                         
                         cls_cbs.pop(cls_id)
-                        
-                        if cls_id in SCHOOL.settings.EXPORT_selected_classes[lvl_id]:
-                            SCHOOL.settings.EXPORT_selected_classes[lvl_id].pop(cls_id)
                     else:
                         lvl_widget.widget.indexWidget(index).indexWidget(0).setText(f"<b>{cls_level.classes[cls_id].name}</b>")
             else:
                 self.select_cb_dict.pop(lvl_id)
                 self.sch_subject_selection_widget.popWidget(lvl_index)
-                
-                SCHOOL.settings.EXPORT_selected_classes.pop(lvl_id)
         
         for cls_level_index, (lvl_id, cls_level) in enumerate(SCHOOL.class_levels):
             if lvl_id in self.select_cb_dict:
