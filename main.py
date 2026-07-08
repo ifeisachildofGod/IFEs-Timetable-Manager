@@ -246,19 +246,16 @@ class Window(QMainWindow):
         if school is None:
             school = SCHOOL
         
-        file_type = REV_FT_MAPPING[file_type] if file_type is not None else self._open_file_type
+        self._open_file_type = REV_FT_MAPPING[file_type] if file_type is not None else self._open_file_type
         
-        if file_type is not None:
-            self._open_file_type = REV_FT_MAPPING[file_type]
-        
-        if file_type == TABLE_EXTENSION_TYPE:
+        if self._open_file_type == TABLE_EXTENSION_TYPE:
             with open(self.file.path, "wb") as file:
                 pickle.dump(school, file)
-        elif file_type == TEMPLATE_EXTENSION_TYPE:
+        elif self._open_file_type == TEMPLATE_EXTENSION_TYPE:
             with open(self.file.path, "w", encoding="utf-8") as file:
                 file.write(school.framework())
         else:
-            raise TypeError(f"Unsupported file type: '{file_type}'")
+            raise TypeError(f"Unsupported file type: '{self._open_file_type}'")
         
         self.saved_state_changed.emit(False)
     
