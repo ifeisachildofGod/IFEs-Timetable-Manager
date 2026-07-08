@@ -188,3 +188,4 @@ temp_core.py
 test*
 *.css
 bundle.py
+*.zip
