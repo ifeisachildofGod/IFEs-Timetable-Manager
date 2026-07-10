@@ -145,7 +145,7 @@ class SchoolFrameWork:
         if self.settings is None:
             self.settings = Settings(
                 "dark-blue",
-                10, 7, 3, (2, 3), TimetableTime(Time(8, 10), 35, 35),
+                10, 7, 3, (2, 4), TimetableTime(Time(8, 10), 35, 35),
                 {},
                 ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], {},
                 TimetableExportTheme(

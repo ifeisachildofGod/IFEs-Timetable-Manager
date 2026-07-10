@@ -193,7 +193,7 @@ class ClashDisplayDialog(BaseDialogWidget):
             cls_lvl_widget = self.editor.classes_widget[cls.level.id][0]
             
             if not cls_lvl_widget.widget.isVisible():
-                cls_lvl_widget.toogle_widget()
+                cls_lvl_widget.toogle()
                 
                 QTimer.singleShot(100, func3)
             else:
@@ -1234,7 +1234,7 @@ class SchoolTimetableEditor(BaseWidget):
         body_widget = BaseWidget()
         
         level_widget = WidgetDropdown(f"<span style='font-size: 40px'>{cls_level.name.full()}</span>", body_widget)
-        level_widget.toogle_widget()
+        level_widget.toogle()
         
         self.ttbl_day_trackers[cls_level.id] = {}
         self.label_data[cls_level.id] = level_widget.title_label

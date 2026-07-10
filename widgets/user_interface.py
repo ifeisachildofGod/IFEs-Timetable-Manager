@@ -602,7 +602,7 @@ class WidgetDropdown(BaseWidget):
         self.toogle_icon = ArrowWidget(270)
         self.toogle_icon.setProperty("class", "Arrow")
         self.toogle_icon.setContentsMargins(0, 0, 10, 0)
-        self.toogle_icon.mouseclicked.connect(self.toogle_widget)
+        self.toogle_icon.mouseclicked.connect(self.toogle)
         
         self.title_label = QLabel(title)
         
@@ -617,9 +617,9 @@ class WidgetDropdown(BaseWidget):
     
     def tdp_event_func(self, a0: QMouseEvent | None):
         if a0.button() == Qt.MouseButton.LeftButton and not self._disabled:
-            self.toogle_widget()
+            self.toogle()
     
-    def toogle_widget(self):
+    def toogle(self):
         self.toogle_icon.setAngle(0 if self.toogle_icon.angle != 0 else 270)
         self.widget.setVisible(not self.widget.isVisible())
     
@@ -627,11 +627,15 @@ class WidgetDropdown(BaseWidget):
         if a0:
             if close_true_open_false is not None:
                 if close_true_open_false == self.widget.isVisible():
-                    self.toogle_widget()
+                    self.toogle()
             
             self._disabled = True
         else:
             self._disabled = False
+    
+    def setOpen(self, state: bool):
+        if state != self.widget.isVisible():
+            self.toogle()
 
 class EditableCancelableEntry(BaseWidget):
     deleted = pyqtSignal()

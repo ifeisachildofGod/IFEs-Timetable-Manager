@@ -690,9 +690,9 @@ class BaseSettingEntry(BaseWidget):
             
             yield button
     
-    def make_open_dialogs_func(self, title, cls: type[BaseSettingDialog], *args):
+    def make_open_dialogs_func(self, title: str, cls: type[BaseSettingDialog], *args):
         def make_dialog():
-            return cls(self.i_parent, self.entry.id, f"{title} - {self.entry.name.full()}", *args)
+            return cls(self.i_parent, self.entry.id, title.format(name=self.entry.name.full()), *args)
         
         self.dialog_widget_funcs.append(make_dialog)
         

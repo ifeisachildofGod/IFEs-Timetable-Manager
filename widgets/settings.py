@@ -14,7 +14,10 @@ class SubjectsSettingEntry(BaseSettingEntry):
             parent,
             "Subject",
             ["Full Name", "Abbreviation"],
-            {"Classes": ("Select Classes", SubjectDropdownCheckBoxes), "Teachers": ("Select Teachers", SubjectSelectionList)},
+            {
+                "Offering Classes": ("Classes offering {name}", SubjectDropdownCheckBoxes),
+                "Assign Teachers": ("Teachers teaching {name}", SubjectSelectionList)
+            },
             entry
         )
         
@@ -77,7 +80,10 @@ class TeachersSettingEntry(BaseSettingEntry):
             parent,
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
-            {"Subjects": ("Select Subjects", TeacherSelectionList), "Classes": ("Select Classes", TeacherDropdownCheckBoxes, (self.timetable_editor, ))},
+            {
+                "Assign Classes": ("Classes taught by {name}", TeacherDropdownCheckBoxes, (self.timetable_editor, )),
+                "Assign Subjects": ("Subjects {name} teaches", TeacherSelectionList)
+            },
             entry
         )
         
@@ -158,8 +164,8 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
             "Class Level",
             None,
             {
-                "Classes": ("Create and Edit Classes", ClassOptionsMaker, (self.timetable_editor, )),
-                "Subject Occurence": ("Edit Subject Occurence", OccuranceEditor, (self.timetable_editor, ))
+                "Create and Edit Classes": ("Classes under {name}", ClassOptionsMaker, (self.timetable_editor, )),
+                "Edit Subjects Occurences": ("Edit {name} subjects occurences", OccuranceEditor, (self.timetable_editor, ))
             },
             self.entry
         )
@@ -225,7 +231,7 @@ class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor):
         self.timetable_editor = timetable_editor
         
-        super().__init__("Class")
+        super().__init__("Class Level")
     
     def get_global(self):
         return SCHOOL.class_levels

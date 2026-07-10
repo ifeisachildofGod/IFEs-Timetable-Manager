@@ -106,7 +106,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         
         self.setContentsMargins(0, 0, 0, 0)
         
-        self.class_check_box_tracker = {"main_cb": {}, "sub_cbs": {}, "icon": {}, "widget": {}}
+        self.class_check_box_tracker = {"main_cb": {}, "sub_cbs": {}, "icon": {}, "widget": {}, "min_rem": {}}
         
         for widget in self._create_checkbox_widgets():
             self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
@@ -139,15 +139,21 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         all_clicked_checkboxes: list[QCheckBox] = []
         
         for lvl_id, cls_lvl in SCHOOL.class_levels:
+            week_total = (cls_lvl.period_amount - 1) * len(cls_lvl.weekdays)
+            min_rem = min(week_total - sum(cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values()) for cls in cls_lvl.classes.values())
+            
             check_box = QCheckBox()
             check_box.clicked.connect(self.make_main_checkbox_func(lvl_id))
             
             self.class_check_box_tracker["sub_cbs"][lvl_id] = {}
             self.class_check_box_tracker["main_cb"][lvl_id] = check_box
+            self.class_check_box_tracker["min_rem"][lvl_id] = min_rem
             self.class_check_box_tracker["widget"][lvl_id], to_be_clicked = self.make_dp_widget(lvl_id, cls_lvl)
             
             main_widget = WidgetDropdown(cls_lvl.name.full(), self.class_check_box_tracker["widget"][lvl_id])
             main_widget.header.addWidget(check_box)
+            main_widget.setOpen(False)
+            main_widget.setDisabled(self.id not in cls_lvl.subjects_occurence and min_rem <= 0)
             
             self.class_check_box_tracker["icon"][lvl_id] = main_widget.toogle_icon
             
@@ -171,11 +177,11 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             option_widget = BaseWidget(QHBoxLayout)
             
             dp_title = QLabel(cls.name)
+            
             dp_checkbox = QCheckBox()
+            dp_checkbox.clicked.connect(self.make_sub_checkbox_func(lvl_id, cls_id))
             
             self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id] = dp_checkbox
-            
-            dp_checkbox.clicked.connect(self.make_sub_checkbox_func(lvl_id, cls_id))
             
             if cls.id in self.subject.classes and not dp_checkbox.isChecked():
                 clicked_cbs.append(dp_checkbox)
@@ -246,7 +252,10 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[self.id] = self.subject.passCopy()
             
             if self.id not in SCHOOL.class_levels[lvl_id].subjects_occurence:
-                SCHOOL.class_levels[lvl_id].subjects_occurence[self.id] = SubjectOccurrance(*SCHOOL.settings.DEFAULT_occurance_data)
+                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+                min_rem = self.class_check_box_tracker["min_rem"][lvl_id]
+                
+                SCHOOL.class_levels[lvl_id].subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
         else:
             self.subject.classes.pop(cls_id)
             SCHOOL.class_levels[lvl_id].classes[cls_id].subjects.pop(self.id)
@@ -708,7 +717,7 @@ class OccuranceEditor(BaseSettingDialog):
                 self.class_level.subjects_occurence[subject_id].week_max = per_week_edit.number()
                 per_week_edit.max_num = min(a_max_pw, self.class_level.subjects_occurence[subject_id].week_max + min_rem)
             
-            self.remainder_slots_label.setText(f"Slots: <b>{min_rem}</b>")
+            self.remainder_slots_label.setText(f"<b style='color: {THEME_MANAGER.process_stylesheet("fg1")}'>Slots</b>: <b>{min_rem}</b>")
             
             self.number_edits[subject_id][0].max_num = min(number, self.class_level.period_amount)
             self.class_level.subjects_occurence[subject_id].week_max = number
