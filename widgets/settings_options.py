@@ -80,9 +80,9 @@ class TeacherSelectionList(BaseSelectionList):
         super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope_iter)
     
     def item_removed(self, id: ID):
-        self.teacher.subjects.pop(id)
+        subject = self.teacher.subjects.pop(id)
         
-        for cls in self.subject.classes.values():
+        for cls in subject.classes.values():
             if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
                 cls.subjects[self.id].teacher = None
     
