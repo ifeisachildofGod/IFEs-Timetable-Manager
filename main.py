@@ -240,7 +240,7 @@ class Window(QMainWindow):
             self._windows = []
         self._windows.append(win)
     
-    def save_callback(self, path: str, file_type: Optional[str] = None, school: Optional[SchoolFrameWork] = None):
+    def save_callback(self, path: str, file_type: Optional[str] = None, school: Optional[School] = None):
         self.file.path = path
         
         if school is None:

@@ -735,7 +735,7 @@ class BaseSettingWidget(BaseWidget):
         
         self.key_pressed.connect(self.enter_pressed)
         
-        for _, entry in self.get_global():
+        for entry in self.get_global().values():
             self.add(entry)
     
     def get_global(self) -> Global:

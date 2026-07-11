@@ -1,10 +1,6 @@
 
+from typing import Optional
 from dataclasses import dataclass
-
-from core.settings import *
-
-class TimetableGeneratorError(Exception):
-    pass
 
 @dataclass
 class Margins:
@@ -86,45 +82,9 @@ class TimetableTime:
     def copy(self):
         return TimetableTime(self.start_time, self.interval, self.break_time_duration)
 
-@dataclass
-class GeneratingData:
-    #            ClassID
-    randomize: dict[ID, bool]
-    #                              ClassID  SubjectID   Day    DayWeight  PeriodProclivity
-    subject_positioning_weights: dict[ID, dict[ID, dict[str, tuple[float, int]]]]
-    
-    #                          ClassID  SubjectID    Day  Weight
-    subject_clumping_weights: dict[ID, dict[ID, dict[str, float]]]
-    
-    #                       SubjectID  ClassIDs
-    combined_subjects: dict[list[ID], list[ID]]
+class TimetableGeneratorError(Exception):
+    pass
 
 
-@dataclass
-class FreePeriod:
-    id: str = "FreePeriodID"
-    
-    name: SubjectName = "Free"
-    teacher: "Teacher | None" = None
-    
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
-        
-        self.name = SubjectName("Free", "Free")
 
-@dataclass
-class BreakPeriod:
-    id: str = "BreakPeriodID"
-    
-    name: str = "Break"
-    teacher: "Teacher | None" = None
-    
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
-        
-        self.name = SubjectName("Break", "Break")
-
-
-# Objects
-TimetableFW = dict[str, list[Subject | CombinedSubject | BreakPeriod | FreePeriod]]
 

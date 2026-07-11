@@ -518,8 +518,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             self.vlt_sb
         )
         
-        preview_button = QPushButton("Preview")
-        preview_button.clicked.connect(lambda: export_dialog.exec())
+        self.preview_button = QPushButton("Preview")
+        self.preview_button.clicked.connect(lambda: export_dialog.exec())
         
         self.export_button = QPushButton("Export")
         self.export_button.setDisabled(True)
@@ -528,7 +528,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.close)
         
-        base_widget.addWidget(preview_button)
+        base_widget.addWidget(self.preview_button)
         base_widget.addStretch()
         base_widget.addWidget(self.export_button)
         base_widget.addWidget(cancel_button)
@@ -551,7 +551,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         sch_subject_selection_widget_dp = WidgetDropdown("Select Classes", self.sch_subject_selection_widget)
         sch_subject_selection_widget_dp.header.addWidget(self.select_all_cb)
         
-        for _, cls_level in SCHOOL.class_levels:
+        for cls_level in SCHOOL.class_levels.values():
             self.sch_subject_selection_widget.insertWidget(len(self.sch_subject_selection_widget.getChildren()), self.get_level_widget(cls_level))
         
         side_bar_widget.addWidget(sch_subject_selection_widget_dp)
@@ -595,6 +595,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             
             f_widget.setDisabled(text == "CSV")
             t_widget.setDisabled(text == "CSV")
+            self.preview_button.setDisabled(text == "CSV")
             
             SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type = text
         
@@ -688,7 +689,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         return lvl_cb_func
     
-    def _make_cls_cb_func(self, level_id: ID, cls_id: ID):
+    def _make_cls_cb_func(self, level_id: ID, cls_id: CLASS_ID):
         def cls_cb_func(state: bool):
             self._unsaved()
             
@@ -801,7 +802,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self._set_timetable_export_theme()
         
         file_type = file_type or SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type
-        subject_count = str(max(cls_level.period_amount for _, cls_level in SCHOOL.class_levels))
+        subject_count = str(max(cls_level.period_amount for cls_level in SCHOOL.class_levels.values()))
         
         html_style_replacements = dict(
             cls_title_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme.stylesheet.replace(";", ";\n\t\t"),
@@ -1014,7 +1015,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def exec(self):
         for lvl_index, (lvl_id, (_, cls_cbs)) in enumerate(self.select_cb_dict.copy().items()):
-            if lvl_id in SCHOOL.class_levels.data:
+            if lvl_id in SCHOOL.class_levels:
                 cls_level = SCHOOL.class_levels[lvl_id]
                 lvl_widget: WidgetDropdown = self.sch_subject_selection_widget.indexWidget(lvl_index)
                 
@@ -1034,7 +1035,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                 self.select_cb_dict.pop(lvl_id)
                 self.sch_subject_selection_widget.popWidget(lvl_index)
         
-        for cls_level_index, (lvl_id, cls_level) in enumerate(SCHOOL.class_levels):
+        for cls_level_index, (lvl_id, cls_level) in enumerate(SCHOOL.class_levels.items()):
             if lvl_id in self.select_cb_dict:
                 for cls_index, (cls_id, cls) in enumerate(cls_level.classes.items()):
                     if cls_id not in self.select_cb_dict[lvl_id][1]:
@@ -1091,10 +1092,10 @@ TTBL_EXPORT_CELL_X_MARGIN = 10
 TTBL_EXPORT_CELL_Y_MARGIN = 5
 
 def get_export_surface(cls: Class):
-    timetable, _ = SCHOOL.timetables_data[cls.id]
+    timetable = cls.timetable.table
     
     _time_width = _get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, "24:58 - 24:59").get_width()
-    _cell_content_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme, s.name.short()).get_width() for _, s in SCHOOL.subjects)
+    _cell_content_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme, s.name.short()).get_width() for s in SCHOOL.subjects.values())
     
     width = max(_cell_content_width, _time_width) + TTBL_EXPORT_CELL_X_MARGIN * 2
     height = max(FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme)].get_height(), FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme)].get_height()) + TTBL_EXPORT_CELL_Y_MARGIN * 2
@@ -1352,7 +1353,7 @@ HTML_TEXT = f"""
 """
 
 def get_export_html_text(cls: Class):
-    timetable, _ = SCHOOL.timetables_data[cls.id]
+    timetable = cls.timetable.table
     timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
     ttbl_text = '<div class="ttbl_content" style="background-color: {ttbl_bg_color};"><h3></h3></div>'
@@ -1415,7 +1416,7 @@ def get_export_html_text(cls: Class):
 
 
 def write_export_csv(writer, cls: Class):
-    timetable, _ = SCHOOL.timetables_data[cls.id]
+    timetable = cls.timetable.table
     timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
     timing = timings["Everyday"]

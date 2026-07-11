@@ -6,7 +6,7 @@ from widgets.settings_options import *
 
 class SubjectsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject], timetable_editor: SchoolTimetableEditor):
-        entry = entry or Subject(ID.generate_new(), SubjectName("", ""), None, {})
+        entry = entry or Subject(ID.new(), SubjectName("", ""), None, {})
         
         self.timetable_editor = timetable_editor
         
@@ -35,7 +35,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
             if self.entry.id in cls.level.subjects_occurence:
                 cls.level.subjects_occurence.pop(self.entry.id)
         
-        for _, teacher in SCHOOL.teachers:
+        for teacher in SCHOOL.teachers.values():
             if self.entry.id in teacher.subjects:
                 teacher.subjects.pop(self.entry.id)
         
@@ -72,7 +72,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
 
 class TeachersSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor):
-        entry = entry or Teacher(ID.generate_new(), TeacherName("", "", "", ""), {})
+        entry = entry or Teacher(ID.new(), TeacherName("", "", "", ""), {})
         
         self.timetable_editor = timetable_editor
         
@@ -154,7 +154,7 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor):
-        entry = entry or ClassLevel(ID.generate_new(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
+        entry = entry or ClassLevel(ID.new(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
         
         self.entry = entry
         self.timetable_editor = timetable_editor

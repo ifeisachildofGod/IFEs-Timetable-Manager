@@ -1,5 +1,6 @@
 import random
 
+
 class ID(str):
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -36,23 +37,35 @@ class ID(str):
         return self.__sub__(other)
     
     @staticmethod
-    def generate_new():
+    def new():
         tmp = random.randint(0, 500000)
         
         return ID(id(tmp))
 
-class SavedState:
-    def __init__(self):
-        self.saved = False
-    
-    def save(self):
-        self.saved = True
-    
-    def unsave(self):
-        self.saved = False
-    
-    def isSaved(self):
-        self.saved = True
+class CLASS_ID(ID):
+    def __init__(self, *args, class_level_id: ID = None, **kwargs):
+        super().__init__(*args, **kwargs)
         
-SAVED_STATE = SavedState()
+        assert class_level_id is not None
+        
+        self.class_level_id = class_level_id
+    
+    def __add__(self, value):
+        if isinstance(value, CLASS_ID):
+            assert self.class_level_id == value.class_level_id
+        
+        id = CLASS_ID(value, class_level_id=self.class_level_id)
+        
+        id.parents = self.parents.copy()
+        id.parents.append(self)
+        
+        return id
+    
+    @staticmethod
+    def new(class_level_id):
+        tmp = random.randint(0, 500000)
+        
+        return CLASS_ID(id(tmp), class_level_id=class_level_id)
+
+
 
