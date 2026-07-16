@@ -2,10 +2,12 @@ import pygame
 
 from imports import *
 
+ALL_EXTENSION_TYPE = "all"
 TABLE_EXTENSION_TYPE = "ttbl"
 TEMPLATE_EXTENSION_TYPE = "frmwk"
 
 FT_MAPPING = {
+    ALL_EXTENSION_TYPE: "All Files (*.*)",
     TABLE_EXTENSION_TYPE: "Timetable Files (*.ttbl)",
     TEMPLATE_EXTENSION_TYPE: "Template Files (*.frmwk)"
 } ; REV_FT_MAPPING = {v: k for k, v in FT_MAPPING.items()}
@@ -57,7 +59,7 @@ class FileManager:
             self.open_callback()
     
     def open(self):
-        file_path, file_type = QFileDialog.getOpenFileName(self.parent, "Open File", "", self.file_filter)
+        file_path, file_type = QFileDialog.getOpenFileName(self.parent, "Open File", "", FT_MAPPING[ALL_EXTENSION_TYPE] + ";;" + self.file_filter)
         
         if file_path:
             try:

@@ -9,6 +9,8 @@ from widgets.user_interface import MainTitleBar
 from widgets.timetable import SchoolTimetableEditor
 from widgets.export import ExportsEditorDialogWidget
 
+import subprocess
+
 pygame.init()
 
 class Window(QMainWindow):
@@ -188,9 +190,10 @@ class Window(QMainWindow):
         
         if self.file.path is not None:
             self.LOADED_SCHOOL = self.load()
-            SCHOOL.set(self.LOADED_SCHOOL)
-            
-            self.saved_callback()
+            if self.LOADED_SCHOOL is not None:
+                SCHOOL.set(self.LOADED_SCHOOL)
+                
+                self.saved_callback()
         else:
             self.setWindowTitle(self.title)
         
@@ -200,23 +203,39 @@ class Window(QMainWindow):
         self.file.set_callbacks(self.save_callback, self.open_callback, self.export_editor.export_callback)
     
     def load(self):
-        assert self.file.path
-        
-        if self._open_file_type is None:
-            print("No file type specified; Defaulting to default file type")
+        try:
+            assert self.file.path
             
-            self._open_file_type = TABLE_EXTENSION_TYPE
-        
-        if self._open_file_type == TABLE_EXTENSION_TYPE:
-            with open(self.file.path, "rb") as file:
-                data = pickle.load(file)
-        elif self._open_file_type == TEMPLATE_EXTENSION_TYPE:
-            with open(self.file.path, "r") as file:
-                data = SCHOOL.from_template(file.read())
-        else:
-            raise TypeError(f"Unsupported file type: '{self._open_file_type}'")
-        
-        return data
+            if self._open_file_type == ALL_EXTENSION_TYPE:
+                self._open_file_type = None
+            
+            if self._open_file_type is None:
+                try:
+                    with open(self.file.path, "r") as file:
+                        data = SCHOOL.from_template(file.read())
+                
+                    self._open_file_type = TEMPLATE_EXTENSION_TYPE
+                except:
+                    with open(self.file.path, "rb") as file:
+                        data = pickle.load(file)
+                    
+                    self._open_file_type = TABLE_EXTENSION_TYPE
+            else:
+                if self._open_file_type == TABLE_EXTENSION_TYPE:
+                    with open(self.file.path, "rb") as file:
+                        data = pickle.load(file)
+                elif self._open_file_type == TEMPLATE_EXTENSION_TYPE:
+                    with open(self.file.path, "r") as file:
+                        data = SCHOOL.from_template(file.read())
+                else:
+                    raise TypeError(f"Unsupported file type: '{self._open_file_type}'")
+            
+            return data
+        except Exception as e:
+            QMessageBox.critical(None, e.__class__.__name__, str(e))
+            
+            self.saved = True
+            QTimer.singleShot(500, lambda: self.close())
     
     def unsaved_callback(self):
         self.saved = False
@@ -231,14 +250,14 @@ class Window(QMainWindow):
         self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
     
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
-        arguments = [c for i, c in enumerate(["main.py", f'-ft={REV_FT_MAPPING[file_type]}', path]) if i == 0 or (i == 1 and file_type is not None) or (i == 2 and path is not None)]
+        arguments = []
         
-        win = Window(arguments)
-        win.show()
+        if path is not None or file_type is not None:
+            arguments = [f'-ft={REV_FT_MAPPING[file_type]}', path]
+        elif path is not None:
+            arguments = [path]
         
-        if not hasattr(self, '_windows'):
-            self._windows = []
-        self._windows.append(win)
+        subprocess.Popen([sys.executable] + arguments)
     
     def save_callback(self, path: str, file_type: Optional[str] = None, school: Optional[School] = None):
         self.file.path = path
@@ -319,10 +338,7 @@ class Window(QMainWindow):
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
         file_menu.addSeparator()
-        file_menu.addAction("Export Subjects", coming_soon)
-        file_menu.addAction("Export Teachers", coming_soon)
-        file_menu.addAction("Export Class Levels", coming_soon)
-        file_menu.addAction("Export Timetable", lambda: self.export_editor.exec())
+        file_menu.addAction("Export", lambda: self.export_editor.exec())
         file_menu.addSeparator()
         file_menu.addAction("Close", self.close)
         

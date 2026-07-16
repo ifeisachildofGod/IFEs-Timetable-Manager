@@ -614,9 +614,9 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         )
         
         f_widget = BaseWidget() ; f_widget.setContentsMargins(35, 0, 35, 0)
-        f_widget.addWidget(LabeledWidget("Class Title Text Theme", self.cls_title_text_theme))
-        f_widget.addWidget(LabeledWidget("Timetable Heading Text Theme", self.ttbl_heading_text_theme))
-        f_widget.addWidget(LabeledWidget("Timetable Content Text Theme", self.ttbl_content_text_theme))
+        f_widget.addWidget(LabeledWidget("Title Text Theme", self.cls_title_text_theme))
+        f_widget.addWidget(LabeledWidget("Heading Text Theme", self.ttbl_heading_text_theme))
+        f_widget.addWidget(LabeledWidget("Cell Text Theme", self.ttbl_content_text_theme))
         
         self.ttbl_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color, self._window)
         self.ttbl_heading_bg_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, self._window)
@@ -625,9 +625,9 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.border_color = ColorComboBox(SCHOOL.settings.EXPORT_timetable_export_theme.border_color, self._window)
         
         t_widget = BaseWidget() ; t_widget.setContentsMargins(35, 0, 35, 0)
-        t_widget.addWidget(LabeledWidget("Timetable Background Color", self.ttbl_bg_color))
-        t_widget.addWidget(LabeledWidget("Timetabel Heading Background Color", self.ttbl_heading_bg_color))
-        t_widget.addWidget(LabeledWidget("Timetable Content Background Color", self.ttbl_content_bg_color))
+        t_widget.addWidget(LabeledWidget("Background Color", self.ttbl_bg_color))
+        t_widget.addWidget(LabeledWidget("Heading Background Color", self.ttbl_heading_bg_color))
+        t_widget.addWidget(LabeledWidget("Cell Background Color", self.ttbl_content_bg_color))
         t_widget.addWidget(LabeledWidget("Break Background Color", self.break_bg_color))
         t_widget.addWidget(LabeledWidget("Border Color", self.border_color))
         thickness_widget = BaseWidget()
