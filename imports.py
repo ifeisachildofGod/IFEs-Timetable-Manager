@@ -1,13 +1,10 @@
 import os
 import sys
-import json
 import pickle
-from copy import deepcopy
-from pathlib import Path
-from typing import Any, Callable, Generator, Optional, TypeVar
+from typing import Any, Callable, Optional, TypeVar
 
 from PyQt6.QtWidgets import (
-    QWidget, QLayout, QVBoxLayout, QHBoxLayout,
+    QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QScrollArea,
     QMainWindow, QLabel, QDialog, QCheckBox,
     QGridLayout, QStackedWidget, QTableWidgetItem,
@@ -20,13 +17,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon, QPixmap, QFont, QPen,
     QFontMetrics, QIntValidator, QPainter, QColor, QDrag,
-    QDragMoveEvent, QDropEvent, QEnterEvent, QMouseEvent, QDragEnterEvent
+    QDragMoveEvent, QDragEnterEvent, QDropEvent, QEnterEvent, QMouseEvent
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,
     pyqtSignal, pyqtBoundSignal, QPoint, QPointF, QObject, QRect, QRectF
 )
-from PyQt6.QtPrintSupport import QPrinter
 
-from core.main import *
+from core import *
 

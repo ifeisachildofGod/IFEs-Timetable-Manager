@@ -1,15 +1,9 @@
 import pygame
+import subprocess
 
 from utils import *
 from imports import *
-
-from widgets.base import *
-from widgets.settings import SubjectsMainWidget, TeachersMainWidget, ClassLevelsMainWidget
-from widgets.user_interface import MainTitleBar
-from widgets.timetable import SchoolTimetableEditor
-from widgets.export import ExportsEditorDialogWidget
-
-import subprocess
+from widgets import *
 
 pygame.init()
 
@@ -241,13 +235,13 @@ class Window(QMainWindow):
         self.saved = False
         
         if self.file.path is not None:
-            self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()} *Unsaved")
+            self.setWindowTitle(f"{self.title} - {os.path.abspath(self.file.path)} *Unsaved")
         else:
             self.setWindowTitle(self.title)
     
     def saved_callback(self):
         self.saved = True
-        self.setWindowTitle(f"{self.title} - {Path(self.file.path).absolute().as_posix()}")
+        self.setWindowTitle(f"{self.title} - {os.path.abspath(self.file.path)}")
     
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
         arguments = []
@@ -367,6 +361,9 @@ class Window(QMainWindow):
             
             accent_action = QAction(accent_color.title(), self)
             accent_action.setCheckable(True)
+            if name == SCHOOL.settings.THEME:
+                accent_action.setChecked(True)
+            
             accent_action.triggered.connect(self.make_palette_action_func(main_color, accent_color))
             
             palette_action_group.addAction(accent_action)
@@ -438,6 +435,14 @@ class Window(QMainWindow):
         def palette_action_func():
             SCHOOL.settings.THEME = f"{main_color}-{accent_color}"
             THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
+            
+            for lvl_id, level_widgets in self.timetable_widget.timetable_widgets.items():
+                for cls_id, cls_ttbl in level_widgets.items():
+                    for col, periods in enumerate(SCHOOL.class_levels[lvl_id].classes[cls_id].timetable.table.values()):
+                        row = next(r for r, s in enumerate(periods) if s.id == BreakPeriod.id)
+                        
+                        break_item = cls_ttbl.item(row, col)
+                        break_item.set_color()
         
         return palette_action_func
 
@@ -446,7 +451,7 @@ class Window(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     
-    app.setWindowIcon(QIcon("src/images/logo.ico"))
+    app.setWindowIcon(QIcon(resource_path("src/images/logo.png")))
     
     THEME_MANAGER.set_application(app)
     

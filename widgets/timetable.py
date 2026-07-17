@@ -4,7 +4,7 @@ from imports import *
 from utils import Thread
 from theme import THEME_MANAGER
 
-from widgets.user_interface import *
+from .user_interface import *
 
 
 class UnMouseableOverlay(BaseWidget):
@@ -148,7 +148,6 @@ class IslandOverlay(UnMouseableOverlay):
         
         return super().paintEvent(a0)
 
-
 class ClashDisplayDialog(BaseDialogWidget):
     def __init__(self, editor: "SchoolTimetableEditor"):
         super().__init__("Clashes", BaseScrollWidget)
@@ -247,7 +246,7 @@ class ClashDisplayDialog(BaseDialogWidget):
         return super().exec()
 
 
-class _ExtrasDraggableSubjectLabel(QLabel):
+class ExtraSubjectDraggableLabel(QLabel):
     clicked = pyqtSignal(QMouseEvent)
     
     def __init__(self, subject: Subject | CombinedSubject, cls: Class):
@@ -345,7 +344,7 @@ class TimeTableItem(QTableWidgetItem):
             self.setBackground(color)
 
 class TimetableTimeEditor(BaseWidget):
-    def __init__(self, parent: "SchoolTimetableEditor", t_time: TimetableTime):
+    def __init__(self, parent: BaseWidget, t_time: TimetableTime):
         super().__init__()
         
         self.__init = True
@@ -431,9 +430,8 @@ class TimetableSettings(BaseWidget):
         settings_menu_widget.addWidget(LabeledWidget("Break Period", self.breakperiod_edit))
         settings_menu_widget.addSpacing(10)
         # settings_menu_widget.addWidget(dotw_button := QPushButton("Days of the Week"))
-        settings_menu_widget.addWidget(generate_button := QPushButton("Generate School")) ; generate_button.clicked.connect(lambda: self.generate_school_timetable())
-        settings_menu_widget.addWidget(generate_new_button := QPushButton("Generate New School")) ; generate_new_button.clicked.connect(lambda: self.generate_school_timetable(self.clear_all_timetables))
-        settings_menu_widget.addWidget(clear_button := QPushButton("Clear Timetables")) ; clear_button.clicked.connect(self.clear_all_timetables)
+        settings_menu_widget.addWidget(generate_button := QPushButton("Generate")) ; generate_button.clicked.connect(lambda: self.generate_school_timetable(self.clear_all_timetables))
+        settings_menu_widget.addWidget(clear_button := QPushButton("Clear")) ; clear_button.clicked.connect(self.clear_all_timetables)
         settings_menu_widget.addSpacing(10)
         settings_menu_widget.addWidget(randomize_button := QCheckBox("Randomize")) ; randomize_button.clicked.connect(self.randomize)
         self.randomize_button = randomize_button
@@ -548,7 +546,6 @@ class TimetableSettings(BaseWidget):
             if state != self.editor.level_randomize_cbs[lvl_id].isChecked():
                 self.editor.level_randomize_cbs[lvl_id].click()
 
-
 class ClassTimetable(QTableWidget):
     def __init__(self, cls: Class, editor: 'SchoolTimetableEditor'):
         super().__init__()
@@ -565,7 +562,7 @@ class ClassTimetable(QTableWidget):
         self.remainder_widget.getScrollWidget().setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.remainder_widget.addStretch()
         
-        self.remainder_labels: list[_ExtrasDraggableSubjectLabel] = []
+        self.remainder_labels: list[ExtraSubjectDraggableLabel] = []
         
         self.weekdays = self.cls.level.weekdays
         self.period_amt = self.cls.level.period_amount
@@ -577,7 +574,7 @@ class ClassTimetable(QTableWidget):
         
         # Set size policies
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(self.rowCount() * 30 + 42)  # Adjust row height + header
+        self.setFixedHeight(self.rowCount() * 30 + 41)  # Adjust row height + header
         
         # Enable drag & drop
         self.setDragEnabled(True)
@@ -627,7 +624,7 @@ class ClassTimetable(QTableWidget):
         
         self.setRowCount(period_amt)
         self.setVerticalHeaderLabels([f"Period {i + 1}" for i in range(self.rowCount())])
-        self.setFixedHeight(self.rowCount() * 30 + 42)
+        self.setFixedHeight(self.rowCount() * 30 + 41)
         
         for col in range(self.columnCount()):
             for row in range(self.rowCount()):
@@ -797,19 +794,19 @@ class ClassTimetable(QTableWidget):
                 
                 event.accept()
                 self.editor.update()
-            
-            self.editor.remainder_unfocused()
-            self.current_source = None
+        
+        self.editor.remainder_unfocused()
+        self.current_source = None
     
     def addRemainder(self, subject: Subject, index: int | None = None):
         if not self.__init:
             self.window().saved_state_changed.emit(True)
         
-        remainder_label = _ExtrasDraggableSubjectLabel(subject, self.cls)
+        remainder_label = ExtraSubjectDraggableLabel(subject, self.cls)
         remainder_label.clicked.connect(self.editor.make_ds_func(remainder_label))
         
         if index is not None:
-            self.remainder_widget.insertWidget(index, remainder_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+            self.remainder_widget.insertWidget(index, remainder_label, alignment=Qt.AlignmentFlag.AlignTop)
             self.remainder_labels.insert(index - 1, remainder_label)
             self.cls.timetable.table_remains.insert(index - 1, subject)
         else:
@@ -817,7 +814,7 @@ class ClassTimetable(QTableWidget):
             self.remainder_labels.append(remainder_label)
             self.cls.timetable.table_remains.append(subject)
     
-    def removeRemainder(self, remainder: _ExtrasDraggableSubjectLabel):
+    def removeRemainder(self, remainder: ExtraSubjectDraggableLabel):
         if not self.__init:
             self.window().saved_state_changed.emit(True)
         
@@ -990,7 +987,7 @@ class SchoolTimetableEditor(BaseWidget):
     def remainder_unfocused(self):
         self.remainder_source_ref = None
     
-    def make_ds_func(self, label: _ExtrasDraggableSubjectLabel):
+    def make_ds_func(self, label: ExtraSubjectDraggableLabel):
         def func(event):
             self.remainder_source_ref = label
             
@@ -1069,14 +1066,16 @@ class SchoolTimetableEditor(BaseWidget):
                 self.window().saved_state_changed.emit(True)
             
             if state and next((False for cb in self.level_randomize_cbs.values() if not cb.isChecked()), True):
-                self.settings_widget.randomize_button.setChecked(True)
+                if not self.settings_widget.randomize_button.isChecked():
+                    self.settings_widget.randomize_button.click()
             else:
                 self.settings_widget.randomize_button.blockSignals(True)
                 self.settings_widget.randomize_button.setChecked(False)
                 self.settings_widget.randomize_button.blockSignals(False)
             
             for cls_id in SCHOOL.class_levels[cls_level.id].classes:
-                self.cls_randomize_cbs[cls_id].setChecked(state)
+                if state != self.cls_randomize_cbs[cls_id].isChecked():
+                    self.cls_randomize_cbs[cls_id].click()
         
         def _add_everyday(set_default: bool = True):
             widg = BaseWidget() ; widg.setProperty("class", "Bordered")
@@ -1190,13 +1189,10 @@ class SchoolTimetableEditor(BaseWidget):
         breakperiod_edit.setPlaceholderText("Break period")
         breakperiod_edit.textChanged.connect(break_period_changed)
         
-        generate_button = QPushButton("Generate Level")
-        generate_button.clicked.connect(lambda: generate_func())
+        generate_button = QPushButton("Generate")
+        generate_button.clicked.connect(lambda: generate_func(clear_func))
         
-        generate_new_button = QPushButton("Generate New Level")
-        generate_new_button.clicked.connect(lambda: generate_func(clear_func))
-        
-        clear_button = QPushButton("Clear Timetable")
+        clear_button = QPushButton("Clear")
         clear_button.clicked.connect(clear_func)
         
         randomize_button = QCheckBox("Randomize")
@@ -1222,7 +1218,6 @@ class SchoolTimetableEditor(BaseWidget):
         # widget.addWidget(dotw_button)
         widget.addSpacing(10)
         widget.addWidget(generate_button)
-        widget.addWidget(generate_new_button)
         widget.addWidget(clear_button)
         widget.addSpacing(10)
         widget.addWidget(randomize_button)
@@ -1302,12 +1297,9 @@ class SchoolTimetableEditor(BaseWidget):
         self.timetable_widgets[cls.level.id][cls.id] = timetable
         
         generate_button = QPushButton("Generate")
-        generate_button.clicked.connect(timetable.generate)
+        generate_button.clicked.connect(timetable.clear_and_generate)
         
-        generate_new_button = QPushButton("Generate New")
-        generate_new_button.clicked.connect(timetable.clear_and_generate)
-        
-        clear_button = QPushButton("Clear Timetable")
+        clear_button = QPushButton("Clear")
         clear_button.clicked.connect(timetable.clear_timetable)
         
         randomize_button = QCheckBox("Randomize")
@@ -1318,7 +1310,6 @@ class SchoolTimetableEditor(BaseWidget):
         _init = False
         
         settings_menu.addWidget(generate_button)
-        settings_menu.addWidget(generate_new_button)
         settings_menu.addWidget(clear_button)
         settings_menu.addSpacing(20)
         settings_menu.addWidget(randomize_button)

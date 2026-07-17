@@ -50,7 +50,7 @@ class BaseWidget(QWidget):
         self.key_pressed.emit(ev.key())
     
     @staticmethod
-    def static_clear_layout(layout: QLayout):
+    def static_clear_layout(layout: QHBoxLayout | QVBoxLayout):
         while layout.count():
             item = layout.takeAt(0)
             
@@ -263,10 +263,8 @@ class BaseWidget(QWidget):
     def getLayout(self):
         return self.main_layout
     
-    def getChildren(self, a0: Optional[type[_T] | tuple[type[_T]]] = None, is_generator: bool = False):
-        c_gen: Generator[_T, None, None] = (c for c in self._children if isinstance(c, a0 or QWidget))
-        
-        return c_gen if is_generator else list(c_gen)
+    def getChildren(self, a0: Optional[type[_T] | tuple[type[_T]]] = None):
+        return list(c for c in self._children if isinstance(c, (a0 if a0 is not None else QWidget)))
 
 class BaseScrollWidget(BaseWidget):
     def __init__(self, layout_type = None):
@@ -277,6 +275,7 @@ class BaseScrollWidget(BaseWidget):
         self.scroll_widget.setWidgetResizable(True)
         
         self.container = QWidget()
+        self.container.setProperty("class", "BaseWidget")
         self.scroll_widget.setWidget(self.container)
         self.main_layout = QVBoxLayout(self.container)
         
@@ -307,7 +306,6 @@ class BaseDialogWidget(QDialog):
         layout.addWidget(self.widget)
         
         self.setWindowTitle(title)
-        
         self.setContentsMargins(0, 0, 0, 0)
     
     def setSpacing(self, spacing: int):

@@ -5,7 +5,7 @@ from io import StringIO
 from utils import *
 from imports import *
 
-from widgets.base import *
+from .base import *
 
 import math
 from typing import Literal, TypeVar
@@ -1035,12 +1035,11 @@ class IconToolBarOption(BaseWidget):
             self,
             content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | QWidget,
             title: Optional[str | QLabel] = None,
-            icon_path: Optional[str] = None,
-            width: Optional[int] = None,
-            height: Optional[int] = None,
             font_size: Optional[int] = None,
             show_dp_icon: bool = False
         ):
+        self._first_press = True
+        
         self.content = content
         
         self.HOVER_STYLESHEET = THEME_MANAGER.process_stylesheet(
@@ -1137,6 +1136,7 @@ class IconToolBarOption(BaseWidget):
             if isinstance(self.content, list):
                 menu = self._getMenu(self, self.content)
                 
+                menu.adjustSize()
                 menu.exec(self.getMenuPosition(menu))
                 
                 self.setStyleSheet(self.STYLESHEET)
@@ -1144,8 +1144,15 @@ class IconToolBarOption(BaseWidget):
             elif isinstance(self.content, QWidget):
                 self.content.setWindowFlags(Qt.WindowType.Popup)
                 
-                self.content.move(self.getMenuPosition(self.content))
+                if not self._first_press:
+                    self.content.move(self.getMenuPosition(self.content))
+                
                 self.content.show()
+                
+                if self._first_press:
+                    QTimer.singleShot(0, lambda: self.content.move(self.getMenuPosition(self.content)))
+                    
+                    self._first_press = False
     
     def _getMenu(self, parent: QMenu | BaseWidget, content: list | None, name: Optional[str] = None):
         args = [parent]

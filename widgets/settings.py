@@ -1,7 +1,7 @@
 from imports import *
 
-from widgets.base import *
-from widgets.settings_options import *
+from .base import *
+from .settings_options import *
 
 
 class SubjectsSettingEntry(BaseSettingEntry):

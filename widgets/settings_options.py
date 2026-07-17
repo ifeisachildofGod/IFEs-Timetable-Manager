@@ -1,15 +1,12 @@
 
-from typing import Generator
-
 from imports import *
 
-from widgets.base import *
-from widgets.timetable import *
-from widgets.user_interface import *
-
+from .base import *
+from .timetable import *
+from .user_interface import *
 
 class BaseSelectionList(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, selected_items: Generator[tuple[ID, Subject | Teacher], None, None], content_scope: Global):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global):
         super().__init__(title)
         
         self.id = id

@@ -108,3 +108,12 @@ class FileManager:
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
 
+
+def resource_path(rel_path: str):
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, rel_path)
+

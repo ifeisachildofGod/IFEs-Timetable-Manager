@@ -5,8 +5,8 @@ from io import StringIO
 from utils import *
 from imports import *
 
-from widgets.base import *
-from widgets.user_interface import *
+from .base import *
+from .user_interface import *
 
 from PIL import Image as PILImage
 
@@ -179,7 +179,9 @@ class TextThemeEditor(IconToolBarOption):
         
         # -----------------------------------------------------------------------------------------------------------
         
-        f_widget = BaseWidget() ; f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        f_widget = BaseWidget()
+        f_widget.setSpacing(10)
+        f_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
         self.font_cb = QFontComboBox()
         self.s_sb = QSpinBox() ; self.s_sb.setValue(self.font_display_label.font().pointSize()) ; self.s_sb.setMaximum(500)
@@ -214,7 +216,9 @@ class TextThemeEditor(IconToolBarOption):
         
         # -----------------------------------------------------------------------------------------------------------
         
-        a_widget = BaseWidget() ; a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        a_widget = BaseWidget()
+        a_widget.setSpacing(10)
+        a_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
         self.ta_cb = QComboBox() ; self.ta_cb.addItems(["Left", "Center", "Right"])
         self.ta_cb.currentTextChanged.connect(self._textAlignment)
@@ -247,7 +251,7 @@ class ColorComboBox(IconToolBarOption):
         wrapper_widget.setSpacing(5)
         wrapper_widget.setContentsMargins(0, 0, 0, 0)
         
-        self.selected_color_display = QWidget()
+        self.selected_color_display = BaseWidget()
         self.selected_color_display.setFixedSize(20, 20)
         
         self.selected_color_hex_label = QLabel()
@@ -465,8 +469,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self._initGeometry()
         
-        self.setProperty("class", "ExportEditor")
-        
         self.t_labels = [
             QLabel("SS3 A")
         ]
@@ -488,8 +490,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         central_widget = BaseWidget(QHBoxLayout)
         
-        central_widget.addWidget(self._initSideBarWidget(), stretch=2)
-        central_widget.addWidget(self._initTimetableSection(), stretch=8)
+        central_widget.addWidget(self._initSideBarWidget(), stretch=3)
+        central_widget.addWidget(self._initTimetableSection(), stretch=7)
         
         self.addWidget(central_widget)
         self.addWidget(self._initBottomWidget())

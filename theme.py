@@ -56,7 +56,8 @@ PALETTES = {
             "bg2": "#2a0000",
             "bg3": "#4b0000",
             "bg4": "#2c0000",
-            "mute-bg": "#404040",
+            "bg5": "#350000",
+            "mute-bg": "#150000",
             "border1": "#505050",
             "bg6-border2": "#612121",
             "text": "#f0f0f0",
@@ -71,13 +72,14 @@ PALETTES = {
             
             "e-border": "#d60000",
         },
-
+        
         "green": {
             "bg1": "#001e00",
             "bg2": "#002a00",
             "bg3": "#004b00",
             "bg4": "#002c00",
-            "mute-bg": "#404040",
+            "bg5": "#004200",
+            "mute-bg": "#001500",
             "border1": "#505050",
             "bg6-border2": "#236121",
             "text": "#f0f0f0",
@@ -92,34 +94,14 @@ PALETTES = {
             
             "e-border": "#00d600",
         },
-
-        "lightblue": {
-            "bg1": "#001e1e",
-            "bg2": "#002a2a",
-            "bg3": "#004b4b",
-            "bg4": "#002c2c",
-            "mute-bg": "#404040",
-            "border1": "#505050",
-            "bg6-border2": "#215f61",
-            "text": "#f0f0f0",
-            "secondary": "#006666",
-            "scrollbar": "#505050",
-            "tooltip_bg": "#303030",
-            "tooltip_text": "#e0e0e0",
-            "disabled": "#777777",
-            
-            "maximum": "#001111",
-            "minimum": "#ffffff",
-            
-            "e-border": "#002929",
-        },
-
+        
         "darkblue": {
             "bg1": "#11001e",
             "bg2": "#11002a",
             "bg3": "#11004b",
             "bg4": "#11002c",
-            "mute-bg": "#404040",
+            "bg5": "#110031",
+            "mute-bg": "#0a001f",
             "border1": "#505050",
             "bg6-border2": "#252161",
             "text": "#f0f0f0",
@@ -173,6 +155,12 @@ PALETTES = {
 }
 
 STYLESHEET = '''
+    * {{
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 13px;
+        margin: 0px;
+    }}
+    
     QWidget.Bordered {{
         border: 1px solid {bg6-border2};
     }}
@@ -185,16 +173,10 @@ STYLESHEET = '''
         background-color: {bg1};
     }}
     
-    QWidget, QScrollArea {{
+    QWidget.BaseWidget, QScrollArea {{
         background-color: {bg2};
         color: {text}; 
         border: none;
-    }}
-    
-    QWidget {{
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 13px;
-        margin: 0px;
     }}
     
     QFrame.DPMenu {{
@@ -396,6 +378,7 @@ STYLESHEET = '''
         background-color: {hover__fg1};
     }}
     QComboBox QAbstractItemView {{
+        color: {text};
         background-color: {bg1};
         border: 1px solid {border1};
         selection-background-color: {fg1};
@@ -789,66 +772,21 @@ STYLESHEET = '''
     }}
     
     
-    
-    QWidget.ExportEditor QWidget.ExportEditorOptionsBG, QWidget.SC_Bordeless {{
+    QWidget.ExportEditorOptionsBG, QWidget.SC_Bordeless {{
         border: none;
-    }}
-    
-    QWidget.ExportEditor QWidget.ExportEditorOptionsBG {{
-        background-color: transparent;
     }}
     
     QLabel {{
         background: none;
     }}
     
-    QWidget.ExportEditor QLineEdit, QWidget.ExportEditor QTextEdit {{
-        color: {text};
-        background-color: {bg2};
-        border: 1px solid {maximum};
-    }}
-    
-    QWidget.ExportEditor QSpinBox {{
+    QSpinBox {{
         color: {text};
         background-color: {bg4};
         border: 1px solid {maximum};
     }}
     
-    QWidget.ExportEditor QComboBox {{
-        background-color: {bg4};
-        color: {text};
-        border: 1px solid {maximum};
-        padding: 6px;
-        min-width: 120px;
-    }}
-    
-    QWidget.ExportEditor QComboBox::drop-down {{
-        border: none;
-        padding-right: 6px;
-    }}
-    
-    QWidget.ExportEditor QComboBox::down-arrow {{
-        image: none;
-        border: none;
-        width: 12px;
-        height: 12px;
-        background-color: {fg4};
-        border-radius: 100%;
-    }}
-    
-    QWidget.ExportEditor QComboBox::down-arrow:hover {{
-        background-color: {hover__fg4};
-    }}
-    
-    QWidget.ExportEditor QComboBox QAbstractItemView {{
-        color: {text};
-        background-color: {bg4};
-        border: 1px solid {maximum};
-        selection-background-color: {hover__fg4};
-        selection-color: {text};
-    }}
-    
-    QWidget.ExportEditor QColorDialog, QDialog, QWidget.ExportEditorSection {{
+    QColorDialog, QDialog, QWidget.ExportEditorSection {{
         background-color: {bg6-border2}
     }}
     
@@ -873,7 +811,8 @@ class ThemeManager:
         
         for name1, theme_palette in PALETTES["main-palette"].items():
             for name2, color_palette in PALETTES["accent-palette"].items():
-                palette = deepcopy(theme_palette)
+                palette = theme_palette.copy()
+                
                 palette.update(color_palette)
                 palette.update(general)
                 
