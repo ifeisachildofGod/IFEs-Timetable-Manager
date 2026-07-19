@@ -15,7 +15,7 @@ FT_MAPPING = {
 pygame.init()
 
 class Thread(QThread):
-    crashed = pyqtSignal(Exception)
+    crashed = pySignal(Exception)
     
     def __init__(self, main_window: QMainWindow, func: Callable):
         super().__init__()

@@ -5,11 +5,14 @@ from utils import *
 from imports import *
 from widgets import *
 
+from GradApp import *
+
+
 pygame.init()
 
 class Window(QMainWindow):
-    saved_state_changed = pyqtSignal(bool)
-    crashed_signal = pyqtSignal(Exception)
+    saved_state_changed = pySignal(bool)
+    crashed_signal = pySignal(Exception)
     
     def __init__(self, arguments: list[str]):
         super().__init__()
@@ -209,7 +212,9 @@ class Window(QMainWindow):
                         data = SCHOOL.from_template(file.read())
                 
                     self._open_file_type = TEMPLATE_EXTENSION_TYPE
-                except:
+                except Exception as e:
+                    print(e)
+                    
                     with open(self.file.path, "rb") as file:
                         data = pickle.load(file)
                     

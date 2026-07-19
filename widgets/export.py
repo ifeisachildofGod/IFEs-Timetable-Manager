@@ -236,7 +236,7 @@ class TextThemeEditor(IconToolBarOption):
         return font_section
 
 class ColorComboBox(IconToolBarOption):
-    colorSelected = pyqtSignal(str)
+    colorSelected = pySignal(str)
     
     def __init__(self, color: QColor | str, window: Optional[QMainWindow] = None):
         super().__init__()

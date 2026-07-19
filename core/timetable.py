@@ -2,6 +2,8 @@
 from typing import Optional
 from dataclasses import dataclass
 
+from .base import Time
+
 @dataclass
 class Margins:
     left: int
@@ -42,36 +44,6 @@ class TimetableExportTheme:
     
     export_mode: int
     export_file_type: str
-
-@dataclass
-class Time:
-    hour: int
-    minute: int
-    
-    def copy(self):
-        return Time(self.hour, self.minute)
-    
-    def __repr__(self):
-        return f"{self.hour}:{"0" if self.minute < 10 else ""}{self.minute}"
-    
-    def __mul__(self, other: int):
-        return Time(self.hour * other, self.minute * other) + 0
-    
-    def __add__(self, other: "Time | int"):
-        if isinstance(other, Time):
-            min = other.hour * 60 + self.minute + other.minute
-        elif isinstance(other, int):
-            min = self.minute + other
-        else:
-            raise TypeError(f"Cannot add {type(other)} to Time")
-        
-        return Time(self.hour + min // 60, min % 60)
-    
-    def __radd__(self, other):
-        self.__add__(other)
-    
-    def __rmul__(self, other):
-        self.__mul__(other)
 
 @dataclass
 class TimetableTime:

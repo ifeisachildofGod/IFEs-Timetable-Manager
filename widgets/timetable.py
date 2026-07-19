@@ -247,7 +247,7 @@ class ClashDisplayDialog(BaseDialogWidget):
 
 
 class ExtraSubjectDraggableLabel(QLabel):
-    clicked = pyqtSignal(QMouseEvent)
+    clicked = pySignal(QMouseEvent)
     
     def __init__(self, subject: Subject | CombinedSubject, cls: Class):
         name = subject.name.full()

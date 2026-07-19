@@ -88,7 +88,7 @@ class School:
         self.gen_data = GeneratingData({}, {}, {}, {})
         self.settings = Settings(
             "dark-blue",
-            10, 7, 3, (2, 4), TimetableTime(Time(8, 10), 35, 35),
+            10, 7, 3, (2, 4), TimetableTime(Time(8, 10, 0), 35, 35),
             {},
             ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], {},
             TimetableExportTheme(
@@ -252,7 +252,7 @@ class School:
                     else:
                         names = [t_name, None, None, ""]
                     
-                    teacher = Teacher(t_id, TeacherName(*names), {})
+                    teacher = Teacher(t_id, None, StaffName(*names), "GradApp/src/profile-images/t_id1.png", [], {})
                 
                 school_framework.teachers.add(teacher)
                 

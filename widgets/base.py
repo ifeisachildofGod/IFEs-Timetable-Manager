@@ -16,8 +16,8 @@ class Status(Enum):
 
 
 class BaseWidget(QWidget):
-    clicked = pyqtSignal(QMouseEvent)
-    key_pressed = pyqtSignal(int)
+    clicked = pySignal(QMouseEvent)
+    key_pressed = pySignal(int)
     
     def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None, parent=None):
         super().__init__(parent)

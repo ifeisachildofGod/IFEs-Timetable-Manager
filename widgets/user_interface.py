@@ -59,7 +59,7 @@ class ProgressBar(QProgressBar):
 
 
 class NumberLineEdit(BaseWidget):
-    textChanged = pyqtSignal(int)
+    textChanged = pySignal(int)
     
     def __init__(self, number: int, min_validatorAmt: int = 0, max_validatorAmt: int = 10):
         super().__init__(QHBoxLayout)
@@ -151,7 +151,7 @@ class NumberLineEdit(BaseWidget):
             self.setNumber(number)
 
 class ArrowWidget(QLabel):
-    mouseclicked = pyqtSignal()
+    mouseclicked = pySignal()
     
     def __init__(self, angle: int = 0, parent=None):
         super().__init__("▼", parent)
@@ -638,9 +638,9 @@ class WidgetDropdown(BaseWidget):
             self.toogle()
 
 class EditableCancelableEntry(BaseWidget):
-    deleted = pyqtSignal()
-    started_editing_signal = pyqtSignal()
-    finished_editing_signal = pyqtSignal()
+    deleted = pySignal()
+    started_editing_signal = pySignal()
+    finished_editing_signal = pySignal()
     
     def __init__(self, initial_text: str | None = None):
         super().__init__(QHBoxLayout)
@@ -818,7 +818,7 @@ class SideBar(BaseWidget):
 
 
 class _Tab(BaseWidget):
-    tab_selected = pyqtSignal()
+    tab_selected = pySignal()
     
     def __init__(self, name: str):
         super().__init__()

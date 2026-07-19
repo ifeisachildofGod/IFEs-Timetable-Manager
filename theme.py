@@ -925,23 +925,11 @@ class ThemeManager:
         
         theme = self.themes[name]
         self.current_theme = name
-
-        self.current_pallete = theme.get("palette")
-        stylesheet_template = theme.get("stylesheet")
-
-        # Inject palette variables into stylesheet using string formatting
-        # try:
-        #     error = None
         
-        applied_stylesheet = self.process_stylesheet(stylesheet_template)
+        self.current_pallete = theme["palette"]
+        stylesheet = self.process_stylesheet(theme["stylesheet"])
         
-        # except KeyError as e:
-        #     error = e
-        
-        # if error:
-        #     KeyError(f"Missing color value for: {error} on line {stylesheet_template[:stylesheet_template.find(str(error))].count("\n") + 1}")
-        
-        self.app.setStyleSheet(applied_stylesheet)
+        self.app.setStyleSheet(stylesheet)
     
     def get_current_theme(self):
         theme: dict[str, dict[str, str] | str] = self.themes.get(self.current_theme, None)

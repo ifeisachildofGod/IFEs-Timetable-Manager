@@ -72,7 +72,7 @@ class SubjectsSettingEntry(BaseSettingEntry):
 
 class TeachersSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor):
-        entry = entry or Teacher(ID.new(), TeacherName("", "", "", ""), {})
+        entry = entry or Teacher(ID.new(), None, StaffName("", "", "", ""), "GradApp/src/profile-images/t_id1.png", [], {})
         
         self.timetable_editor = timetable_editor
         

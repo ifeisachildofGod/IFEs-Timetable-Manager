@@ -1,15 +1,25 @@
 import math
 import random
 from typing import Any
-from core.timetable import *
-from core.base import *
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
+
+from os import PathLike
+
+from core.base import *
+from core.timetable import *
 
 
 @dataclass
 class Entry:
     id: ID
+@dataclass
+class AttendanceEntry:
+    period: Period
+    
+    staff: "Staff"
+    
+    is_check_in: bool = True
 
 
 @dataclass
@@ -35,6 +45,19 @@ class Subject(Entry):
     
     def passCopy(self):
         return Subject(self.id, self.name, None, self.classes)
+    
+    def get_periods(self):
+        s_periods = []
+        
+        for cls in self.classes.values():
+            if cls.timetable.table_remains.count(self) < cls.level.subjects_occurence[self.id].week_max:
+                for day, w_periods in cls.timetable.table.items():
+                    if self in w_periods:
+                        for i, s in enumerate(w_periods):
+                            if self.id == s.id:
+                                s_periods.append((day, i + 1))
+        
+        return s_periods
 @dataclass
 class CombinedSubject(Entry):
     name: Optional[SubjectName]
@@ -68,9 +91,8 @@ class BreakPeriod:
         self.name = SubjectName("Break", "Break")
 
 
-
 @dataclass
-class TeacherName:
+class StaffName:
     start: str
     first: Optional[str]
     other: Optional[str]
@@ -82,9 +104,20 @@ class TeacherName:
     def short(self):
         return self.abbrev if self.abbrev else self.start
 @dataclass
-class Teacher(Entry):
-    name: TeacherName
+class Staff(Entry):
+    IUD: Optional[str]
     
+    name: StaffName
+    img_path: PathLike
+    
+    attendance: list[AttendanceEntry]
+@dataclass
+class Prefect(Staff):
+    post_name: str
+    cls: "Class"
+    duties: dict[str, list[str]]
+@dataclass
+class Teacher(Staff):
     subjects: dict[ID, Subject]
 @dataclass
 class CombinedTeacher(Entry):

@@ -1,0 +1,7 @@
+kb a, 51232123A
+kb b, F93E13B4
+kb c, 6999BDB2
+kb d, 637B910C
+kb e, A3DEB30C
+kb f, B3A6DE0C
+kb g, 89A2A1B2

@@ -1,0 +1,108 @@
+{
+    "prefect_cit": ["$$Time$$", {"hour": 7, "min": 0, "sec": 0}],
+    "prefect_cot": ["$$Time$$", {"hour": 15, "min": 0, "sec": 0}],
+
+    "teacher_cit": ["$$Time$$", {"hour": 7, "min": 0, "sec": 0}],
+    "teacher_cot": ["$$Time$$", {"hour": 15, "min": 0, "sec": 0}],
+    
+    "prefect_cin_border_interval_minutes": 60,
+    "prefect_cout_border_interval_minutes": 60,
+
+    "teacher_cin_border_interval_minutes": 60,
+    "teacher_cout_border_interval_minutes": 60,
+
+    "teacher_timeline_dates": [
+        [
+            ["$$Period$$", {"time": ["$$Time$$", {"hour": 0, "min": 0, "sec": 0}], "day": "Thursday", "date": 1, "month": "January", "year": 0}],
+            ["$$Period$$", {"time": ["$$Time$$", {"hour": 0, "min": 0, "sec": 0}], "day": "Friday", "date": 31, "month": "December", "year": 0}]
+        ]
+    ],
+    "prefect_timeline_dates": [
+        [
+            ["$$Period$$", {"time": ["$$Time$$", {"hour": 0, "min": 0, "sec": 0}], "day": "Thursday", "date": 1, "month": "January", "year": 0}],
+            ["$$Period$$", {"time": ["$$Time$$", {"hour": 0, "min": 0, "sec": 0}], "day": "Friday", "date": 31, "month": "December", "year": 0}]
+        ]
+    ],
+
+    "teachers": {
+        "t_id1": ["$$Teacher$$", {
+            "id": "t_id1",
+            "IUD": "51232123A",
+            "name": ["$$StaffName$$", {"start": "Brandon", "first": "Chukwudi", "other": "Joseph", "abbrev": "Chukwudi"}],
+            "department": ["$$Department$$", {"id": "dep_id1", "name": "Physics"}],
+            "subjects": [["$$Subject$$", {"id": "subj_id1", "name": "Physics", "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}], "periods": [["Monday", 2], ["Wednesday", 2]]}]],
+            "img_path": "src/profile-images/p_id1.png",
+            "attendance": []
+        }],
+        "t_id2": ["$$Teacher$$", {
+            "id": "t_id2",
+            "IUD": "F93E13B4",
+            "name": ["$$StaffName$$", {"start": "Uncle", "first": "Tunde", "other": "Badagry", "abbrev": "Mantissa"}],
+            "department": ["$$Department$$", {"id": "dep_id2", "name": "Mathematics"}],
+            "subjects": [["$$Subject$$", {"id": "subj_id2", "name": "Mathematics", "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}], "periods": [["Wednesday", 2], ["Thursday", 2], ["Friday", 2]]}]],
+            "img_path": "src/profile-images/p_id1.png",
+            "attendance": []
+        }]
+        
+    },
+    "prefects": {
+        "p_id1": ["$$Prefect$$", {
+            "id": "p_id1",
+            "IUD": "6999BDB2",
+            "name": ["$$StaffName$$", {"start": "Eze", "first": "Emmmanuel", "other": "Udochukwu", "abbrev": "Emma"}],
+            "post_name": "Parade Commander",
+            "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}],
+            "img_path": "src/profile-images/p_id1.png",
+            "duties": {"Wednesday": ["Morning", "Assembly parade", "Cadet training"]},
+            "attendance": []
+        }],
+        "p_id2": ["$$Prefect$$", {
+            "id": "p_id2",
+            "IUD": "637B910C",
+            "name": ["$$StaffName$$", {"start": "Eshiokwu", "first": "Johnpaul", "other": "Bassey", "abbrev": "J.P"}],
+            "post_name": "Band Prefect",
+            "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}],
+            "img_path": "src/profile-images/p_id1.png",
+            "duties": {"Monday": ["Morning", "Band"], "Thursday": ["Afternoon", "Band practice"], "Friday": ["Morning", "Band"]},
+            "attendance": []
+        }],
+        "p_id3": ["$$Prefect$$", {
+            "id": "p_id3",
+            "IUD": "A3DEB30C",
+            "name": ["$$StaffName$$", {"start": "Igboke", "first": "Chisom", "other": "Joseph", "abbrev": "Chisom"}],
+            "post_name": "Ast. Games",
+            "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}],
+            "img_path": "src/profile-images/p_id1.png",
+            "duties": {"Monday": ["Afternoon", "Boys Footbal"], "Tuesday": ["Afternoon", "Boys Footbal"], "Wednesday": ["Afternoon", "Boys Footbal"], "Thursday": ["Afternoon", "Boys Footbal"], "Friday": ["Afternoon", "Boys Footbal"]},
+            "attendance": []
+        }],
+        "p_id4": ["$$Prefect$$", {
+            "id": "p_id4",
+            "IUD": "B3A6DE0C",
+            "name": ["$$StaffName$$", {"start": "Anyanwu", "first": "Divine", "other": "Godswill", "abbrev": "Onuwa"}],
+            "post_name": "Chapel Prefect",
+            "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}],
+            "img_path": "src/profile-images/p_id1.png",
+            "duties": {"Monday": ["Morning Prayers"]},
+            "attendance": []
+        }],
+        "p_id5": ["$$Prefect$$", {
+            "id": "p_id5",
+            "IUD": "89A2A1B2",
+            "name": ["$$StaffName$$", {"start": "Eze", "first": "Ifebuche", "other": "Esther", "abbrev": "Esther"}],
+            "post_name": "Games Prefect (Girl)",
+            "cls": ["$$Class$$", {"id": "c_id1", "name": "SS2 H"}],
+            "img_path": "src/profile-images/p_id1.png",
+            "duties": {"Wednesday": ["Afternoon", "Girls Football" ]},
+            "attendance": []
+        }]
+    },
+    
+    "variables": {"saved": true},
+    
+    "attendance_data": []
+}
+
+
+
+
