@@ -334,7 +334,7 @@ class BaseStaffListEntryWidget(QWidget):
         self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "No IUD set")
         self.iud_label.setStyleSheet("font-weight: bold;")
         
-        self.sub_info_layout.addWidget(LabeledField("IUD", self.iud_label), alignment=Qt.AlignmentFlag.AlignLeft)
+        self.sub_info_layout.addWidget(LabeledField("IUD", self.iud_label, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignLeft)
     
     def set_iud(self):
         if not self.comm_system.connected:
@@ -346,7 +346,7 @@ class BaseStaffListEntryWidget(QWidget):
             self.comm_system.send_message("SCANNING")
     
     def view_data(self):
-        self.comm_system.send_message((" " * int(8 - (len(self.staff.name.abrev) / 2))) + f"{self.staff.name.abrev}'s_Performance Data")
+        self.comm_system.send_message((" " * int(8 - (len(self.staff.name.abbrev) / 2))) + f"{self.staff.name.abbrev}'s_Performance Data")
         
         self.staff_data_widget.set_self(self.staff)
         

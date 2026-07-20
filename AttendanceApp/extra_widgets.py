@@ -2,48 +2,36 @@
 from .imports import *
 from .functions_and_uncategorized import *
 
+from widgets.base import BaseWidget
 
-class TabViewWidget(QWidget):
+
+class TabViewWidget(BaseWidget):
     def __init__(self, bar_orientation: Literal["vertical", "horizontal"] = "horizontal"):
-        super().__init__()
         self.bar_orientation = bar_orientation
         
+        super().__init__(QVBoxLayout if self.bar_orientation == "horizontal" else QHBoxLayout)
+        
         assert self.bar_orientation in ("vertical", "horizontal"), f"Invalid orientation: {self.bar_orientation}"
-        
-        main_layout = QVBoxLayout()
-        self.setLayout(main_layout)
-        
-        tab_layout_type = QHBoxLayout if self.bar_orientation == "horizontal" else QVBoxLayout
-        main_layout_type = QHBoxLayout if self.bar_orientation == "vertical" else QVBoxLayout
-        
-        container = QWidget()
-        layout = main_layout_type()
-        container.setLayout(layout)
         
         self.current_tab = None
         self.tab_src_changed_func_mapping = {}
         
         self.tab_buttons: list[QPushButton] = []
         
-        tab_widget = QWidget()
-        tab_widget.setContentsMargins(0, 0, 0, 0)
-        
-        self.tab_layout = tab_layout_type()
-        tab_widget.setLayout(self.tab_layout)
+        self.tab_widget = BaseWidget(QHBoxLayout if self.bar_orientation == "horizontal" else QVBoxLayout)
+        self.tab_widget.setSpacing(5)
+        self.tab_widget.setContentsMargins(0, 0, 0, 0)
         
         self.stack = QStackedWidget()
         
         if self.bar_orientation == "vertical":
-            self.tab_layout.addStretch()
+            self.tab_widget.addStretch()
         
-        self.setContentsMargins(0, 0, 0, 0)
-        tab_widget.setContentsMargins(0, 0, 0, 0)
+        self.setContentsMargins(10, 10, 10, 10)
         self.stack.setContentsMargins(0, 0, 0, 0)
         
-        layout.addWidget(tab_widget)
-        layout.addWidget(self.stack)
-        
-        main_layout.addWidget(container)
+        self.addWidget(self.tab_widget)
+        self.addWidget(self.stack)
     
     def add(self, tab_name: str, widget: QWidget, func: Callable[[int, ], None] = None):
         tab_button = QPushButton(tab_name)
@@ -55,17 +43,18 @@ class TabViewWidget(QWidget):
         tab_button.setProperty("class", "HorizontalTab" if self.bar_orientation == "horizontal" else "VerticalTab")
         tab_button.setContentsMargins(0, 0, 0, 0)
         
-        self.tab_layout.insertWidget(len(self.tab_buttons) - 1, tab_button)
+        self.tab_widget.insertWidget(len(self.tab_buttons) - 1, tab_button)
         self.stack.insertWidget(len(self.tab_buttons), widget)
         widget.setContentsMargins(0, 0, 0, 0)
         
         self.tab_buttons[0].click()
     
     def get(self, tab_name: str, default: Any = ...):
-        tab_widget = (self.stack.children() + [default])[next((i for i, b in enumerate(self.tab_buttons) if b.text() == tab_name), len(self.stack.children()))]
+        tab_widget: QWidget = (self.stack.children() + [default])[next((i for i, b in enumerate(self.tab_buttons) if b.text() == tab_name), -1)]
         
         if type(tab_widget) == type(Ellipsis):
             raise KeyError(f'There is no tab named: "{tab_name}"')
+        
         return tab_widget
     
     def index(self, widget: QWidget):
@@ -131,11 +120,13 @@ class Image(QLabel):
         
         pixmap = QPixmap(path)
         
+        size = pixmap.size()
+        
         if width is not None or height is not None:
-            if height is not None and width is None:
-                self.setFixedSize(int(height * pixmap.size().width() / pixmap.size().height()), height)
-            elif width is not None and height is None:
-                self.setFixedSize(width, int(width * pixmap.size().height() / pixmap.size().width()))
+            if height is not None and width is None and size.height():
+                self.setFixedSize(int(height * size.width() / size.height()), height)
+            elif width is not None and height is None and size.width():
+                self.setFixedSize(width, int(width * size.height() / size.width()))
             else:
                 self.setFixedSize(width, height)
         

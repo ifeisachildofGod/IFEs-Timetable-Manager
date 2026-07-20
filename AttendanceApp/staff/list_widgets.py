@@ -23,7 +23,7 @@ class AttendanceWidget(BaseScrollListWidget):
                 "cs": self.cs_dbg_action_mapping,
             }
             
-            with open("src/dbg.txt") as dbg_file:
+            with open("AttendanceApp/src/dbg.txt") as dbg_file:
                 mapping_data = dbg_file.read().strip().splitlines()
                 
                 for text in mapping_data:
@@ -122,78 +122,6 @@ class AttendanceWidget(BaseScrollListWidget):
         hr, min, sec = time.ctime().split()[3].split(":")
         
         self.time_label.setText(f"<span style='font-weight: bold; font-family: consolas; font-size: 25px'>{hr} : {min} : {sec}</span>")
-    
-    def _goto_search(self, sw: AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget | list[DropdownLabeledField | AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget]):
-        if isinstance(sw, list):
-            self._reveal_widget(sw[:-1], sw[-1])
-        else:
-            self.scroll_to(sw)
-    
-    def _get_search_scope(self):
-        parent_widget: BaseListWidget | BaseFilterCategoriesWidget = self.stack.currentWidget()
-        
-        if isinstance(parent_widget, BaseFilterCategoriesWidget):
-            widgets: dict = parent_widget.get_widgets()
-            
-            return (
-                sorted(
-                    [
-                        (
-                            sw_list,
-                            sw_list[-1].staff.name.full(),
-                            (
-                                sw_list[-1].staff.name.abrev,
-                                sw_list[-1].data.period.to_str(),
-                                "Prefect" if isinstance(sw_list[-1].staff, Prefect) else "Teacher"
-                                ),
-                            [
-                                sw_list[-1].staff.IUD,    
-                                sw_list[-1].staff.name.other,
-                                sw_list[-1].staff.post_name if isinstance(sw_list[-1].staff, Prefect) else None,
-                                sw_list[-1].staff.cls.name if isinstance(sw_list[-1].staff, Prefect) else None
-                                ] + (
-                                    (list(set(flatten(sw_list[-1].staff.duties.values()))) + list(sw_list[-1].staff.duties))
-                                    if isinstance(sw_list[-1].staff, Prefect) else
-                                    ([s.name.full() for s in sw_list[-1].staff.subjects.values()] + [s.cls.name for s in sw_list[-1].staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw_list[-1].staff.subjects.values()])))
-                                    )
-                        )
-                        for sw_list in
-                        widgets
-                        ],
-                    key=lambda params: params[1]
-                    )
-                )
-        else:
-            widgets: list[AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget] = parent_widget.get_widgets()
-            
-            return (
-                sorted(
-                    [
-                        (
-                            sw,
-                            sw.staff.name.full(),
-                            (
-                                sw.staff.name.abrev,
-                                sw.data.period.to_str(),
-                                "Prefect" if isinstance(sw.staff, Prefect) else "Teacher"
-                                ),
-                            [
-                                sw.staff.IUD,    
-                                sw.staff.name.other,
-                                sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
-                                sw.staff.cls.name if isinstance(sw.staff, Prefect) else None
-                                ] + (
-                                    (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
-                                    if isinstance(sw.staff, Prefect) else
-                                    ([s.name.full() for s in sw.staff.subjects.values()] + [s.cls.name for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
-                                    )
-                        )
-                        for sw in
-                        widgets
-                        ],
-                    key=lambda params: params[1]
-                    )
-                )
     
     def _reveal_widget(self, dropdowns: list[DropdownLabeledField], target_widget: QWidget):
         if not dropdowns:
@@ -345,6 +273,78 @@ class AttendanceWidget(BaseScrollListWidget):
         period.year = random.randint(2000, 2030)
         
         return period
+    
+    def search_goto(self, sw: AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget | list[DropdownLabeledField | AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget]):
+        if isinstance(sw, list):
+            self._reveal_widget(sw[:-1], sw[-1])
+        else:
+            self.scroll_to(sw)
+    
+    def search_get_scope(self):
+        parent_widget: BaseListWidget | BaseFilterCategoriesWidget = self.stack.currentWidget()
+        
+        if isinstance(parent_widget, BaseFilterCategoriesWidget):
+            widgets: dict = parent_widget.get_widgets()
+            
+            return (
+                sorted(
+                    [
+                        (
+                            sw_list,
+                            sw_list[-1].staff.name.full(),
+                            (
+                                sw_list[-1].staff.name.abbrev,
+                                sw_list[-1].data.period.to_str(),
+                                "Prefect" if isinstance(sw_list[-1].staff, Prefect) else "Teacher"
+                                ),
+                            [
+                                sw_list[-1].staff.IUD,    
+                                sw_list[-1].staff.name.other,
+                                sw_list[-1].staff.post_name if isinstance(sw_list[-1].staff, Prefect) else None,
+                                f"{sw_list[-1].staff.cls.level.name.full()} {sw_list[-1].staff.cls.name}" if isinstance(sw_list[-1].staff, Prefect) else None
+                                ] + (
+                                    (list(set(flatten(sw_list[-1].staff.duties.values()))) + list(sw_list[-1].staff.duties))
+                                    if isinstance(sw_list[-1].staff, Prefect) else
+                                    ([s.name.full() for s in sw_list[-1].staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw_list[-1].staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw_list[-1].staff.subjects.values()])))
+                                    )
+                        )
+                        for sw_list in
+                        widgets
+                        ],
+                    key=lambda params: params[1]
+                    )
+                )
+        else:
+            widgets: list[AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget] = parent_widget.get_widgets()
+            
+            return (
+                sorted(
+                    [
+                        (
+                            sw,
+                            sw.staff.name.full(),
+                            (
+                                sw.staff.name.abbrev,
+                                sw.data.period.to_str(),
+                                "Prefect" if isinstance(sw.staff, Prefect) else "Teacher"
+                                ),
+                            [
+                                sw.staff.IUD,    
+                                sw.staff.name.other,
+                                sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
+                                f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
+                                ] + (
+                                    (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
+                                    if isinstance(sw.staff, Prefect) else
+                                    ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
+                                    )
+                        )
+                        for sw in
+                        widgets
+                        ],
+                    key=lambda params: params[1]
+                    )
+                )
     
     def filter(self, entry_obj: BaseAttendanceEntryWidget, comb: tuple[int, ...]):
         i1, i2, i3 = comb
@@ -647,7 +647,7 @@ class AttendanceWidget(BaseScrollListWidget):
             self.comm_system.send_message(f"SCANNED")
             QTimer.singleShot(
                 500,
-                lambda: self.comm_system.send_message(f"   Good{' morning' if is_check_in else "bye"}" + "_"+ (" " * int(8 - (len(entry.staff.name.abrev) / 2))) + f"{entry.staff.name.abrev}")
+                lambda: self.comm_system.send_message(f"   Good{' morning' if is_check_in else "bye"}" + "_"+ (" " * int(8 - (len(entry.staff.name.abbrev) / 2))) + f"{entry.staff.name.abbrev}")
             )
     
     def keyPressEvent(self, a0):
@@ -668,29 +668,33 @@ class StaffListWidget(BaseScrollListWidget):
     def __init__(self, parent_widget: TabViewWidget, data: AppData, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget):
         super().__init__()
         
-        self.data = data
+        self.data = SCHOOL.attendance
         self.parent_widget = parent_widget
         self.comm_system = comm_system
         self.card_scanner_widget = card_scanner_widget
         self.staff_data_widget = staff_data_widget
         
-        prefects = sorted([(k, v) for k, v in self.data.prefects.items()], key=lambda params: params[1].name.full())
-        teachers = sorted([(k, v) for k, v in self.data.teachers.items()], key=lambda params: params[1].name.full())
-        boths = sorted(prefects + teachers, key=lambda params: params[1].name.full())
-        prefects_first = prefects + teachers
-        teachers_first = teachers + prefects
+        self.curr_filter = None
         
-        self._staffs_viewed: dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget] = {}
+        prefects = lambda: sorted([(k, v) for k, v in self.data.prefects.items()], key=lambda params: params[1].name.full())
+        teachers = lambda: sorted([(k, v) for k, v in self.data.teachers.items()], key=lambda params: params[1].name.full())
+        boths = lambda: sorted(prefects() + teachers(), key=lambda params: params[1].name.full())
+        prefects_first = lambda: prefects() + teachers()
+        teachers_first = lambda: teachers() + prefects()
+        
+        self._filter_funcs: dict[str, Callable] = {}
+        self._filter_layouts: dict[str, QVBoxLayout] = {}
+        self._staffs_viewed: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
         
         both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
         
-        self.widgets = {
-            "Default": self.get_filtered_widgets(boths, both_func),
-            "Prefects Only": self.get_filtered_widgets(prefects, lambda _: StaffListPrefectEntryWidget),
-            "Teachers Only": self.get_filtered_widgets(teachers, lambda _: StaffListTeacherEntryWidget),
-            "Prefects First": self.get_filtered_widgets(prefects_first, both_func),
-            "Teachers First": self.get_filtered_widgets(teachers_first, both_func)
-        }
+        self.widgets = {}
+        
+        self.get_filtered_widgets("Default", boths, both_func)
+        self.get_filtered_widgets("Prefects Only", prefects, lambda staff: StaffListPrefectEntryWidget if isinstance(staff, Prefect) else None)
+        self.get_filtered_widgets("Teachers Only", teachers, lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else None)
+        self.get_filtered_widgets("Prefects First", prefects_first, both_func)
+        self.get_filtered_widgets("Teachers First", teachers_first, both_func)
         
         for i, staff_widget in enumerate(self.widgets.copy().values()):
             staff_widget.setVisible(i == 0)
@@ -705,22 +709,42 @@ class StaffListWidget(BaseScrollListWidget):
         filter_layout.addWidget(self.filter_cb, alignment=Qt.AlignmentFlag.AlignRight)
         
         self._layout.insertWidget(0, self.filter_widget)
+        
+        self.filter(0)
     
-    def get_filtered_widgets(self, staff_list: list[tuple[str, Prefect | Teacher]], entry_type_callback: Callable[[Prefect | Teacher], type[StaffListTeacherEntryWidget] | type[StaffListTeacherEntryWidget]]):
+    def get_filtered_widgets(
+        self,
+        filter_key: str,
+        
+        staff_list_callback: Callable[[], list[tuple[str, Prefect | Teacher]]],
+        entry_type_callback: Callable[[Prefect | Teacher], type[StaffListTeacherEntryWidget] | type[StaffListTeacherEntryWidget]],
+    ):
         widget = QWidget()
         layout = QVBoxLayout()
         
         widget.setLayout(layout)
         
-        for _, staff in staff_list:
-            staff_widget = entry_type_callback(staff)(self.parent_widget, self.data, staff, self.comm_system, self.card_scanner_widget, self.staff_data_widget)
-            
-            layout.addWidget(staff_widget)
-            self._staffs_viewed[staff_widget.staff.id] = staff_widget
+        self._filter_funcs[filter_key] = staff_list_callback, entry_type_callback
+        self._filter_layouts[filter_key] = layout
         
-        return widget
+        if filter_key not in self._staffs_viewed:
+            self._staffs_viewed[filter_key] = {}
+        
+        for _, staff in staff_list_callback():
+            entry_type = entry_type_callback(staff)
+            
+            if entry_type is not None:
+                staff_widget = entry_type(self.parent_widget, self.data, staff, self.comm_system, self.card_scanner_widget, self.staff_data_widget)
+                
+                layout.addWidget(staff_widget)
+                self._staffs_viewed[filter_key][staff_widget.staff.id] = staff_widget
+        
+        self.widgets[filter_key] = widget
     
-    def _get_search_scope(self):
+    def search_goto(self, sw: StaffListPrefectEntryWidget | StaffListTeacherEntryWidget):
+        self.scroll_to(sw)
+    
+    def search_get_scope(self):
         return (
             sorted(
                 [
@@ -728,22 +752,22 @@ class StaffListWidget(BaseScrollListWidget):
                         sw,
                         sw.staff.name.full(),
                         (
-                            sw.staff.name.abrev,
+                            sw.staff.name.abbrev,
                             sw.staff.IUD,
                             "Prefect" if isinstance(sw.staff, Prefect) else "Teacher"
                             ),
                         [
                             sw.staff.name.other,
                             sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
-                            sw.staff.cls.name if isinstance(sw.staff, Prefect) else None
+                            f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
                             ] + (
                                 (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
                                 if isinstance(sw.staff, Prefect) else
-                                ([s.name.full() for s in sw.staff.subjects.values()] + [s.cls.name for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
+                                ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
                                 )
                         )
                     for sw in
-                    self._staffs_viewed.values()
+                    self._staffs_viewed[self.curr_filter].values()
                     if (
                         self.filter_cb.currentIndex() == 0 or
                         (isinstance(sw.staff, Prefect) and self.filter_cb.currentIndex() == 1) or
@@ -755,8 +779,44 @@ class StaffListWidget(BaseScrollListWidget):
             )
     
     def filter(self, index: int):
-        for i, staff_widget in enumerate(self.widgets.values()):
+        for i, (f_type, staff_widget) in enumerate(self.widgets.items()):
             staff_widget.setVisible(index == i)
+            
+            if index == i:
+                self.curr_filter = f_type
+    
+    def add_staff(self, staff: Prefect | Teacher):
+        for f_key, staff_maps in self._staffs_viewed.items():
+            layout = self._filter_layouts[f_key]
+            staff_list_callback, entry_type_callback = self._filter_funcs[f_key]
+            
+            entry_type = entry_type_callback(staff)
+            
+            if entry_type is not None:
+                staff_widget = entry_type_callback(
+                    self.parent_widget,
+                    self.data,
+                    staff,
+                    self.comm_system,
+                    self.card_scanner_widget,
+                    self.staff_data_widget
+                )
+                
+                index = next(i for i, (k, _) in enumerate(staff_list_callback()) if k == staff.id)
+                
+                layout.insertWidget(index, staff_widget)
+                
+                _temp_maps = list(staff_maps.items())
+                _temp_maps.insert(index, (staff.id, staff_widget))
+                
+                staff_maps.clear()
+                staff_maps.update(dict(_temp_maps))
+    
+    def delete_staff(self, staff: Prefect | Teacher):
+        for f_key, staff_maps in self._staffs_viewed.items():
+            if staff.id in staff_maps:
+                widget = staff_maps.pop(staff.id)
+                self._filter_layouts[f_key].removeWidget(widget)
 
 class AttendanceBarWidget(BaseDataDisplayWidget):
     def __init__(self, data: AppData, staff_data_widget: StaffDataWidget):
@@ -772,7 +832,7 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
         self.teacher_dep_widgets = {}
         
         for teacher in self.data.teachers.values():
-            for subject in teacher.subject.values():
+            for subject in teacher.subjects.values():
                 if subject.id not in self.teacher_dep_widgets:
                     self.teacher_dep_widgets[subject.id] = BarWidget(f"Cummulative {subject.name.full()} Department Attendance", f"{subject.name.full()} Department Teachers", "Yearly Attendance (%)")
                     self.teacher_dep_widgets[subject.id].bar_canvas.axes.set_ylim(top=100)
@@ -794,7 +854,7 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
             p_attendance = self.get_percentage_attendance(prefect)
             
             if p_attendance is not None:
-                prefect_data[prefect.id] = prefect.name.abrev, p_attendance
+                prefect_data[prefect.id] = prefect.name.abbrev, p_attendance
         
         for index, (name, data) in enumerate(prefect_data.values()):
             self.prefect_info_widget.add_data(name, list(get_named_colors_mapping().values())[index], ([name], [data]))
@@ -900,6 +960,6 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         y_plot_points = [cit.in_minutes() - attendance.period.time.in_minutes() for attendance in staff.attendance if BaseDataDisplayWidget.is_entry_countable(attendance, working_days, timeline_dates) is not None]
         
         if y_plot_points:
-            return staff.name.abrev, y_plot_points
+            return staff.name.abbrev, y_plot_points
 
 

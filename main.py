@@ -5,7 +5,7 @@ from utils import *
 from imports import *
 from widgets import *
 
-from GradApp import *
+from AttendanceApp import AttendanceManager
 
 
 pygame.init()
@@ -73,11 +73,15 @@ class Window(QMainWindow):
         self.go_focus_index = 0
         
         # Make settings widgets
+        self.attendance_widget = AttendanceManager()
         self.timetable_widget = SchoolTimetableEditor()
         
         self.subjects_widget = SubjectsMainWidget(self.timetable_widget)
         self.teachers_widget = TeachersMainWidget(self.timetable_widget)
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget)
+        
+        self.attendance_widget.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
+        self.attendance_widget.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(v) if v else None)
         
         # Create viewing container
         main_container = BaseWidget()
@@ -109,24 +113,33 @@ class Window(QMainWindow):
         subjects_btn = QPushButton("Subjects")
         teachers_btn = QPushButton("Teachers")
         classes_btn = QPushButton("Class Levels")
+        
+        attendance_btn = QPushButton("Attendance")
         timetable_btn = QPushButton("Timetable")
         
         # Add widgets to stack
         self.is_option_sidebar_focused = True
-        self.option_buttons = [subjects_btn, teachers_btn, classes_btn, timetable_btn]
-        
-        self.stack.addWidget(self.subjects_widget)
-        self.stack.addWidget(self.teachers_widget)
-        self.stack.addWidget(self.classes_widget)
-        self.stack.addWidget(self.timetable_widget)
+        self.option_buttons: list[Optional[tuple[QPushButton, BaseSettingWidget | SchoolTimetableEditor | AttendanceManager]]] = [
+            (subjects_btn, self.subjects_widget),
+            (teachers_btn, self.teachers_widget),
+            (classes_btn, self.classes_widget),
+            None,
+            (attendance_btn, self.attendance_widget),
+            (timetable_btn, self.timetable_widget)
+        ]
         
         # Connect buttons
-        for index, button in enumerate(self.option_buttons):
-            button.setCheckable(True)
-            button.clicked.connect(self.make_option_button_func(button.text(), index))
-            self.sub_sidebar_widget.addWidget(button)
-        
-        self.sub_sidebar_widget.insertStretch(3)
+        for index, op_info in enumerate(self.option_buttons):
+            if op_info is not None:
+                button, widget = op_info
+                
+                button.setCheckable(True)
+                button.clicked.connect(self.make_option_button_func(button.text(), index))
+                
+                self.stack.addWidget(widget)
+                self.sub_sidebar_widget.addWidget(button)
+            else:
+                self.sub_sidebar_widget.addStretch()
         
         # Add sub sidebar widgets to main sidebar layout
         main_sidebar_widget.addWidget(self.sub_sidebar_widget)
@@ -158,38 +171,51 @@ class Window(QMainWindow):
         self._open_file_type = arg
     
     def _goto_search(self, sw: BaseSettingEntry):
-        current_display_widget = self.stack.currentWidget()
+        current_display_index = self.stack.currentIndex()
         
-        if isinstance(current_display_widget, BaseSettingWidget):
-            current_display_widget.scroll_widget.getScrollWidget().verticalScrollBar().setValue(sw.y())
-            sw.focusInput()
+        if current_display_index == 3:
+            if self.attendance_widget.search_state:
+                widget = self.attendance_widget.get(self.attendance_widget.current_tab)
+                widget.search_goto()
+        else:
+            current_display_widget = self.stack.currentWidget()
+            
+            if isinstance(current_display_widget, BaseSettingWidget):
+                current_display_widget.scroll_widget.getScrollWidget().verticalScrollBar().setValue(sw.y())
+                sw.focusInput()
     
     def _get_search_scope(self):
-        display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels
-        
         current_display_index = self.stack.currentIndex()
-        current_display_widget = self.stack.currentWidget()
         
-        if isinstance(current_display_widget, BaseSettingWidget):
-            return (
-                sorted(
-                    [
-                        (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (display_data[current_display_index][sw_id].name.short() if display_data[current_display_index][sw_id].name.full() != display_data[current_display_index][sw_id].name.short() else None, sw_id, None), [])
-                        for sw_id, sw in
-                        current_display_widget.widgets.items()
-                    ],
-                    key=lambda params: params[1]
+        if current_display_index == 3:
+            if self.attendance_widget.search_state:
+                widget = self.attendance_widget.stack.currentWidget()
+                return widget.search_get_scope()
+        else:
+            display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels
+            
+            current_display_widget = self.stack.currentWidget()
+            
+            if isinstance(current_display_widget, BaseSettingWidget):
+                return (
+                    sorted(
+                        [
+                            (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (display_data[current_display_index][sw_id].name.short() if display_data[current_display_index][sw_id].name.full() != display_data[current_display_index][sw_id].name.short() else None, sw_id, None), [])
+                            for sw_id, sw in
+                            current_display_widget.widgets.items()
+                        ],
+                        key=lambda params: params[1]
+                        )
                     )
-                )
-        
+    
     def _init_save_data(self):
         self.saved = True
         
         if self.file.path is not None:
             self.LOADED_SCHOOL = self.load()
+            
             if self.LOADED_SCHOOL is not None:
                 SCHOOL.set(self.LOADED_SCHOOL)
-                
                 self.saved_callback()
         else:
             self.setWindowTitle(self.title)
@@ -426,13 +452,16 @@ class Window(QMainWindow):
                 self.title_bar.search_pb.setText(f"Search {name}")
                 
                 if self.display_index != index:
-                    self.title_bar.search_pb.setDisabled(index == 3)
-                    self.stack.setCurrentIndex(index)
+                    self.title_bar.search_pb.setDisabled(index == 5)
+                    self.stack.setCurrentWidget(self.option_buttons[index][1])
                 
                 self.display_index = index
             
-            for i, btn in enumerate(self.option_buttons):
-                btn.setChecked(i == index)
+            for i, op_info in enumerate(self.option_buttons):
+                if op_info is not None:
+                    btn, _ = op_info
+                    
+                    btn.setChecked(i == index)
         
         return func
     

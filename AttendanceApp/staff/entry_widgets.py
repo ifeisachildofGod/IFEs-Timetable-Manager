@@ -161,7 +161,7 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         
         widget_2_2, layout_2_2 = create_widget(None, QHBoxLayout)
         
-        layout_2_2.addWidget(LabeledField("Class", QLabel(self.staff.cls.name), height_policy=QSizePolicy.Policy.Maximum))
+        layout_2_2.addWidget(LabeledField("Class", QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}"), height_policy=QSizePolicy.Policy.Maximum))
         
         if data.is_check_in:
             widget_1_3_1, layout_1_3_1 = create_scrollable_widget(None, QVBoxLayout)
@@ -181,7 +181,7 @@ class StaffListPrefectEntryWidget(BaseStaffListEntryWidget):
         self.container.setProperty("class", "StaffListPrefectEntryWidget")
         
         self.sub_info_layout.addWidget(LabeledField("Post", QLabel(self.staff.post_name)))
-        self.sub_info_layout.addWidget(LabeledField("Class", QLabel(self.staff.cls.name)))
+        self.sub_info_layout.addWidget(LabeledField("Class", QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}")))
 
 class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
     def __init__(self, parent_widget: TabViewWidget, data: AppData, teacher: Teacher, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
@@ -189,10 +189,17 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
         self.container.setProperty("class", "StaffListTeacherEntryWidget")
         
         subj_data_widget, subj_data_layout = create_scrollable_widget(None, QVBoxLayout)
+        subj_data_widget.setMinimumHeight(110)
         
         for subject in self.staff.subjects.values():
-            subj_data_layout.addWidget(QLabel(f"<b>●</b> {subject.name.full()}"))
+            cls_d_widg, cls_d_lyt = create_widget(None, QVBoxLayout)
+            
+            subj_data_layout.addWidget(LabeledField(subject.name.full(), cls_d_widg))
+            
+            for cls in subject.classes.values():
+                if cls.subjects[subject.id].teacher and teacher.id == cls.subjects[subject.id].teacher.id:
+                    cls_d_lyt.addWidget(QLabel(f"<b>●</b> {cls.level.name.full()} {cls.name}"))
         
-        self.sub_info_layout.addWidget(LabeledField("Dept", subj_data_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        self.sub_info_layout.addWidget(LabeledField("Subjects", subj_data_widget), alignment=Qt.AlignmentFlag.AlignCenter)
 
 

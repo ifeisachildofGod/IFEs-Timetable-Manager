@@ -11,6 +11,31 @@ from core.timetable import *
 
 _T = TypeVar("_T")
 
+
+
+@dataclass
+class AppData:
+    prefect_cit: Time
+    prefect_cot: Time
+    
+    teacher_cit: Time
+    teacher_cot: Time
+    
+    teacher_cin_border_interval_minutes: float | int
+    teacher_cout_border_interval_minutes: float | int
+    
+    prefect_cin_border_interval_minutes: float | int
+    prefect_cout_border_interval_minutes: float | int
+    
+    teacher_timeline_dates: list[tuple[Period, Period]]
+    prefect_timeline_dates: list[tuple[Period, Period]]
+    
+    teachers: dict[str, Teacher]
+    prefects: dict[str, Prefect]
+    
+    attendance_data: list[AttendanceEntry]
+
+
 class Global(dict[ID, _T]):
     def __init__(self, school: "School | None" = None):
         super().__init__()
@@ -25,10 +50,6 @@ class Global(dict[ID, _T]):
     
     def remove(self, id: ID):
         self.pop(id)
-    
-    def set(self, value):
-        self.clear()
-        self.update(value)
 
 
 class GlobalSubjects(Global[Subject | CombinedSubject]):
@@ -99,15 +120,57 @@ class School:
             ), {}
         )
         
+        self.attendance = AppData(
+            prefect_cit = Time(7, 0, 0),
+            prefect_cot = Time(15, 0, 0),
+
+            teacher_cit = Time(7, 0, 0),
+            teacher_cot = Time(15, 0, 0),
+            
+            prefect_cin_border_interval_minutes = 60,
+            prefect_cout_border_interval_minutes = 60,
+
+            teacher_cin_border_interval_minutes = 60,
+            teacher_cout_border_interval_minutes = 60,
+
+            teacher_timeline_dates = [
+                (
+                    Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=0),
+                    Period(time=Time(0, 0, 0), day="Friday", date=31, month="December", year=0)
+                )
+            ],
+            prefect_timeline_dates = [
+                (
+                    Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=0),
+                    Period(time=Time(0, 0, 0), day="Friday", date=31, month="December", year=0)
+                )
+            ],
+            
+            teachers = self.teachers,
+            prefects = {},
+            
+            attendance_data = [],
+        )
+        
+        assert \
+            self.attendance.prefect_cit.in_minutes() + self.attendance.prefect_cin_border_interval_minutes < self.attendance.prefect_cot.in_minutes() - self.attendance.prefect_cout_border_interval_minutes,\
+            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.prefect_cit.in_minutes() + self.attendance.prefect_cin_border_interval_minutes}\nCheck-Out lower border: {self.attendance.prefect_cot.in_minutes() - self.attendance.prefect_cout_border_interval_minutes}"
+        
+        assert \
+            self.attendance.teacher_cit.in_minutes() + self.attendance.teacher_cin_border_interval_minutes < self.attendance.teacher_cot.in_minutes() - self.attendance.teacher_cout_border_interval_minutes,\
+            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.teacher_cit.in_minutes() + self.attendance.teacher_cin_border_interval_minutes}\nCheck-Out lower border: {self.attendance.teacher_cot.in_minutes() - self.attendance.teacher_cout_border_interval_minutes}"
+        
         self._log_data = {}
     
     def set(self, school: "School"):
-        self.subjects.set(school.subjects)
-        self.teachers.set(school.teachers)
-        self.class_levels.set(school.class_levels)
+        self.subjects.update(school.subjects)
+        self.teachers.update(school.teachers)
+        self.class_levels.update(school.class_levels)
         
-        self.settings.__dict__ = school.settings.__dict__
-        self.gen_data.__dict__ = school.gen_data.__dict__
+        self.settings.__dict__.update(school.settings.__dict__)
+        self.gen_data.__dict__.update(school.gen_data.__dict__)
+        
+        self.attendance.__dict__.update(school.attendance.__dict__)
     
     def detect_clashes(self):
         """
@@ -252,7 +315,7 @@ class School:
                     else:
                         names = [t_name, None, None, ""]
                     
-                    teacher = Teacher(t_id, None, StaffName(*names), "GradApp/src/profile-images/t_id1.png", [], {})
+                    teacher = Teacher(t_id, None, StaffName(*names), "AttendanceApp/src/profile-images/t_id1.png", [], {})
                 
                 school_framework.teachers.add(teacher)
                 
@@ -369,6 +432,59 @@ class School:
                     all_classes.append(cls)
                     
                     school_framework.class_levels.add_class(lvl_id, cls)
+        
+        school_framework.attendance.prefects = {
+            "p_id1": Prefect(
+                id = "p_id1",
+                IUD = "6999BDB2",
+                name = StaffName(start="Eze", first="Emmmanuel", other="Udochukwu", abbrev="Emma"),
+                post_name = "Parade Commander",
+                cls = random.choice(all_classes),
+                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                duties = {"Wednesday": ["Morning", "Assembly parade", "Cadet training"]},
+                attendance = []
+            ),
+            "p_id2": Prefect(
+                id = "p_id2",
+                IUD = "637B910C",
+                name = StaffName(start="Eshiokwu", first="Johnpaul", other="Bassey", abbrev="J.P"),
+                post_name = "Band Prefect",
+                cls = random.choice(all_classes),
+                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                duties = {"Monday": ["Morning", "Band"], "Thursday": ["Afternoon", "Band practice"], "Friday": ["Morning", "Band"]},
+                attendance = []
+            ),
+            "p_id3": Prefect(
+                id = "p_id3",
+                IUD = "A3DEB30C",
+                name = StaffName(start="Igboke", first="Chisom", other="Joseph", abbrev="Chisom"),
+                post_name = "Ast. Games",
+                cls = random.choice(all_classes),
+                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                duties = {"Monday": ["Afternoon", "Boys Footbal"], "Tuesday": ["Afternoon", "Boys Footbal"], "Wednesday": ["Afternoon", "Boys Footbal"], "Thursday": ["Afternoon", "Boys Footbal"], "Friday": ["Afternoon", "Boys Footbal"]},
+                attendance = []
+            ),
+            "p_id4": Prefect(
+                id = "p_id4",
+                IUD = "B3A6DE0C",
+                name = StaffName(start="Anyanwu", first="Divine", other="Godswill", abbrev="Onuwa"),
+                post_name = "Chapel Prefect",
+                cls = random.choice(all_classes),
+                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                duties = {"Monday": ["Morning Prayers"]},
+                attendance = []
+            ),
+            "p_id5": Prefect(
+                id = "p_id5",
+                IUD = "89A2A1B2",
+                name = StaffName(start="Eze", first="Ifebuche", other="Esther", abbrev="Esther"),
+                post_name = "Games Prefect (Girl)",
+                cls = random.choice(all_classes),
+                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                duties = {"Wednesday": ["Afternoon", "Girls Football" ]},
+                attendance = []
+            )
+        }
         
         return school_framework
     

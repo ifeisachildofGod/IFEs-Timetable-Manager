@@ -15,7 +15,7 @@ class StaffDataWidget(BaseOptionsWidget):
             self.staff_working_days[prefect.id] = list(prefect.duties)
         
         for teacher in self.data.teachers.values():
-            self.staff_working_days[teacher.id] = list(set(flatten([[d for d, _ in s.get_periods()] for s in teacher.subjects])))
+            self.staff_working_days[teacher.id] = list(set(flatten([[d for d, _ in s.get_periods()] for s in teacher.subjects.values()])))
         
         self.attendance_amt_widget = QLabel()
         
@@ -111,17 +111,17 @@ class StaffDataWidget(BaseOptionsWidget):
         clear_layout(self.staff_data_layout)
         
         if isinstance(staff, Teacher):
-            bar_title = f"{staff.name.sur} {staff.name.first}'s Monthly Cummulative Attendance Chart"
-            graph_title = f"{staff.name.sur} {staff.name.first}'s Monthly Cummulative Punctuality Graph"
+            bar_title = f"{staff.name.full()}'s Monthly Cummulative Attendance Chart"
+            graph_title = f"{staff.name.full()}'s Monthly Cummulative Punctuality Graph"
             staff_list = list(self.data.teachers)
             staff_position_data = None
-            cls = None
+            cls_name = None
         elif isinstance(staff, Prefect):
-            bar_title = f"{staff.name.sur} {staff.name.first}'s ({staff.post_name}) Monthly Cummulative Attendance Chart"
-            graph_title = f"{staff.name.sur} {staff.name.first}'s ({staff.post_name}) Monthly Average Punctuality Graph"
+            bar_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Cummulative Attendance Chart"
+            graph_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Average Punctuality Graph"
             staff_list = list(self.data.prefects)
             staff_position_data = "Post", staff.post_name
-            cls = staff.cls.name
+            cls_name = f"{staff.cls.level.name.full()} {staff.cls.name}"
         else:
             raise Exception()
         
@@ -218,12 +218,12 @@ class StaffDataWidget(BaseOptionsWidget):
                 <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{staff_position_data[1]}</span>
             </span>""" if staff_position_data is not None else ""}
         """
-        if cls:
+        if cls_name:
             staff_data_base_content += f"""
                 <br>
                 <span>
                     <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Class:  </span>
-                    <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{cls}</span>
+                    <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{cls_name}</span>
                 </span>
             """
         
@@ -267,6 +267,7 @@ class CardScanScreenWidget(BaseOptionsWidget):
     
     def __init__(self, data: AppData, comm_system: BaseCommSystem, parent_widget: TabViewWidget, saved_state_changed: pyBoundSignal):
         super().__init__(parent_widget, "static")
+        
         self.data = data
         self.comm_system = comm_system
         self.saved_state_changed = saved_state_changed
@@ -280,7 +281,7 @@ class CardScanScreenWidget(BaseOptionsWidget):
             }
         """)
         
-        scan_img = Image("src/images/scan.png", height=330)
+        scan_img = Image("AttendanceApp/src/images/scan.png", height=330)
         scan_img.setStyleSheet("margin-bottom: 20px;")
         self.main_layout.addWidget(scan_img, alignment=Qt.AlignmentFlag.AlignCenter)
         

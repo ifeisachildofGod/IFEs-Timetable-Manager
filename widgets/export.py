@@ -8,7 +8,7 @@ from imports import *
 from .base import *
 from .user_interface import *
 
-from PIL import Image as PILImage
+from PIL import Image as PIL_Image
 
 
 class TextThemeEditor(IconToolBarOption):
@@ -824,7 +824,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         if file_type == "JPG":
             for surface, p in self.export_callback(path, "PNG", True):
                 data = pygame.image.tostring(surface, "RGB")
-                img = PILImage.frombytes("RGB", surface.get_size(), data)
+                img = PIL_Image.frombytes("RGB", surface.get_size(), data)
                 
                 img.save(p.strip().removesuffix(".png") + ".jpg", quality=100)
         else:

@@ -9,7 +9,6 @@ from .base import *
 
 import math
 from typing import Literal, TypeVar
-from PIL import Image as PILImage
 
 T = TypeVar("T")
 
