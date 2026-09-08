@@ -309,6 +309,7 @@ class CardScanScreenWidget(BaseOptionsWidget):
     
     def finished(self):
         self.iud_label = None
+        
         if self.iud_changed:
             self.comm_system.send_message("REGISTERED")
             
@@ -319,22 +320,23 @@ class CardScanScreenWidget(BaseOptionsWidget):
             
             self.just_scanned = True
             QTimer.singleShot(500, self._deactivate_just_scanned)
+        
         return super().finished()
     
     def connection_changed(self, state: bool):
         if not state and self.parent_widget.stack.indexOf(self) == self.parent_widget.stack.currentIndex():
             self.finished()
     
-    def scanned(self, data: str):
+    def scanned(self, iud: str):
         if self.parent_widget.stack.currentIndex() == self.parent_widget.stack.indexOf(self):
             for prefect in SCHOOL.prefects.values():
-                if prefect.IUD == data:
+                if prefect.IUD == iud:
                     self.comm_system.send_message("UNREGISTERED")
                     self.just_scanned = True
                     
                     QTimer.singleShot(1000, lambda: self.comm_system.send_message("Card has already_ been assigned "))
                     
-                    QMessageBox.warning(self.parent_widget, "KeyError", f"Card of IUD {data} has already been assigned to the prefect {prefect.name.full()}")
+                    QMessageBox.warning(self.parent_widget, "KeyError", f"Card of IUD {iud} has already been assigned to the prefect {prefect.name.full()}")
                     
                     QTimer.singleShot(500, self._deactivate_just_scanned)
                     self.iud_changed = False
@@ -342,20 +344,23 @@ class CardScanScreenWidget(BaseOptionsWidget):
                     return
             else:
                 for teacher in SCHOOL.teachers.values():
-                    if teacher.IUD == data:
+                    if teacher.IUD == iud:
                         self.comm_system.send_message("UNREGISTERED")
                         self.just_scanned = True
                         
                         QTimer.singleShot(1000, lambda: self.comm_system.send_message("Card has already_ been assigned "))
                         
-                        QMessageBox.warning(self.parent_widget, "KeyError", f"Card of IUD {data} has already been assigned to the teacher {teacher.name.full()}")
+                        QMessageBox.warning(self.parent_widget, "KeyError", f"Card of IUD {iud} has already been assigned to the teacher {teacher.name.full()}")
                         
                         QTimer.singleShot(500, self._deactivate_just_scanned)
                         self.iud_changed = False
                         self.finished()
+                        
                         return
             
-            self.staff.IUD = data
+            self.window().saved_state_changed.emit(True)
+            
+            self.staff.IUD = iud
             self.iud_label.setText(self.staff.IUD)
             
             self.saved_state_changed.emit(False)

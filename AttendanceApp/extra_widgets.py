@@ -65,7 +65,7 @@ class TabViewWidget(BaseWidget):
         if isinstance(tab, int) and tab >= len(self.tab_buttons):
             self.stack.setCurrentIndex(tab)
         else:
-            self.tab_buttons[self.index(self.get(tab)) if isinstance(tab, str) else tab].click()
+            self.tab_buttons[next(i for i, b in enumerate(self.tab_buttons) if b.text() == tab) if isinstance(tab, str) else tab].click()
     
     def _make_tab_clicked_func(self, index: int, clicked_func: Callable[[int, ], None] | None):
         self.tab_src_changed_func_mapping[self.tab_buttons[index].text()] = clicked_func

@@ -46,7 +46,9 @@ class AttendanceManager(TabViewWidget):
         self.stack.addWidget(staff_data_widget)
         
         def conn_changed(connected):
-            if not connected:
+            if connected:
+                QMessageBox.information(None, "Connection Status", "Attendance device connected")
+            else:
                 self.connection_set_up_screen.comm_disconnect()
         
         self.connection_set_up_screen.disconnect_button.clicked.connect(self.disconnect_connection)
@@ -76,9 +78,9 @@ class AttendanceManager(TabViewWidget):
         self.connection_set_up_screen.comm_disconnect()
         
         if conn_error:
-            response = QMessageBox.warning(self, type(e).__name__, str(e) + "\n\nTry again?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            response = QMessageBox.warning(None, type(e).__name__, str(e) + "\n\nTry again?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         else:
-            response = QMessageBox.warning(self, type(e).__name__, str(e))
+            response = QMessageBox.warning(None, type(e).__name__, str(e))
         
         if isinstance(e, OSError):
             self.connection_set_up_screen.bluetooth_state_signal.emit(False)
