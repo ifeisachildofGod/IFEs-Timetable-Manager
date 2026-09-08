@@ -4,7 +4,7 @@ from .extra_widgets import *
 from .communication import *
 from .functions_and_uncategorized import *
 
-from .core_data_objects import *
+from widgets.user_interface import IconToolBarOption
 
 
 class BaseListWidget(QWidget):
@@ -213,12 +213,10 @@ class BaseOptionsWidget(QWidget):
 
 
 class BaseDataDisplayWidget(BaseScrollListWidget):
-    def __init__(self, data: AppData):
+    def __init__(self):
         super().__init__()
         
         self.scroll_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
-        self.data = data
         
         self.widgets = self._get_filter_widgets()
         
@@ -281,10 +279,9 @@ class BaseDialogWidget(QDialog):
 
 
 class BaseStaffListEntryWidget(QWidget):
-    def __init__(self, parent_widget: TabViewWidget, data: AppData, staff: Staff, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
+    def __init__(self, parent_widget: TabViewWidget, staff: Staff, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
         super().__init__()
         
-        self.data = data
         self.staff = staff
         self.comm_system = comm_system
         
@@ -312,31 +309,33 @@ class BaseStaffListEntryWidget(QWidget):
         main_info_layout.addWidget(image, alignment=Qt.AlignmentFlag.AlignLeft)
         main_info_layout.addStretch()
         
-        name_label = QLabel(self.staff.name.full())
+        self.name_label = QLabel(self.staff.name.full())
         
-        name_label.setStyleSheet("font-size: 50px")
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_info_layout.addWidget(name_label, Qt.AlignmentFlag.AlignRight)
+        self.name_label.setStyleSheet("font-size: 50px")
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_info_layout.addWidget(self.name_label, Qt.AlignmentFlag.AlignRight)
         
-        self.options_button = QPushButton("☰")
-        self.options_button.setProperty("class", "options-button")
-        self.options_button.setFixedSize(40, 40)
-        self.options_button.clicked.connect(self.toogle_options)
+        self.options_widget = BaseWidget()
+        options_option = IconToolBarOption(self.options_widget, "☰")
         
-        self.options_menu = OptionsMenu()
-        self.options_menu.add_options({"Set IUD": self.set_iud, "View Data": self.view_data})
-        self.options_menu.setProperty("class", "option-menu")
+        self.options_widget.addWidget(iud_pb := QPushButton("Set IUD")) ; iud_pb.clicked.connect(self.set_iud)
+        self.options_widget.addWidget(vd_pb := QPushButton("View Data")) ; vd_pb.clicked.connect(self.view_data)
         
-        main_info_layout.addWidget(self.options_button, alignment=Qt.AlignmentFlag.AlignTop)
+        main_info_layout.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignTop)
         
-        _, self.sub_info_layout = create_widget(self.main_layout, QHBoxLayout)
+        self.sub_info_widget = BaseWidget(QHBoxLayout) ; self.main_layout.addWidget(self.sub_info_widget)
         
         self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "No IUD set")
         self.iud_label.setStyleSheet("font-weight: bold;")
         
-        self.sub_info_layout.addWidget(LabeledField("IUD", self.iud_label, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignLeft)
+        self.sub_info_widget.addWidget(LabeledField("IUD", self.iud_label, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignLeft)
+    
+    def update_name(self):
+        self.name_label.setText(self.staff.name.full())
     
     def set_iud(self):
+        self.options_widget.hide()
+        
         if not self.comm_system.connected:
             QMessageBox.warning(self.parentWidget(), "SetIUDError", "No device connected")
         else:
@@ -346,20 +345,14 @@ class BaseStaffListEntryWidget(QWidget):
             self.comm_system.send_message("SCANNING")
     
     def view_data(self):
-        self.comm_system.send_message((" " * int(8 - (len(self.staff.name.abbrev) / 2))) + f"{self.staff.name.abbrev}'s_Performance Data")
+        self.options_widget.hide()
+        
+        abbrev = self.staff.name.abbrev or ""
+        self.comm_system.send_message((" " * int(8 - (len(abbrev) / 2))) + f"{abbrev}'s_Performance Data")
         
         self.staff_data_widget.set_self(self.staff)
         
         self.parent_widget.stack.setCurrentWidget(self.staff_data_widget)
-    
-    def toogle_options(self):
-        if self.options_menu.isVisible():
-            self.options_menu.hide()
-        else:
-            # Position below the options button
-            button_pos = self.options_button.mapToGlobal(QPoint(-65, self.options_button.height() - 5))
-            self.options_menu.move(button_pos)
-            self.options_menu.show()
 
 class BaseAttendanceEntryWidget(QWidget):
     def __init__(self, name: str, data: AttendanceEntry, layout_type: type[QHBoxLayout] | type[QVBoxLayout] = QHBoxLayout):

@@ -521,9 +521,7 @@ class BaseSettingEntry(BaseWidget):
         menu_area = BaseWidget(QHBoxLayout)
         menu_area.setContentsMargins(0, 0, 0, 0)
         
-        options_widget = BaseWidget()
-        
-        options_option = self.IconToolBarOption(options_widget, "☰")
+        options_option = self.IconToolBarOption((options_widget := BaseWidget()), "☰")
         
         dialog_buttons_widget = BaseWidget(QHBoxLayout)
         for button in self.get_dialog_buttons():

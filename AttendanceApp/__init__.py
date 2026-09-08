@@ -30,16 +30,16 @@ class AttendanceManager(TabViewWidget):
         sidebar_layout.setSpacing(0)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         
-        card_scan_widget = CardScanScreenWidget(SCHOOL.attendance, self.target_connector, self, self.saved_state_changed)
-        staff_data_widget = StaffDataWidget(SCHOOL.attendance, self)
+        card_scan_widget = CardScanScreenWidget(self.target_connector, self, self.saved_state_changed)
+        staff_data_widget = StaffDataWidget(self)
         
-        self.attendance_chart_widget = AttendanceBarWidget(SCHOOL.attendance, staff_data_widget)
-        self.punctuality_graph_widget = PunctualityGraphWidget(SCHOOL.attendance, staff_data_widget)
-        self.attendance_widget = AttendanceWidget(self, SCHOOL.attendance, self.attendance_chart_widget, self.punctuality_graph_widget, self.target_connector, self.saved_state_changed, card_scan_widget)
-        self.staff_widget = StaffListWidget(self, SCHOOL.attendance, self.target_connector, card_scan_widget, staff_data_widget)
+        self.attendance_chart_widget = AttendanceBarWidget(staff_data_widget)
+        self.punctuality_graph_widget = PunctualityGraphWidget(staff_data_widget)
+        self.attendance_widget = AttendanceWidget(self, self.attendance_chart_widget, self.punctuality_graph_widget, self.target_connector, self.saved_state_changed, card_scan_widget)
+        self.staff_list_widget = StaffListWidget(self, self.target_connector, card_scan_widget, staff_data_widget)
         
         self.add("Attendance", self.attendance_widget, lambda _: self._set_search_state("Find Attendance"))
-        self.add("Staff", self.staff_widget, lambda _: self._set_search_state("Find Staff"))
+        self.add("Staff", self.staff_list_widget, lambda _: self._set_search_state("Find Staff"))
         self.add("Attendance Chart", self.attendance_chart_widget, lambda _: self._set_search_state(""))
         self.add("Punctuality Graph", self.punctuality_graph_widget, lambda _: self._set_search_state(""))
         self.stack.addWidget(card_scan_widget)

@@ -1,5 +1,5 @@
-import pygame
 import subprocess
+import traceback
 
 from utils import *
 from imports import *
@@ -7,8 +7,6 @@ from widgets import *
 
 from AttendanceApp import AttendanceManager
 
-
-pygame.init()
 
 class Window(QMainWindow):
     saved_state_changed = pySignal(bool)
@@ -73,15 +71,15 @@ class Window(QMainWindow):
         self.go_focus_index = 0
         
         # Make settings widgets
-        self.attendance_widget = AttendanceManager()
+        self.attendance_manager = AttendanceManager()
         self.timetable_widget = SchoolTimetableEditor()
         
-        self.subjects_widget = SubjectsMainWidget(self.timetable_widget)
-        self.teachers_widget = TeachersMainWidget(self.timetable_widget)
-        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget)
+        self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager)
+        self.teachers_widget = TeachersMainWidget(self.timetable_widget, self.attendance_manager)
+        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
         
-        self.attendance_widget.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
-        self.attendance_widget.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(v) if v else None)
+        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
+        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(v) if v else None)
         
         # Create viewing container
         main_container = BaseWidget()
@@ -124,7 +122,7 @@ class Window(QMainWindow):
             (teachers_btn, self.teachers_widget),
             (classes_btn, self.classes_widget),
             None,
-            (attendance_btn, self.attendance_widget),
+            (attendance_btn, self.attendance_manager),
             (timetable_btn, self.timetable_widget)
         ]
         
@@ -174,9 +172,9 @@ class Window(QMainWindow):
         current_display_index = self.stack.currentIndex()
         
         if current_display_index == 3:
-            if self.attendance_widget.search_state:
-                widget = self.attendance_widget.get(self.attendance_widget.current_tab)
-                widget.search_goto()
+            if self.attendance_manager.search_state:
+                widget = self.attendance_manager.get(self.attendance_manager.current_tab)
+                widget.search_goto(sw)
         else:
             current_display_widget = self.stack.currentWidget()
             
@@ -188,8 +186,8 @@ class Window(QMainWindow):
         current_display_index = self.stack.currentIndex()
         
         if current_display_index == 3:
-            if self.attendance_widget.search_state:
-                widget = self.attendance_widget.stack.currentWidget()
+            if self.attendance_manager.search_state:
+                widget = self.attendance_manager.stack.currentWidget()
                 return widget.search_get_scope()
         else:
             display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels
@@ -239,8 +237,6 @@ class Window(QMainWindow):
                 
                     self._open_file_type = TEMPLATE_EXTENSION_TYPE
                 except Exception as e:
-                    print(e)
-                    
                     with open(self.file.path, "rb") as file:
                         data = pickle.load(file)
                     
@@ -258,6 +254,7 @@ class Window(QMainWindow):
             return data
         except Exception as e:
             QMessageBox.critical(None, e.__class__.__name__, str(e))
+            traceback.print_exc()
             
             self.saved = True
             QTimer.singleShot(500, lambda: self.close())
@@ -282,7 +279,10 @@ class Window(QMainWindow):
         elif path is not None:
             arguments = [path]
         
-        subprocess.Popen([sys.executable] + arguments)
+        if getattr(sys, "frozen", False):
+            subprocess.Popen([sys.executable] + arguments)
+        else:
+            subprocess.Popen([sys.executable, __file__] + arguments)
     
     def save_callback(self, path: str, file_type: Optional[str] = None, school: Optional[School] = None):
         self.file.path = path
@@ -351,6 +351,7 @@ class Window(QMainWindow):
         # File Menu
         file_menu = menubar.addMenu("File")
         edit_menu = menubar.addMenu("Edit")
+        attendance_menu = menubar.addMenu("Attendance")
         go_menu = menubar.addMenu("Go")
         palette_menu = menubar.addMenu("Palette")
         help_menu = menubar.addMenu("Help")
@@ -376,6 +377,8 @@ class Window(QMainWindow):
         edit_menu.addAction("Paste", "Ctrl+V", coming_soon)
         edit_menu.addSeparator()
         edit_menu.addAction("Find", "Ctrl+F", coming_soon)
+        
+        attendance_menu.addAction("Connection", "Ctrl+Shift+A", lambda: self.attendance_manager.activate_connection_screen())
         
         self.go_back_action = go_menu.addAction("Back", self.go_back)
         self.go_forward_action = go_menu.addAction("Forward", self.go_forward)

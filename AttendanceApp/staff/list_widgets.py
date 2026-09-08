@@ -11,7 +11,7 @@ from .option_widgets import *
 class AttendanceWidget(BaseScrollListWidget):
     comm_signal = pySignal(str)
     
-    def __init__(self, parent_widget: TabViewWidget, data: AppData, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem, saved_state_changed: pyBoundSignal, card_scanner_widget: CardScanScreenWidget):
+    def __init__(self, parent_widget: TabViewWidget, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem, saved_state_changed: pyBoundSignal, card_scanner_widget: CardScanScreenWidget):
         super().__init__()
         
         self.kb_dbg_action_mapping = {}
@@ -43,7 +43,6 @@ class AttendanceWidget(BaseScrollListWidget):
         except Exception as e:
             print(e)
         
-        self.data = data
         self.comm_system = comm_system
         self.parent_widget = parent_widget
         self.saved_state_changed = saved_state_changed
@@ -59,7 +58,7 @@ class AttendanceWidget(BaseScrollListWidget):
         self.stack = QStackedWidget()
         
         cperiod = Period.str_to_period(time.ctime())
-        self.other_years = sorted(set([str(att.period.year) for att in self.data.attendance_data if att.period.year not in (cperiod.year, cperiod.year - 1)]))
+        self.other_years = sorted(set([str(att.period.year) for att in SCHOOL.attendance.attendance_data if att.period.year not in (cperiod.year, cperiod.year - 1)]))
         
         self.filter_views = {}
         self.scr_bar_values = []
@@ -77,7 +76,7 @@ class AttendanceWidget(BaseScrollListWidget):
             
             self.stack.addWidget(widget)
             
-            self.filter_views[comb] = [widget, len(self.data.attendance_data)]
+            self.filter_views[comb] = [widget, len(SCHOOL.attendance.attendance_data)]
             self.scr_bar_values.append(0)
         
         self.main_layout.addWidget(self.stack)
@@ -109,7 +108,7 @@ class AttendanceWidget(BaseScrollListWidget):
         
         self.filter_comboboxes[0].setCurrentIndex(0)
         
-        for i, attendance in enumerate(self.data.attendance_data):
+        for i, attendance in enumerate(SCHOOL.attendance.attendance_data):
             self._add_attendance_log(attendance, i)
         
         self._layout.insertWidget(0, self.filter_widget)
@@ -161,10 +160,10 @@ class AttendanceWidget(BaseScrollListWidget):
             comb = tuple((c.currentIndex() if c_i != index else i) for c_i, c in enumerate(self.filter_comboboxes))
             widg, att_i = self.filter_views[comb]
             
-            for att_entry in self.data.attendance_data[att_i:]:
+            for att_entry in SCHOOL.attendance.attendance_data[att_i:]:
                 self._add_attendance_entry(comb, att_entry)
             
-            self.filter_views[comb][1] = len(self.data.attendance_data)
+            self.filter_views[comb][1] = len(SCHOOL.attendance.attendance_data)
             
             self.scr_bar_values[self.stack.currentIndex()] = self.scroll_widget.verticalScrollBar().value()
             
@@ -245,7 +244,7 @@ class AttendanceWidget(BaseScrollListWidget):
             for comb, (widget, _) in self.filter_views.items():
                 if widget == curr_widget:
                     widg_comb = comb
-                    self.filter_views[comb][1] = len(self.data.attendance_data)
+                    self.filter_views[comb][1] = len(SCHOOL.attendance.attendance_data)
                 elif index < self.filter_views[comb][1]:
                     self.filter_views[comb][1] = index
             
@@ -510,10 +509,10 @@ class AttendanceWidget(BaseScrollListWidget):
         cit_teacher_widget, cit_teacher_layout = create_widget(None, QHBoxLayout)
         cot_teacher_widget, cot_teacher_layout = create_widget(None, QHBoxLayout)
         
-        it_time_label = QLabel(self.data.teacher_cit.to_str().replace(":", " : "))
+        it_time_label = QLabel(SCHOOL.attendance.teacher_cit.to_str().replace(":", " : "))
         it_time_label.setProperty("class", "labeled-widget")
         
-        ot_time_label = QLabel(self.data.teacher_cot.to_str().replace(":", " : "))
+        ot_time_label = QLabel(SCHOOL.attendance.teacher_cot.to_str().replace(":", " : "))
         ot_time_label.setProperty("class", "labeled-widget")
         
         cit_teacher_layout.addWidget(QLabel(f'Teacher CIT'))
@@ -533,10 +532,10 @@ class AttendanceWidget(BaseScrollListWidget):
         cit_prefect_widget, cit_prefect_layout = create_widget(None, QHBoxLayout)
         cot_prefect_widget, cot_prefect_layout = create_widget(None, QHBoxLayout)        
              
-        it_time_label = QLabel(self.data.prefect_cit.to_str().replace(":", " : "))
+        it_time_label = QLabel(SCHOOL.attendance.prefect_cit.to_str().replace(":", " : "))
         it_time_label.setProperty("class", "labeled-widget")
         
-        ot_time_label = QLabel(self.data.prefect_cot.to_str().replace(":", " : "))
+        ot_time_label = QLabel(SCHOOL.attendance.prefect_cot.to_str().replace(":", " : "))
         ot_time_label.setProperty("class", "labeled-widget")
         
         cit_prefect_layout.addWidget(it_time_label)
@@ -557,10 +556,10 @@ class AttendanceWidget(BaseScrollListWidget):
     
     def add_new_attendance_log(self, IUD: str, period: Period | None = None):
         if not self.card_scanner_widget.just_scanned:
-            staff = next((prefect for _, prefect in self.data.prefects.items() if prefect.IUD == IUD), None)
+            staff = next((prefect for _, prefect in SCHOOL.prefects.items() if prefect.IUD == IUD), None)
             
             if staff is None:
-                staff = next((teacher for _, teacher in self.data.teachers.items() if teacher.IUD == IUD), None)
+                staff = next((teacher for _, teacher in SCHOOL.teachers.items() if teacher.IUD == IUD), None)
                 
                 if staff is None:
                     self.comm_system.send_message(f"UNREGISTERED")
@@ -579,10 +578,10 @@ class AttendanceWidget(BaseScrollListWidget):
                 period = period or Period.str_to_period(time.ctime())
             
             previous_check_in = next((entry.is_check_in for entry in staff.attendance if entry.period.date == period.date and entry.period.month == period.month and entry.period.year == period.year), None)
-            cin, cout = (self.data.prefect_cit, self.data.prefect_cot) if isinstance(staff, Prefect) else (self.data.teacher_cit, self.data.teacher_cot)
+            cin, cout = (SCHOOL.attendance.prefect_cit, SCHOOL.attendance.prefect_cot) if isinstance(staff, Prefect) else (SCHOOL.attendance.teacher_cit, SCHOOL.attendance.teacher_cot)
             
-            cin_interval = self.data.prefect_cin_border_interval_minutes if isinstance(staff, Prefect) else self.data.teacher_cin_border_interval_minutes
-            cout_interval = self.data.prefect_cout_border_interval_minutes if isinstance(staff, Prefect) else self.data.teacher_cout_border_interval_minutes
+            cin_interval = SCHOOL.attendance.prefect_cin_border_interval_minutes if isinstance(staff, Prefect) else SCHOOL.attendance.teacher_cin_border_interval_minutes
+            cout_interval = SCHOOL.attendance.prefect_cout_border_interval_minutes if isinstance(staff, Prefect) else SCHOOL.attendance.teacher_cout_border_interval_minutes
 
             is_check_in, is_check_out = check_states(period.time, cin, cout, cin_interval, cout_interval)
             within_range = cin.in_minutes() - cin_interval <= period.time.in_minutes() <= cout.in_minutes() + cout_interval
@@ -637,12 +636,14 @@ class AttendanceWidget(BaseScrollListWidget):
                 
                 return
             
+            self.window().saved_state_changed.emit(True)
+            
             entry = AttendanceEntry(period, staff, is_check_in)
             
-            self.data.attendance_data.append(entry)
+            SCHOOL.attendance.attendance_data.append(entry)
             staff.attendance.append(entry)
             
-            self._add_attendance_log(entry, len(self.data.attendance_data) - 1)
+            self._add_attendance_log(entry, len(SCHOOL.attendance.attendance_data) - 1)
             
             self.comm_system.send_message(f"SCANNED")
             QTimer.singleShot(
@@ -665,10 +666,9 @@ class AttendanceWidget(BaseScrollListWidget):
         return super().keyPressEvent(a0)
 
 class StaffListWidget(BaseScrollListWidget):
-    def __init__(self, parent_widget: TabViewWidget, data: AppData, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget):
+    def __init__(self, parent_widget: TabViewWidget, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget):
         super().__init__()
         
-        self.data = SCHOOL.attendance
         self.parent_widget = parent_widget
         self.comm_system = comm_system
         self.card_scanner_widget = card_scanner_widget
@@ -676,15 +676,15 @@ class StaffListWidget(BaseScrollListWidget):
         
         self.curr_filter = None
         
-        prefects = lambda: sorted([(k, v) for k, v in self.data.prefects.items()], key=lambda params: params[1].name.full())
-        teachers = lambda: sorted([(k, v) for k, v in self.data.teachers.items()], key=lambda params: params[1].name.full())
+        prefects = lambda: sorted([(k, v) for k, v in SCHOOL.prefects.items()], key=lambda params: params[1].name.full())
+        teachers = lambda: sorted([(k, v) for k, v in SCHOOL.teachers.items()], key=lambda params: params[1].name.full())
         boths = lambda: sorted(prefects() + teachers(), key=lambda params: params[1].name.full())
         prefects_first = lambda: prefects() + teachers()
         teachers_first = lambda: teachers() + prefects()
         
         self._filter_funcs: dict[str, Callable] = {}
         self._filter_layouts: dict[str, QVBoxLayout] = {}
-        self._staffs_viewed: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
+        self.all_staff_widgets: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
         
         both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
         
@@ -727,17 +727,8 @@ class StaffListWidget(BaseScrollListWidget):
         self._filter_funcs[filter_key] = staff_list_callback, entry_type_callback
         self._filter_layouts[filter_key] = layout
         
-        if filter_key not in self._staffs_viewed:
-            self._staffs_viewed[filter_key] = {}
-        
-        for _, staff in staff_list_callback():
-            entry_type = entry_type_callback(staff)
-            
-            if entry_type is not None:
-                staff_widget = entry_type(self.parent_widget, self.data, staff, self.comm_system, self.card_scanner_widget, self.staff_data_widget)
-                
-                layout.addWidget(staff_widget)
-                self._staffs_viewed[filter_key][staff_widget.staff.id] = staff_widget
+        if filter_key not in self.all_staff_widgets:
+            self.all_staff_widgets[filter_key] = {}
         
         self.widgets[filter_key] = widget
     
@@ -767,11 +758,11 @@ class StaffListWidget(BaseScrollListWidget):
                                 )
                         )
                     for sw in
-                    self._staffs_viewed[self.curr_filter].values()
+                    self.all_staff_widgets[self.curr_filter].values()
                     if (
                         self.filter_cb.currentIndex() == 0 or
                         (isinstance(sw.staff, Prefect) and self.filter_cb.currentIndex() == 1) or
-                        (sw.staff.id in self.data.teachers and self.filter_cb.currentIndex() == 2)
+                        (sw.staff.id in SCHOOL.teachers and self.filter_cb.currentIndex() == 2)
                         )
                     ],
                 key=lambda params: params[1]
@@ -786,16 +777,15 @@ class StaffListWidget(BaseScrollListWidget):
                 self.curr_filter = f_type
     
     def add_staff(self, staff: Prefect | Teacher):
-        for f_key, staff_maps in self._staffs_viewed.items():
+        for f_key, staff_maps in self.all_staff_widgets.items():
             layout = self._filter_layouts[f_key]
             staff_list_callback, entry_type_callback = self._filter_funcs[f_key]
             
             entry_type = entry_type_callback(staff)
             
             if entry_type is not None:
-                staff_widget = entry_type_callback(
+                staff_widget = entry_type(
                     self.parent_widget,
-                    self.data,
                     staff,
                     self.comm_system,
                     self.card_scanner_widget,
@@ -813,14 +803,14 @@ class StaffListWidget(BaseScrollListWidget):
                 staff_maps.update(dict(_temp_maps))
     
     def delete_staff(self, staff: Prefect | Teacher):
-        for f_key, staff_maps in self._staffs_viewed.items():
+        for f_key, staff_maps in self.all_staff_widgets.items():
             if staff.id in staff_maps:
                 widget = staff_maps.pop(staff.id)
                 self._filter_layouts[f_key].removeWidget(widget)
 
 class AttendanceBarWidget(BaseDataDisplayWidget):
-    def __init__(self, data: AppData, staff_data_widget: StaffDataWidget):
-        super().__init__(data)
+    def __init__(self, staff_data_widget: StaffDataWidget):
+        super().__init__()
         
         self.staff_data_widget = staff_data_widget
     
@@ -831,7 +821,7 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
         dtd_widget, dtd_layout = create_widget(None, QVBoxLayout)
         self.teacher_dep_widgets = {}
         
-        for teacher in self.data.teachers.values():
+        for teacher in SCHOOL.teachers.values():
             for subject in teacher.subjects.values():
                 if subject.id not in self.teacher_dep_widgets:
                     self.teacher_dep_widgets[subject.id] = BarWidget(f"Cummulative {subject.name.full()} Department Attendance", f"{subject.name.full()} Department Teachers", "Yearly Attendance (%)")
@@ -850,7 +840,7 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
         
         prefect_data = {}
         
-        for prefect in self.data.prefects.values():
+        for prefect in SCHOOL.prefects.values():
             p_attendance = self.get_percentage_attendance(prefect)
             
             if p_attendance is not None:
@@ -862,7 +852,7 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
     def teacher_data_changed(self):
         teacher_data: dict[tuple[str, str], list[tuple[list[str], list[int]]]] = {}
         
-        for teacher in self.data.teachers.values():
+        for teacher in SCHOOL.teachers.values():
             for subject in teacher.subjects.values():
                 att_data = self.get_percentage_attendance(teacher)
                 
@@ -892,8 +882,8 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
             return sum(plot_data.values()) / len(plot_data)
 
 class PunctualityGraphWidget(BaseDataDisplayWidget):
-    def __init__(self, data: AppData, staff_data_widget: StaffDataWidget):
-        super().__init__(data)
+    def __init__(self, staff_data_widget: StaffDataWidget):
+        super().__init__()
         
         self.staff_data_widget = staff_data_widget
     
@@ -902,7 +892,7 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         dtd_widget, dtd_layout = create_widget(None, QVBoxLayout)
         
         self.teacher_info_widgets = {}
-        for teacher in self.data.teachers.values():
+        for teacher in SCHOOL.teachers.values():
             for subject in teacher.subjects.values():
                 if subject.id not in self.teacher_info_widgets:
                     self.teacher_info_widgets[subject.id] = GraphWidget(f"{subject.name.full()} Teachers Punctuality Graph", "Time Interval (Weeks)", "Punctuality (Hours)")
@@ -919,7 +909,7 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         prefects_data = []
         self.prefect_info_widget.clear()
         
-        for prefect in self.data.prefects.values():
+        for prefect in SCHOOL.prefects.values():
             data = self.get_punctuality_data(prefect)
             
             if data is not None:
@@ -932,7 +922,7 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
     def teacher_data_changed(self):
         teacher_data = {}
         
-        for teacher in self.data.teachers.values():
+        for teacher in SCHOOL.teachers.values():
             for subject in teacher.subjects.values():
                 data = self.get_punctuality_data(teacher)
                 
@@ -947,12 +937,12 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
     
     def get_punctuality_data(self, staff: Staff):
         if isinstance(staff, Teacher):
-            timeline_dates = self.data.teacher_timeline_dates
-            cit = self.data.teacher_cit
+            timeline_dates = SCHOOL.attendance.teacher_timeline_dates
+            cit = SCHOOL.attendance.teacher_cit
             working_days = list(set(flatten([[d for d, _ in s.get_periods()] for s in staff.subjects.values()])))
         elif isinstance(staff, Prefect):
-            timeline_dates = self.data.prefect_timeline_dates
-            cit = self.data.prefect_cit
+            timeline_dates = SCHOOL.attendance.prefect_timeline_dates
+            cit = SCHOOL.attendance.prefect_cit
             working_days = list(staff.duties)
         else:
             raise Exception()

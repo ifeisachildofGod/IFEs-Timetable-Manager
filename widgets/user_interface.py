@@ -1022,6 +1022,9 @@ class LabeledField(BaseWidget):
         
         self.addWidget(self.label)
         self.addWidget(self.inner_widget)
+    
+    def setTitle(self, title: str):
+        self.label.setText(title)
 
 class IconToolBarOption(BaseWidget):
     def __init__(self, *args, **kwargs):

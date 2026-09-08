@@ -17,6 +17,7 @@ class TabViewWidget(BaseWidget):
         self.tab_src_changed_func_mapping = {}
         
         self.tab_buttons: list[QPushButton] = []
+        self.widgets: list[QWidget] = []
         
         self.tab_widget = BaseWidget(QHBoxLayout if self.bar_orientation == "horizontal" else QVBoxLayout)
         self.tab_widget.setSpacing(5)
@@ -47,10 +48,12 @@ class TabViewWidget(BaseWidget):
         self.stack.insertWidget(len(self.tab_buttons), widget)
         widget.setContentsMargins(0, 0, 0, 0)
         
+        self.widgets.append(widget)
+        
         self.tab_buttons[0].click()
     
     def get(self, tab_name: str, default: Any = ...):
-        tab_widget: QWidget = (self.stack.children() + [default])[next((i for i, b in enumerate(self.tab_buttons) if b.text() == tab_name), -1)]
+        tab_widget: QWidget = (self.widgets + [default])[next((i for i, b in enumerate(self.tab_buttons) if b.text() == tab_name), -1)]
         
         if type(tab_widget) == type(Ellipsis):
             raise KeyError(f'There is no tab named: "{tab_name}"')

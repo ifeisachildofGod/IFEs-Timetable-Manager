@@ -1,7 +1,8 @@
 
+from widgets.base import *
+
 from ..base_widgets import *
 from ..extra_widgets import *
-from ..core_data_objects import *
 
 
 class _CharacterNameWidget(QWidget):
@@ -161,7 +162,8 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         
         widget_2_2, layout_2_2 = create_widget(None, QHBoxLayout)
         
-        layout_2_2.addWidget(LabeledField("Class", QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}"), height_policy=QSizePolicy.Policy.Maximum))
+        layout_2_2.addWidget(LabeledField("Class", (cls_label := QLabel()), height_policy=QSizePolicy.Policy.Maximum)) ; self.cls_label = cls_label
+        self.update_class_name(self.staff.cls)
         
         if data.is_check_in:
             widget_1_3_1, layout_1_3_1 = create_scrollable_widget(None, QVBoxLayout)
@@ -172,34 +174,97 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
             layout_2_2.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         
         layout_2.addWidget(widget_2_2)
+    
+    def update_class_name(self, cls: Class):
+        self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
 
 
 
 class StaffListPrefectEntryWidget(BaseStaffListEntryWidget):
-    def __init__(self, parent_widget: TabViewWidget, data: AppData, prefect: Prefect, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
-        super().__init__(parent_widget, data, prefect, comm_device, card_scanner_index, staff_data_index)
+    def __init__(self, parent_widget: TabViewWidget, prefect: Prefect, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
+        super().__init__(parent_widget, prefect, comm_device, card_scanner_index, staff_data_index)
         self.container.setProperty("class", "StaffListPrefectEntryWidget")
         
-        self.sub_info_layout.addWidget(LabeledField("Post", QLabel(self.staff.post_name)))
-        self.sub_info_layout.addWidget(LabeledField("Class", QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}")))
+        self.sub_info_widget.addWidget(LabeledField("Post", QLabel(self.staff.post_name)))
+        self.sub_info_widget.addWidget(LabeledField("Class", (cls_label := QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}"))))
+        
+        self.cls_label = cls_label
+    
+    def update_class_name(self, cls: Class):
+        self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
 
 class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
-    def __init__(self, parent_widget: TabViewWidget, data: AppData, teacher: Teacher, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
-        super().__init__(parent_widget, data, teacher, comm_device, card_scanner_index, staff_data_index)
+    def __init__(self, parent_widget: TabViewWidget, teacher: Teacher, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
+        super().__init__(parent_widget, teacher, comm_device, card_scanner_index, staff_data_index)
+        
+        self.teacher = teacher
+        
+        self.subject_fields: dict[ID, LabeledField] = {}
+        self.class_labels: dict[ID, list[tuple[ID, QLabel]]] = {}
+        self.subject_cls_widgets: dict[ID, BaseWidget] = {}
+        
         self.container.setProperty("class", "StaffListTeacherEntryWidget")
         
-        subj_data_widget, subj_data_layout = create_scrollable_widget(None, QVBoxLayout)
-        subj_data_widget.setMinimumHeight(110)
+        self.subj_data_widget = BaseScrollWidget()
+        self.subj_data_widget.setMinimumHeight(110)
+        self.subj_data_widget.getWidget().setMinimumHeight(110)
         
         for subject in self.staff.subjects.values():
-            cls_d_widg, cls_d_lyt = create_widget(None, QVBoxLayout)
-            
-            subj_data_layout.addWidget(LabeledField(subject.name.full(), cls_d_widg))
-            
-            for cls in subject.classes.values():
-                if cls.subjects[subject.id].teacher and teacher.id == cls.subjects[subject.id].teacher.id:
-                    cls_d_lyt.addWidget(QLabel(f"<b>●</b> {cls.level.name.full()} {cls.name}"))
+            self.add_subject(subject)
         
-        self.sub_info_layout.addWidget(LabeledField("Subjects", subj_data_widget), alignment=Qt.AlignmentFlag.AlignCenter)
+        self.sub_info_widget.addWidget(LabeledField("Subjects", self.subj_data_widget))
+    
+    def add_subject(self, subject: Subject):
+        self.subject_cls_widgets[subject.id] = BaseWidget()
+        
+        self.subject_fields[subject.id] = LabeledField("", self.subject_cls_widgets[subject.id])
+        self.update_subject_name(subject)
+        
+        self.subj_data_widget.addWidget(self.subject_fields[subject.id])
+        
+        for cls in subject.classes.values():
+            if cls.subjects[subject.id].teacher and cls.subjects[subject.id].teacher.id == self.teacher.id:
+                self.add_class(subject.id, cls)
+    
+    def remove_subject(self, subject: Subject):
+        field = self.subject_fields[subject.id]
+        
+        self.subj_data_widget.removeWidget(field)
+        field.deleteLater()
+        
+        for cls in subject.classes.values():
+            if cls.id in self.class_labels:
+                for cls_data in self.class_labels[cls.id].copy():
+                    s_id, _ = cls_data
+                    
+                    if s_id == subject.id:
+                        self.class_labels[cls.id].remove(cls_data)
+    
+    def add_class(self, subject_id: ID, cls: Class):
+        if cls.id not in self.class_labels:
+            self.class_labels[cls.id] = []
+        
+        label = QLabel()
+        self.subject_cls_widgets[subject_id].addWidget(label)
+        
+        self.class_labels[cls.id].append((subject_id, label))
+        self.update_class_name(cls)
+    
+    def remove_class(self, subject_id: ID, cls_id: ID):
+        for cls_label_data in self.class_labels[cls_id].copy():
+            s_id, label = cls_label_data
+            
+            if s_id == subject_id:
+                self.subject_cls_widgets[s_id].removeWidget(label)
+                label.deleteLater()
+                
+                self.class_labels[cls_id].remove(cls_label_data)
+    
+    def update_subject_name(self, subject: Subject):
+        self.subject_fields[subject.id].setTitle(subject.name.full())
+    
+    def update_class_name(self, cls: Class):
+        for _, label in self.class_labels[cls.id]:
+            label.setText(f"<b>●</b> {cls.level.name.full()} {cls.name}")
 
 

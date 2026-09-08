@@ -1,6 +1,5 @@
-import pygame
-
 from imports import *
+
 
 ALL_EXTENSION_TYPE = "all"
 TABLE_EXTENSION_TYPE = "ttbl"
@@ -12,7 +11,6 @@ FT_MAPPING = {
     TEMPLATE_EXTENSION_TYPE: "Template Files (*.frmwk)"
 } ; REV_FT_MAPPING = {v: k for k, v in FT_MAPPING.items()}
 
-pygame.init()
 
 class Thread(QThread):
     crashed = pySignal(Exception)

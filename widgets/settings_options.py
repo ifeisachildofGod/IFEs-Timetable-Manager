@@ -5,9 +5,14 @@ from .base import *
 from .timetable import *
 from .user_interface import *
 
+from AttendanceApp import AttendanceManager
+
+
 class BaseSelectionList(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, attendance_manager: AttendanceManager):
         super().__init__(title)
+        
+        self.attendance_manager = attendance_manager
         
         self.id = id
         self._parent = parent
@@ -18,7 +23,7 @@ class BaseSelectionList(BaseSettingDialog):
         # Add selected items
         for item_id, item in selected_items:
             selected_ids.append(item_id)
-            widget = _SL_SelectedWidget(self._parent, item_id, item.name.full(), self.getLayout(), self.item_selected, self.item_removed)
+            widget = _SL_SelectedWidget(self._parent, item_id, item.name.full(), self.getLayout(), self.item_removed, self.item_selected)
             
             self.addWidget(widget)
         
@@ -47,7 +52,7 @@ class BaseSelectionList(BaseSettingDialog):
 
 
 class SubjectSelectionList(BaseSelectionList):
-    def __init__(self, parent: BaseSettingWidget, id, title):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, attendance_manager: AttendanceManager):
         self.subject = SCHOOL.subjects[id]
         
         selected_iter = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
@@ -56,7 +61,14 @@ class SubjectSelectionList(BaseSelectionList):
         if next((False for cls in self.subject.classes.values() if cls.subjects[id].teacher is None), True):
             scope = selected_iter.copy()
         
-        super().__init__(parent, id, title, iter(selected_iter.items()), scope)
+        super().__init__(parent, id, title, iter(selected_iter.items()), scope, attendance_manager)
+    
+    def item_selected(self, id: ID):
+        SCHOOL.teachers[id].subjects[self.id] = self.subject
+        
+        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            if id in staff_widget_dict:
+                staff_widget_dict[id].add_subject(self.subject)
     
     def item_removed(self, id: ID):
         SCHOOL.teachers[id].subjects.pop(self.id)
@@ -64,30 +76,39 @@ class SubjectSelectionList(BaseSelectionList):
         for cls in self.subject.classes.values():
             if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
                 cls.subjects[self.id].teacher = None
-    
-    def item_selected(self, id: ID):
-        SCHOOL.teachers[id].subjects[self.id] = self.subject
+        
+        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            if id in staff_widget_dict:
+                staff_widget_dict[id].remove_subject(self.subject)
 
 class TeacherSelectionList(BaseSelectionList):
-    def __init__(self, parent: BaseSettingWidget, id, title):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, attendance_manager: AttendanceManager):
         self.teacher = SCHOOL.teachers[id]
         
         scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if next((True for cls in s.classes.values() if s_id in cls.subjects and (cls.subjects[s_id].teacher is None or cls.subjects[s_id].teacher.id == id)), False)}
         
-        super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope)
+        super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope, attendance_manager)
+    
+    def item_selected(self, id: ID):
+        subject = SCHOOL.teachers[self.id].subjects[id] = SCHOOL.subjects[id]
+        
+        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            if self.id in staff_widget_dict:
+                staff_widget_dict[self.id].add_subject(subject)
     
     def item_removed(self, id: ID):
         subject = self.teacher.subjects.pop(id)
         
         for cls in subject.classes.values():
-            if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
-                cls.subjects[self.id].teacher = None
-    
-    def item_selected(self, id: ID):
-        self.teacher.subjects[id] = SCHOOL.subjects[id]
+            if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
+                cls.subjects[id].teacher = None
+        
+        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            if self.id in staff_widget_dict:
+                staff_widget_dict[self.id].remove_subject(subject)
 
 class SubjectDropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, attendance_manager: AttendanceManager):
         super().__init__(title)
         
         self.__init = True
@@ -95,6 +116,8 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         self.id = id
         self._parent = parent
         self.subject = SCHOOL.subjects[self.id]
+        
+        self.attendance_manager = attendance_manager
         
         self.setFixedSize(400, 300)
         
@@ -202,19 +225,9 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                 
                 self.main_guy_is_clicked = True
                 
-                if is_on:
-                    if not self.class_check_box_tracker["sub_cbs"][lvl_id]:
-                        QMessageBox.critical(self, "Setting SDCB Error", "No class level option has been made for this class level")
-                        self.main_guy_is_clicked = False
-                        self.class_check_box_tracker["main_cb"][lvl_id].click()
-                    else:
-                        for c_box in self.class_check_box_tracker["sub_cbs"][lvl_id].values():
-                            if not c_box.isChecked():
-                                c_box.click()
-                else:
-                    for c_box in self.class_check_box_tracker["sub_cbs"][lvl_id].values():
-                        if c_box.isChecked():
-                            c_box.click()
+                for c_box in self.class_check_box_tracker["sub_cbs"][lvl_id].values():
+                    if is_on != c_box.isChecked():
+                        c_box.click()
                 
                 self.main_guy_is_clicked = False
         
@@ -257,6 +270,13 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             self.subject.classes.pop(cls_id)
             SCHOOL.class_levels[lvl_id].classes[cls_id].subjects.pop(self.id)
             
+            for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                for teacher_attendance_entry_widget in teacher_widget_dict.values():
+                    if cls_id in teacher_attendance_entry_widget.class_labels:
+                        for s_id, _ in teacher_attendance_entry_widget.class_labels[cls_id]:
+                            if s_id == self.id:
+                                teacher_attendance_entry_widget.remove_class(self.id, cls_id)
+            
             for cls in SCHOOL.class_levels[lvl_id].classes.values():
                 if self.id in cls.subjects:
                     break
@@ -264,14 +284,16 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                 SCHOOL.class_levels[lvl_id].subjects_occurence.pop(self.id)
 
 class TeacherDropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
         self.__init = True
         
         self.id = id
         self._parent = parent
+        
         self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
         
         self.teacher = SCHOOL.teachers[self.id]
         
@@ -523,24 +545,9 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 
                 cls_level = SCHOOL.class_levels[lvl_id]
                 
-                if is_on:
-                    if not self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id]:
-                        self.main_guy_is_clicked = False
-                        self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
-                    else:
-                        for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
-                            if not c_box.isChecked():
-                                c_box.click()
-                                
-                                cls_level.classes[c_id].subjects[subject.id].teacher = self.teacher
-                                self.timetable_editor.timetable_widgets[lvl_id][c_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
-                else:
-                    for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
-                        if c_box.isChecked():
-                            c_box.click()
-                            
-                            cls_level.classes[c_id].subjects[subject.id].teacher = None
-                            self.timetable_editor.timetable_widgets[lvl_id][c_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
+                for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
+                    if is_on != c_box.isChecked():
+                        c_box.click()
                 
                 self.main_guy_is_clicked = False
         
@@ -548,21 +555,12 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
     
     def make_sub_checkbox_func(self, subject: Subject, lvl_id: ID, cls_id: CLASS_ID):
         def checkbox_func(on):
+            if not self.__init:
+                self._parent.window().saved_state_changed.emit(True)
+                self.sub_checkbox_func(on, lvl_id, cls_id, subject)
+            
             if not self.main_guy_is_clicked:
-                if not self.__init:
-                    self._parent.window().saved_state_changed.emit(True)
-                
                 self.mini_guy_is_clicked = True
-                
-                if not self.__init:
-                    cls_level = SCHOOL.class_levels[lvl_id]
-                    
-                    if on:
-                        cls_level.classes[cls_id].subjects[subject.id].teacher = self.teacher
-                        self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
-                    else:
-                        cls_level.classes[cls_id].subjects[subject.id].teacher = None
-                        self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
                 
                 if on:
                     for c_id, cb in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
@@ -577,14 +575,36 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                 self.mini_guy_is_clicked = False
         
         return checkbox_func
+    
+    def sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: ID, subject: Subject):
+        cls_level = SCHOOL.class_levels[lvl_id]
+        cls = cls_level.classes[cls_id]
+        
+        if on:
+            cls.subjects[subject.id].teacher = self.teacher
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
+            
+            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                if self.id in teacher_filtered_dict:
+                    teacher_filtered_dict[self.id].add_class(subject.id, cls)
+        else:
+            cls.subjects[subject.id].teacher = None
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
+            
+            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                if self.id in teacher_filtered_dict:
+                    teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
 
 class OccuranceEditor(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title, BaseWidget)
         
         self.__init = True
         
         self._parent = parent
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
         
         self.central_widget = BaseScrollWidget()
         self.remainder_slots_label = QLabel()
@@ -596,7 +616,6 @@ class OccuranceEditor(BaseSettingDialog):
         self.central_widget.setContentsMargins(20, 20, 20, 20)
         
         self.id = id
-        self.timetable_editor = timetable_editor
         self.class_level = SCHOOL.class_levels[self.id]
         
         self.setFixedSize(600, 400)
@@ -726,12 +745,14 @@ class OccuranceEditor(BaseSettingDialog):
         return text_changed_func
 
 class ClassOptionsMaker(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor):
+    def __init__(self, parent: BaseSettingWidget, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
         
         self.id = id
         self._parent = parent
-        self.timetable_editor = timetable_editor
         self.class_level = SCHOOL.class_levels[self.id]
         
         self.max_cols = 4  # Maximum number of columns before wrapping
@@ -779,12 +800,20 @@ class ClassOptionsMaker(BaseSettingDialog):
             
             SCHOOL.class_levels.add_class(self.id, cls)
             self.timetable_editor.add_timetable_class(cls)
+        else:
+            cls = self.class_level.classes[id]
         
         def update_option():
             u_text = option.get_text()
             
             self.timetable_editor.set_label_text(id, u_text)
-            self.class_level.classes[id].name = u_text
+            cls.name = u_text
+            
+            for subject in cls.subjects.values():
+                if subject.teacher:
+                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                        if subject.teacher.id in teacher_filtered_dict:
+                            teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
         
         update_option()
         
@@ -793,6 +822,12 @@ class ClassOptionsMaker(BaseSettingDialog):
         
         def remove_option():
             self._parent.window().saved_state_changed.emit(True)
+            
+            for subject in self.class_level.classes[id].subjects.values():
+                if subject.teacher:
+                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                        if subject.teacher.id in teacher_filtered_dict:
+                            teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, id)
             
             self.timetable_editor.delete_timetable_class(self.class_level.classes[id])
             SCHOOL.class_levels.remove_class(self.id, id)
@@ -811,7 +846,7 @@ class ClassOptionsMaker(BaseSettingDialog):
 
 
 class SelectWidget(BaseWidget):
-    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove: Callable[[ID, ID], None]):
+    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None]):
         super().__init__(QHBoxLayout)
         
         self.id = id
@@ -820,6 +855,7 @@ class SelectWidget(BaseWidget):
         self.host_container_layout = host_container_layout
         
         self.on_remove = on_remove
+        self.on_opp_remove = on_opp_remove
         
         metrics = QFontMetrics(self.font())
         label = QLabel(metrics.elidedText(self.text, Qt.TextElideMode.ElideRight, 200))
@@ -847,12 +883,10 @@ class SelectWidget(BaseWidget):
         raise NotImplementedError()
 
 class _SL_SelectedWidget(SelectWidget):
-    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove: Callable[[ID, ID], None], on_opp_remove: Callable[[ID, ID], None]):
-        super().__init__(parent, id, text, host_container_layout, on_remove)
+    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove, on_opp_remove):
+        super().__init__(parent, id, text, host_container_layout, on_remove, on_opp_remove)
         
         self.setProperty("class", "SelectedSelectionListEntry")
-        
-        self.on_opp_remove = on_opp_remove
     
     def get_new_widget_index(self):
         insert_index = self.host_container_layout.count() - 1
@@ -862,15 +896,13 @@ class _SL_SelectedWidget(SelectWidget):
                 insert_index = i
                 break
         
-        return insert_index, _SL_UnSelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_remove, self.on_opp_remove)
+        return insert_index, _SL_UnSelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_opp_remove, self.on_remove)
 
 class _SL_UnSelectedWidget(SelectWidget):
-    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove: Callable[[ID, ID], None], on_opp_remove: Callable[[ID, ID], None]):
-        super().__init__(parent, id, text, host_container_layout, on_remove)
+    def __init__(self, parent: BaseSettingWidget, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove, on_opp_remove):
+        super().__init__(parent, id, text, host_container_layout, on_remove, on_opp_remove)
         
         self.setProperty("class", "UnselectedSelectionListEntry")
-        
-        self.on_opp_remove = on_opp_remove
     
     def get_new_widget_index(self):
         insert_index = 0
@@ -879,5 +911,5 @@ class _SL_UnSelectedWidget(SelectWidget):
             if isinstance(self.host_container_layout.itemAt(i).widget(), _SL_SelectedWidget):
                 insert_index = i + 1
         
-        return insert_index, _SL_SelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_remove, self.on_opp_remove)
+        return insert_index, _SL_SelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_opp_remove, self.on_remove)
 

@@ -12,7 +12,6 @@ from core.timetable import *
 _T = TypeVar("_T")
 
 
-
 @dataclass
 class AppData:
     prefect_cit: Time
@@ -30,10 +29,18 @@ class AppData:
     teacher_timeline_dates: list[tuple[Period, Period]]
     prefect_timeline_dates: list[tuple[Period, Period]]
     
-    teachers: dict[str, Teacher]
-    prefects: dict[str, Prefect]
-    
     attendance_data: list[AttendanceEntry]
+    
+    def __init__(self, /, **kwds):
+        self.__dict__ = kwds
+        
+        assert \
+            self.prefect_cit.in_minutes() + self.prefect_cin_border_interval_minutes < self.prefect_cot.in_minutes() - self.prefect_cout_border_interval_minutes,\
+            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.prefect_cit.in_minutes() + self.prefect_cin_border_interval_minutes}\nCheck-Out lower border: {self.prefect_cot.in_minutes() - self.prefect_cout_border_interval_minutes}"
+        
+        assert \
+            self.teacher_cit.in_minutes() + self.teacher_cin_border_interval_minutes < self.teacher_cot.in_minutes() - self.teacher_cout_border_interval_minutes,\
+            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.teacher_cit.in_minutes() + self.teacher_cin_border_interval_minutes}\nCheck-Out lower border: {self.teacher_cot.in_minutes() - self.teacher_cout_border_interval_minutes}"
 
 
 class Global(dict[ID, _T]):
@@ -104,6 +111,7 @@ class School:
     def __init__(self):
         self.subjects = GlobalSubjects(self)
         self.teachers = GlobalTeachers(self)
+        self.prefects = {}
         self.class_levels = GlobalClassLevels(self)
         
         self.gen_data = GeneratingData({}, {}, {}, {})
@@ -145,9 +153,6 @@ class School:
                     Period(time=Time(0, 0, 0), day="Friday", date=31, month="December", year=0)
                 )
             ],
-            
-            teachers = self.teachers,
-            prefects = {},
             
             attendance_data = [],
         )
@@ -433,7 +438,7 @@ class School:
                     
                     school_framework.class_levels.add_class(lvl_id, cls)
         
-        school_framework.attendance.prefects = {
+        school_framework.prefects = {
             "p_id1": Prefect(
                 id = "p_id1",
                 IUD = "6999BDB2",

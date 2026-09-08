@@ -4,17 +4,15 @@ from ..data_display_widgets import *
 
 
 class StaffDataWidget(BaseOptionsWidget):
-    def __init__(self, data: AppData, parent_widget: TabViewWidget):
+    def __init__(self, parent_widget: TabViewWidget):
         super().__init__(parent_widget, "scrollable")
-        
-        self.data = data
         
         self.staff_working_days = {}
         
-        for prefect in self.data.prefects.values():
+        for prefect in SCHOOL.prefects.values():
             self.staff_working_days[prefect.id] = list(prefect.duties)
         
-        for teacher in self.data.teachers.values():
+        for teacher in SCHOOL.teachers.values():
             self.staff_working_days[teacher.id] = list(set(flatten([[d for d, _ in s.get_periods()] for s in teacher.subjects.values()])))
         
         self.attendance_amt_widget = QLabel()
@@ -45,9 +43,9 @@ class StaffDataWidget(BaseOptionsWidget):
     
     def get_staff_attendance_data(self, staff: Staff):
         if isinstance(staff, Teacher):
-            timeline_dates = self.data.teacher_timeline_dates
+            timeline_dates = SCHOOL.attendance.teacher_timeline_dates
         elif isinstance(staff, Prefect):
-            timeline_dates = self.data.prefect_timeline_dates
+            timeline_dates = SCHOOL.attendance.prefect_timeline_dates
         else:
             raise Exception()
         
@@ -86,12 +84,12 @@ class StaffDataWidget(BaseOptionsWidget):
     
     def get_staff_punctuality_data(self, staff: Staff):
         if isinstance(staff, Teacher):
-            timeline_dates = self.data.teacher_timeline_dates
-            cit = self.data.teacher_cit
+            timeline_dates = SCHOOL.attendance.teacher_timeline_dates
+            cit = SCHOOL.attendance.teacher_cit
             working_days = list(set(flatten([[d for d, _ in s.get_periods()] for s in staff.subjects.values()])))
         elif isinstance(staff, Prefect):
-            timeline_dates = self.data.prefect_timeline_dates
-            cit = self.data.prefect_cit
+            timeline_dates = SCHOOL.attendance.prefect_timeline_dates
+            cit = SCHOOL.attendance.prefect_cit
             working_days = list(staff.duties)
         else:
             raise Exception()
@@ -113,13 +111,13 @@ class StaffDataWidget(BaseOptionsWidget):
         if isinstance(staff, Teacher):
             bar_title = f"{staff.name.full()}'s Monthly Cummulative Attendance Chart"
             graph_title = f"{staff.name.full()}'s Monthly Cummulative Punctuality Graph"
-            staff_list = list(self.data.teachers)
+            staff_list = list(SCHOOL.teachers)
             staff_position_data = None
             cls_name = None
         elif isinstance(staff, Prefect):
             bar_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Cummulative Attendance Chart"
             graph_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Average Punctuality Graph"
-            staff_list = list(self.data.prefects)
+            staff_list = list(SCHOOL.prefects)
             staff_position_data = "Post", staff.post_name
             cls_name = f"{staff.cls.level.name.full()} {staff.cls.name}"
         else:
@@ -265,10 +263,9 @@ class StaffDataWidget(BaseOptionsWidget):
 class CardScanScreenWidget(BaseOptionsWidget):
     comm_signal = pySignal(str)
     
-    def __init__(self, data: AppData, comm_system: BaseCommSystem, parent_widget: TabViewWidget, saved_state_changed: pyBoundSignal):
+    def __init__(self, comm_system: BaseCommSystem, parent_widget: TabViewWidget, saved_state_changed: pyBoundSignal):
         super().__init__(parent_widget, "static")
         
-        self.data = data
         self.comm_system = comm_system
         self.saved_state_changed = saved_state_changed
         
@@ -330,7 +327,7 @@ class CardScanScreenWidget(BaseOptionsWidget):
     
     def scanned(self, data: str):
         if self.parent_widget.stack.currentIndex() == self.parent_widget.stack.indexOf(self):
-            for prefect in self.data.prefects.values():
+            for prefect in SCHOOL.prefects.values():
                 if prefect.IUD == data:
                     self.comm_system.send_message("UNREGISTERED")
                     self.just_scanned = True
@@ -344,7 +341,7 @@ class CardScanScreenWidget(BaseOptionsWidget):
                     self.finished()
                     return
             else:
-                for teacher in self.data.teachers.values():
+                for teacher in SCHOOL.teachers.values():
                     if teacher.IUD == data:
                         self.comm_system.send_message("UNREGISTERED")
                         self.just_scanned = True
