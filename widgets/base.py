@@ -293,8 +293,8 @@ class BaseScrollWidget(BaseWidget):
         return self.scroll_widget
 
 class BaseDialogWidget(QDialog):
-    def __init__(self, title: str, widget_type: type[BaseWidget | BaseScrollWidget], layout_type: type[QHBoxLayout | QVBoxLayout] = None):
-        super().__init__()
+    def __init__(self, title: str, widget_type: type[BaseWidget | BaseScrollWidget], layout_type: type[QHBoxLayout | QVBoxLayout] = None, parent=None):
+        super().__init__(parent=parent)
         
         self.widget = widget_type(layout_type)
         
@@ -321,9 +321,13 @@ class BaseDialogWidget(QDialog):
         self.widget.setProperty(name, value)
     
     def setFixedWidth(self, width: int):
+        super().setFixedWidth(width)
+        
         self.widget.setFixedWidth(width)
     
     def setFixedHeight(self, height: int):
+        super().setFixedHeight(height)
+        
         self.widget.setFixedHeight(height)
     
     def addWidget(self, widget: QWidget, stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):

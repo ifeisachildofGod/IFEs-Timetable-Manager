@@ -1,12 +1,23 @@
+from widgets import BaseWidget, BaseDialogWidget
+
 from .base_widgets import *
+from .theme import AttendanceThemeManager
 
 
 class CommSetupDialog(BaseDialogWidget):
     update_signal = pySignal(dict, list)
     bluetooth_state_signal = pySignal(bool)
     
-    def __init__(self, parent: QMainWindow, connector: BaseCommSystem):
-        super().__init__(parent, "Device Connection Configuration")
+    def __init__(self, parent, connector: BaseCommSystem):
+        super().__init__("Device Connection Configuration", BaseWidget, parent=parent)
+        
+        self.THEME_MANAGER = AttendanceThemeManager()
+        self.THEME_MANAGER.set_widget(self)
+        self.THEME_MANAGER.apply_theme("dark-blue")
+        
+        self.setModal(True)
+        self.setFixedSize(700, 500)
+        self.setContentsMargins(10, 10, 10, 10)
         
         self.connector = connector
         
@@ -90,11 +101,11 @@ class CommSetupDialog(BaseDialogWidget):
         bluetooth_layout.addWidget(LabeledField("Bluetooth Low Energy Devices", bluetooth_devices_widget, height_policy=QSizePolicy.Policy.Minimum))
         bluetooth_layout.addWidget(bt_port_edit_widget, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         
-        self.main_layout.addWidget(self.main_widget)
+        self.addWidget(self.main_widget)
         
         self.disconnect_button = QPushButton("Disconnect")
         
-        self.main_layout.addWidget(self.disconnect_button, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.addWidget(self.disconnect_button, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         
         def bt_state_signal_func(value):
             bluetooth_widget.setDisabled(not value)
@@ -266,14 +277,14 @@ class CommSetupDialog(BaseDialogWidget):
 
 
 # class ManageSetupDialog(BaseDialogWidget):
-#     def __init__(self, parent):
-#         super().__init__(parent, "Management Mode")
+#     def __init__(self):
+#         super().__init__("Management Mode")
         
 #         sch_att_rb = QCheckBox("School Attendance")
 #         t_reg_rb = QCheckBox("Teacher Registry")
         
-#         self.main_layout.addStretch()
-#         self.main_layout.addWidget(sch_att_rb, alignment=Qt.AlignmentFlag.AlignCenter)
-#         self.main_layout.addWidget(t_reg_rb, alignment=Qt.AlignmentFlag.AlignCenter)
-#         self.main_layout.addStretch()
+#         self.addStretch()
+#         self.addWidget(sch_att_rb, alignment=Qt.AlignmentFlag.AlignCenter)
+#         self.addWidget(t_reg_rb, alignment=Qt.AlignmentFlag.AlignCenter)
+#         self.addStretch()
 

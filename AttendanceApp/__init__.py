@@ -13,7 +13,7 @@ class AttendanceManager(TabViewWidget):
     search_state_changed = pySignal(str)
     
     def __init__(self) -> None:
-        super().__init__("horizontal")
+        super().__init__()
         
         self.search_state = True
         

@@ -1,7 +1,7 @@
 
 from imports import *
 
-stylesheet = '''
+STYLESHEET = '''
     QWidget {{
         background-color: {bg};
         color: {text};
@@ -678,7 +678,7 @@ class AttendanceThemeManager:
                 palette.update(color_palette)
                 palette.update(general)
                 
-                self._add_theme(f"{name1}-{name2}", {"palette": palette, "stylesheet": stylesheet})
+                self._add_theme(f"{name1}-{name2}", {"palette": palette, "stylesheet": STYLESHEET})
 
     def set_widget(self, widget: QWidget):
         self.widget = widget
@@ -692,8 +692,6 @@ class AttendanceThemeManager:
         theme = self.themes[name]
         self.current_theme = name
 
-        self.current_pallete = theme["palette"]
-        
         self.current_pallete = theme["palette"]
         
         # Inject palette variables into stylesheet using string formatting

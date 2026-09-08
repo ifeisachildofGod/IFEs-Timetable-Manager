@@ -262,21 +262,6 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
                 staff_widget.setVisible(index == i)
 
 
-class BaseDialogWidget(QDialog):
-    def __init__(self, parent: QMainWindow, title: str):
-        super().__init__(parent=parent)
-        
-        self.setFocus()
-        self.setModal(True)
-        self.setWindowTitle(title)
-        self.setFixedWidth(700)
-        self.setFixedHeight(500)
-        
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        
-        self.container, self.main_layout = create_widget(layout, QVBoxLayout)
-
 
 class BaseStaffListEntryWidget(QWidget):
     def __init__(self, parent_widget: TabViewWidget, staff: Staff, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):

@@ -6,12 +6,10 @@ from widgets.base import BaseWidget
 
 
 class TabViewWidget(BaseWidget):
-    def __init__(self, bar_orientation: Literal["vertical", "horizontal"] = "horizontal"):
-        self.bar_orientation = bar_orientation
+    def __init__(self, orientation: Qt.Orientation = Qt.Orientation.Horizontal):
+        self.orientation = orientation
         
-        super().__init__(QVBoxLayout if self.bar_orientation == "horizontal" else QHBoxLayout)
-        
-        assert self.bar_orientation in ("vertical", "horizontal"), f"Invalid orientation: {self.bar_orientation}"
+        super().__init__(QVBoxLayout if self.orientation == Qt.Orientation.Horizontal else QHBoxLayout)
         
         self.current_tab = None
         self.tab_src_changed_func_mapping = {}
@@ -19,13 +17,13 @@ class TabViewWidget(BaseWidget):
         self.tab_buttons: list[QPushButton] = []
         self.widgets: list[QWidget] = []
         
-        self.tab_widget = BaseWidget(QHBoxLayout if self.bar_orientation == "horizontal" else QVBoxLayout)
+        self.tab_widget = BaseWidget(QHBoxLayout if self.orientation == Qt.Orientation.Horizontal else QVBoxLayout)
         self.tab_widget.setSpacing(5)
         self.tab_widget.setContentsMargins(0, 0, 0, 0)
         
         self.stack = QStackedWidget()
         
-        if self.bar_orientation == "vertical":
+        if self.orientation == Qt.Orientation.Vertical:
             self.tab_widget.addStretch()
         
         self.setContentsMargins(10, 10, 10, 10)
@@ -41,7 +39,7 @@ class TabViewWidget(BaseWidget):
         
         tab_button.setCheckable(True)
         tab_button.clicked.connect(self._make_tab_clicked_func(len(self.tab_buttons) - 1, func))
-        tab_button.setProperty("class", "HorizontalTab" if self.bar_orientation == "horizontal" else "VerticalTab")
+        tab_button.setProperty("class", "HorizontalTab" if self.orientation == Qt.Orientation.Horizontal else "VerticalTab")
         tab_button.setContentsMargins(0, 0, 0, 0)
         
         self.tab_widget.insertWidget(len(self.tab_buttons) - 1, tab_button)

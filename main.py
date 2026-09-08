@@ -471,7 +471,10 @@ class Window(QMainWindow):
     def make_palette_action_func(self, main_color: str, accent_color: str):
         def palette_action_func():
             SCHOOL.settings.THEME = f"{main_color}-{accent_color}"
+            
             THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
+            self.attendance_manager.THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
+            self.attendance_manager.connection_set_up_screen.THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
             
             for lvl_id, level_widgets in self.timetable_widget.timetable_widgets.items():
                 for cls_id, cls_ttbl in level_widgets.items():
