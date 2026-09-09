@@ -8,6 +8,9 @@ from AttendanceApp import AttendanceManager
 
 class SubjectsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        if entry:
+            NUMBER[0] = max(int(entry.id), NUMBER[0])
+        
         entry = entry or Subject(ID.new(), SubjectName("", ""), None, {})
         
         self.timetable_editor = timetable_editor
@@ -79,8 +82,69 @@ class SubjectsSettingEntry(BaseSettingEntry):
                 else:
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
 
+class CombinedSubjectsSettingEntry(BaseSettingEntry):
+    def __init__(self, parent: BaseSettingWidget, entry: Optional[CombinedSubject], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        if entry:
+            NUMBER[0] = max(int(entry.id), NUMBER[0])
+        
+        entry = entry or CombinedSubject(ID.new(), SubjectName("", ""), [], CombinedTeacher(ID.new(), []))
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
+        
+        super().__init__(
+            parent,
+            "Combined Subject",
+            None,
+            {
+                "Child Subjects": ("Subjects under {name}", CombinedSubjectSelectionList, (self.attendance_manager, ))
+            },
+            entry
+        )
+        
+        self.entry = entry  # This is for the intellisense to know that this is SubjectEntry and not just an Entry
+    
+    def remove(self):
+        for subject in self.entry.subjects:
+            for cls in subject.classes.copy().values():
+                if self.entry.id in cls.subjects:
+                    self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
+                    
+                    cls.subjects.pop(self.entry.id)
+            
+            for cls in subject.classes.values():
+                if self.entry.id in cls.level.subjects_occurence:
+                    cls.level.subjects_occurence.pop(self.entry.id)
+        
+        return super().remove()
+    
+    def get_init_text(self):
+        return self.entry.name.full_name, None
+    
+    def simple_name_changed(self, text, _):
+        if text:
+            self.entry.name.full_name = text
+        else:
+            self.entry.name.full_name = "/".join([s.name.short() for s in self.entry.subjects])
+            
+            if self.entry.name.full_name:
+                default = f"Default: {self.entry.name.full_name}"
+                self.status_widget.removeLinient("EmptyNameWarning")
+            else:
+                default = "No Child Subjects"
+                self.simple_name_empty(text)
+            
+            self.simple_line_edit.setPlaceholderText(f"{self.simple_placeholder}; {default}")
+    
+    def simple_name_empty(self, text):
+        if not self.entry.subjects:
+            super().simple_name_empty(text)
+
 class TeachersSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        if entry:
+            NUMBER[0] = max(int(entry.id), NUMBER[0])
+        
         entry = entry or Teacher(ID.new(), None, StaffName("", "", "", ""), "AttendanceApp/src/profile-images/t_id1.png", [], {})
         
         self.timetable_editor = timetable_editor
@@ -170,6 +234,9 @@ class TeachersSettingEntry(BaseSettingEntry):
 
 class ClassLevelsSettingEntry(BaseSettingEntry):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        if entry:
+            NUMBER[0] = max(int(entry.id), NUMBER[0])
+        
         entry = entry or ClassLevel(ID.new(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
         
         self.timetable_editor = timetable_editor
@@ -228,26 +295,63 @@ class SubjectsMainWidget(BaseSettingWidget):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__("Subject")
+        super().__init__(["Subject", "Combined Subject"])
+    
+    def init_saved_variables(self):
+        for entry in self.get_global().values():
+            b_index = None
+            
+            if isinstance(entry, Subject):
+                b_index = 0
+            elif isinstance(entry, CombinedSubject):
+                b_index = 1
+            
+            assert b_index is not None, f"Invalid entry type: {entry.__class__.__name__}"
+            
+            self.add(entry, button_index=b_index)
+    
+    def enter_pressed(self, key: int, id: Optional[ID] = None):
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if id is not None:
+                entry = self.get_global()[id]
+                
+                if isinstance(entry, Subject):
+                    b_index = 0
+                elif isinstance(entry, CombinedSubject):
+                    b_index = 1
+            else:
+                b_index = 0
+            
+            self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None, button_index=b_index)
     
     def get_global(self):
         return SCHOOL.subjects
     
-    def get_widget_type(self):
-        return SubjectsSettingEntry, (self.timetable_editor, self.attendance_manager)
+    def get_widget_type(self, button_index):
+        widget_type = None
+        
+        match button_index:
+            case 0:
+                widget_type = SubjectsSettingEntry
+            case 1:
+                widget_type = CombinedSubjectsSettingEntry
+        
+        assert widget_type is not None, f"Invalid button index: {button_index}"
+        
+        return widget_type, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, entry: Subject = None, index = None, focus = None):
-        new_entry = super().add(entry, index, focus)
+    def add(self, entry: Subject | CombinedSubject = None, index = None, focus = None, button_index = None):
+        final_entry = super().add(entry, index, focus, button_index)
         
         if entry is None:
-            SCHOOL.subjects.add(new_entry)
+            SCHOOL.subjects.add(final_entry)
 
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__("Teacher")
+        super().__init__(["Teacher"])
     
     def get_global(self):
         return SCHOOL.teachers
@@ -255,20 +359,20 @@ class TeachersMainWidget(BaseSettingWidget):
     def get_widget_type(self):
        return TeachersSettingEntry, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, p_entry: Teacher = None, index = None, focus = None):
-        entry = super().add(p_entry, index, focus)
+    def add(self, entry: Teacher = None, index = None, focus = None, button_index = None):
+        final_entry = super().add(entry, index, focus)
         
-        if p_entry is None:
-            SCHOOL.teachers.add(entry)
+        if entry is None:
+            SCHOOL.teachers.add(final_entry)
         
-        self.attendance_manager.staff_list_widget.add_staff(entry)
+        self.attendance_manager.staff_list_widget.add_staff(final_entry)
 
 class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__("Class Level")
+        super().__init__(["Class Level"])
     
     def get_global(self):
         return SCHOOL.class_levels
@@ -276,15 +380,15 @@ class ClassLevelsMainWidget(BaseSettingWidget):
     def get_widget_type(self):
         return ClassLevelsSettingEntry, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, p_entry: ClassLevel = None, index = None, focus = None):
-        entry: ClassLevel = super().add(p_entry, index, focus)
+    def add(self, entry: ClassLevel = None, index = None, focus = None, button_index = None):
+        final_entry: ClassLevel = super().add(entry, index, focus)
         
-        if p_entry is None:
-            SCHOOL.class_levels.add(entry)
+        if entry is None:
+            SCHOOL.class_levels.add(final_entry)
         
-        self.timetable_editor.add_timetable_level(entry)
+        self.timetable_editor.add_timetable_level(final_entry)
         
-        for cls in entry.classes.values():
+        for cls in final_entry.classes.values():
             self.timetable_editor.add_timetable_class(cls)
 
 

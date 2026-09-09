@@ -683,12 +683,10 @@ class StaffListWidget(BaseScrollListWidget):
         teachers_first = lambda: teachers() + prefects()
         
         self._filter_funcs: dict[str, Callable] = {}
-        self._filter_layouts: dict[str, QVBoxLayout] = {}
+        self.widgets: dict[str, BaseWidget] = {}
         self.all_staff_widgets: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
         
         both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
-        
-        self.widgets = {}
         
         self.get_filtered_widgets("Default", boths, both_func)
         self.get_filtered_widgets("Prefects Only", prefects, lambda staff: StaffListPrefectEntryWidget if isinstance(staff, Prefect) else None)
@@ -719,13 +717,9 @@ class StaffListWidget(BaseScrollListWidget):
         staff_list_callback: Callable[[], list[tuple[str, Prefect | Teacher]]],
         entry_type_callback: Callable[[Prefect | Teacher], type[StaffListTeacherEntryWidget] | type[StaffListTeacherEntryWidget]],
     ):
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        widget.setLayout(layout)
+        widget = BaseWidget()
         
         self._filter_funcs[filter_key] = staff_list_callback, entry_type_callback
-        self._filter_layouts[filter_key] = layout
         
         if filter_key not in self.all_staff_widgets:
             self.all_staff_widgets[filter_key] = {}
@@ -778,7 +772,7 @@ class StaffListWidget(BaseScrollListWidget):
     
     def add_staff(self, staff: Prefect | Teacher):
         for f_key, staff_maps in self.all_staff_widgets.items():
-            layout = self._filter_layouts[f_key]
+            widget = self.widgets[f_key]
             staff_list_callback, entry_type_callback = self._filter_funcs[f_key]
             
             entry_type = entry_type_callback(staff)
@@ -794,7 +788,7 @@ class StaffListWidget(BaseScrollListWidget):
                 
                 index = next(i for i, (k, _) in enumerate(staff_list_callback()) if k == staff.id)
                 
-                layout.insertWidget(index, staff_widget)
+                widget.insertWidget(min(index, len(widget.getChildren())), staff_widget)
                 
                 _temp_maps = list(staff_maps.items())
                 _temp_maps.insert(index, (staff.id, staff_widget))
@@ -806,7 +800,7 @@ class StaffListWidget(BaseScrollListWidget):
         for f_key, staff_maps in self.all_staff_widgets.items():
             if staff.id in staff_maps:
                 widget = staff_maps.pop(staff.id)
-                self._filter_layouts[f_key].removeWidget(widget)
+                self.widgets[f_key].removeWidget(widget)
 
 class AttendanceBarWidget(BaseDataDisplayWidget):
     def __init__(self, staff_data_widget: StaffDataWidget):

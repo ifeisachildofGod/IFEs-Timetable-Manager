@@ -53,6 +53,8 @@ class Global(dict[ID, _T]):
         self.school = school
     
     def add(self, entry: _T):
+        assert entry.id not in self, f"{entry.__class__.__name__} {entry.name.full()} (ID: {entry.id}) exists already"
+        
         self[entry.id] = entry
     
     def remove(self, id: ID):

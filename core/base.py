@@ -225,7 +225,7 @@ def S_MONTH(month: str):
     return S_DAY * MONTHS_OF_THE_YEAR[month]
 S_YEAR = S_DAY * 365
 
-
+NUMBER = [10000]
 
 class ID(str):
     def __init__(self, *args, **kwargs):
@@ -264,9 +264,10 @@ class ID(str):
     
     @staticmethod
     def new():
-        tmp = random.randint(0, 500000)
+        _id = ID(NUMBER[0])
+        NUMBER[0] += random.randint(1, 50)
         
-        return ID(id(tmp))
+        return _id
 
 class CLASS_ID(ID):
     def __init__(self, *args, class_level_id: ID = None, **kwargs):

@@ -336,6 +336,9 @@ class BaseDialogWidget(QDialog):
     def insertWidget(self, index: int, widget: Optional[QWidget], stretch: Optional[int] = None, alignment: Optional[Qt.AlignmentFlag] = None):
         self.widget.insertWidget(index, widget, stretch, alignment)
     
+    def removeWidget(self, widget: QWidget):
+        self.widget.removeWidget(widget)
+    
     def addStretch(self, stretch: Optional[int] = None):
         self.widget.addStretch(stretch)
     
@@ -517,7 +520,7 @@ class BaseSettingEntry(BaseWidget):
         self.option_dialogs = option_dialogs
         self.general_entry_name = general_entry_name
         
-        simple_placeholder = f"Enter {self.general_entry_name} Name"
+        self.simple_placeholder = f"Enter {self.general_entry_name} Name"
         
         self.dialog_widget_funcs = []
         
@@ -548,7 +551,7 @@ class BaseSettingEntry(BaseWidget):
         
         self.simple_line_edit = QLineEdit()
         self.simple_line_edit.setText(simple)
-        self.simple_line_edit.setPlaceholderText(simple_placeholder)
+        self.simple_line_edit.setPlaceholderText(self.simple_placeholder)
         
         self.extended_line_edits: list[QLineEdit] = []
         
@@ -692,7 +695,7 @@ class BaseSettingEntry(BaseWidget):
     
     def make_open_dialogs_func(self, title: str, cls: type[BaseSettingDialog], *args):
         def make_dialog():
-            return cls(self.i_parent, self.entry.id, title.format(name=self.entry.name.full()), *args)
+            return cls(self, self.entry.id, title.format(name=self.entry.name.full()), *args)
         
         self.dialog_widget_funcs.append(make_dialog)
         
@@ -717,31 +720,43 @@ class BaseSettingEntry(BaseWidget):
         raise NotImplementedError()
 
 class BaseSettingWidget(BaseWidget):
-    def __init__(self, name: str):
+    def __init__(self, names: list[str]):
         super().__init__()
         
         self.widgets = {}
-        
-        self.add_button = QPushButton()
-        self.add_button.setText(f"Add {name}")
-        self.add_button.clicked.connect(lambda: self.add(focus=True))
         
         self.scroll_widget = BaseScrollWidget()
         self.scroll_widget.setSpacing(20)
         self.scroll_widget.addStretch()
         
         self.addWidget(self.scroll_widget)
-        self.addWidget(self.add_button, alignment=Qt.AlignmentFlag.AlignRight)
+        self.addWidget(add_buttons_widget := BaseWidget(QHBoxLayout)) ; add_buttons_widget.addStretch()
+        
+        def _make_add_button_func(index: int):
+            def func():
+                self.add(button_index=index, focus=True)
+            
+            return func
+        
+        for i, name in enumerate(names):
+            add_button = QPushButton()
+            add_button.setText(f"Add {name}")
+            add_button.clicked.connect(_make_add_button_func(i))
+            
+            add_buttons_widget.addWidget(add_button)
         
         self.key_pressed.connect(self.enter_pressed)
         
+        self.init_saved_variables()
+    
+    def init_saved_variables(self):
         for entry in self.get_global().values():
             self.add(entry)
     
     def get_global(self) -> Global:
         raise NotImplementedError()
     
-    def get_widget_type(self) -> type[BaseSettingEntry]:
+    def get_widget_type(self, *args) -> type[BaseSettingEntry]:  # It's variable is *args because in implementation it has a variable amount of arguments (one or None)
         raise NotImplementedError()
     
     def go_to(self, widget_entry: Entry):
@@ -756,11 +771,14 @@ class BaseSettingWidget(BaseWidget):
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None)
     
-    def add(self, entry: Optional[Entry] = None, index: Optional[int] = None, focus: Optional[bool] = None):
+    def add(self, entry: Optional[Entry] = None, index: Optional[int] = None, focus: Optional[bool] = None, button_index: Optional[int] = None):
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
         
-        widget_data = self.get_widget_type()
+        if button_index is not None:
+            widget_data = self.get_widget_type(button_index)
+        else:
+            widget_data = self.get_widget_type()
         
         if isinstance(widget_data, tuple):
             widget_type, variables = widget_data
