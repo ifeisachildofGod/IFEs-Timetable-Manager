@@ -1,6 +1,4 @@
 
-from copy import deepcopy
-
 from imports import *
 
 from .base import *
@@ -9,6 +7,11 @@ from .user_interface import *
 
 from AttendanceApp import AttendanceManager
 
+# Subjects occurence has a problem, you need to make it so
+# all the combined subject influences on subject occurence
+# handled appropriately, meaning you have to check constantly
+# if a subject is in the subjects occurence for all appearances
+# of subject occurence
 
 class BaseSelectionList(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, attendance_manager: AttendanceManager):
@@ -113,13 +116,13 @@ class CombinedSubjectSelectionList(BaseSelectionList):
         super().__init__(parent, id, title, iter(self.selected_items.items()), self.full_scope, attendance_manager)
     
     def _scope_check(self, subject: Subject | CombinedSubject):
-        return isinstance(subject, Subject) and subject.classes and (not self.c_subject.subjects or set(subject.classes).intersection(set(flatten([s_s.classes for s_s in self.c_subject.subjects]))))
+        return isinstance(subject, Subject) and subject.classes
     
     def item_selected(self, id: ID):
         subject = SCHOOL.subjects[id]
         
+        self.c_subject.classes[id] = {}
         self.c_subject.subjects.append(subject)
-        self.c_subject.teacher.teachers.append(None)
         
         self.selected_items[subject.id] = subject
         
@@ -134,8 +137,7 @@ class CombinedSubjectSelectionList(BaseSelectionList):
     def item_removed(self, id):
         subject = SCHOOL.subjects[id]
         
-        self.c_subject.teacher.teachers.pop(self.c_subject.subjects.index(subject))
-        self.c_subject.subjects.remove(subject)
+        self.c_subject.remove_subject(subject)
         
         self.selected_items.pop(subject.id)
         
@@ -151,9 +153,26 @@ class TeacherSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
         self.teacher = SCHOOL.teachers[id]
         
-        scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if isinstance(s, Subject) and next((True for cls in s.classes.values() if s_id in cls.subjects and (cls.subjects[s_id].teacher is None or cls.subjects[s_id].teacher.id == id)), False)}
+        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
+        scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(s)}
         
         super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope, attendance_manager)
+    
+    def _scope_check(self, subject: Subject | CombinedSubject):
+        if not isinstance(subject, Subject):
+            return False
+        
+        for cls in subject.classes.values():
+            if subject.id in cls.subjects and (cls.subjects[subject.id].teacher is None or cls.subjects[subject.id].teacher.id == self.id):
+                break
+        else:
+            for c_subject in self.combined_subjects:
+                if next((s.teacher is None or s.teacher.id == self.id for s in c_subject.subjects if s.id == subject.id), False):
+                    break
+            else:
+                return False
+        
+        return True
     
     def item_selected(self, id: ID):
         subject = SCHOOL.teachers[self.id].subjects[id] = SCHOOL.subjects[id]
@@ -166,8 +185,19 @@ class TeacherSelectionList(BaseSelectionList):
         subject = self.teacher.subjects.pop(id)
         
         for cls in subject.classes.values():
-            if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
-                cls.subjects[id].teacher = None
+            if id in cls.subjects:
+                if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
+                    cls.subjects[id].teacher = None
+            else:
+                for subj in SCHOOL.subjects.values():
+                    if (
+                            isinstance(subj, CombinedSubject) and
+                            (u_subj := next((cls.subjects[subj.id].subjects[i] for i, s in enumerate(subj.subjects) if s.id == subject.id), False)) and
+                            u_subj.teacher is not None and
+                            u_subj.teacher.id == self.id
+                        ):
+                        u_subj.teacher = None
+                        break
         
         for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
             if self.id in staff_widget_dict:
@@ -190,11 +220,13 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
         
+        self.c_subjects = [s for s in SCHOOL.subjects.items() if isinstance(s, CombinedSubject) and next((True for s_s in s.subjects if s_s.id == self.id), False)]
+        
         self.setContentsMargins(0, 0, 0, 0)
         
         self.class_check_box_tracker = {"main_cb": {}, "sub_cbs": {}, "icon": {}, "widget": {}, "min_rem": {}}
         
-        for widget in self._create_checkbox_widgets():
+        for widget in self.make_school_widget_dropdowns():
             self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         self.addStretch()
@@ -220,13 +252,13 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             
             self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id].setFocus()
     
-    def _create_checkbox_widgets(self):
+    def make_school_widget_dropdowns(self):
         widgets: list[QWidget] = []
         all_clicked_checkboxes: list[QCheckBox] = []
         
         for lvl_id, cls_lvl in SCHOOL.class_levels.items():
             week_total = (cls_lvl.period_amount - 1) * len(cls_lvl.weekdays)
-            min_rem = min(week_total - sum(cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values()) for cls in cls_lvl.classes.values())
+            min_rem = min(week_total - sum(cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls_lvl.subjects_occurence) for cls in cls_lvl.classes.values())
             
             check_box = QCheckBox()
             check_box.clicked.connect(self.make_main_checkbox_func(lvl_id))
@@ -234,7 +266,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             self.class_check_box_tracker["sub_cbs"][lvl_id] = {}
             self.class_check_box_tracker["main_cb"][lvl_id] = check_box
             self.class_check_box_tracker["min_rem"][lvl_id] = min_rem
-            self.class_check_box_tracker["widget"][lvl_id], to_be_clicked = self.make_dp_widget(lvl_id, cls_lvl)
+            self.class_check_box_tracker["widget"][lvl_id], to_be_clicked = self.make_level_dp_widget(lvl_id, cls_lvl)
             
             main_widget = WidgetDropdown(cls_lvl.name.full(), self.class_check_box_tracker["widget"][lvl_id])
             main_widget.header.addWidget(check_box)
@@ -252,7 +284,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         
         return widgets
     
-    def make_dp_widget(self, lvl_id: ID, cls_lvl: ClassLevel):
+    def make_level_dp_widget(self, lvl_id: ID, cls_lvl: ClassLevel):
         dp_widget = BaseWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
@@ -323,18 +355,27 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         return checkbox_func
     
     def sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: CLASS_ID):
+        lvl = SCHOOL.class_levels[lvl_id]
+        cls = lvl.classes[cls_id]
+        
         if on:
-            self.subject.classes[cls_id] = SCHOOL.class_levels[lvl_id].classes[cls_id]
-            SCHOOL.class_levels[lvl_id].classes[cls_id].subjects[self.id] = self.subject.passCopy()
+            if self.c_subjects:
+                for c_subject in self.c_subjects:
+                    if c_subject.id not in cls.subjects:
+                        cls.subjects[c_subject.id] = c_subject.passCopy()
             
-            if self.id not in SCHOOL.class_levels[lvl_id].subjects_occurence:
+            self.subject.classes[cls_id] = cls
+            cls.subjects[self.id] = self.subject.passCopy()
+            
+            if self.id not in lvl.subjects_occurence:
                 per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
                 min_rem = self.class_check_box_tracker["min_rem"][lvl_id]
                 
-                SCHOOL.class_levels[lvl_id].subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+                lvl.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
         else:
             self.subject.classes.pop(cls_id)
-            SCHOOL.class_levels[lvl_id].classes[cls_id].subjects.pop(self.id)
+            
+            cls.subjects.pop(self.id)
             
             for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 for teacher_attendance_entry_widget in teacher_widget_dict.values():
@@ -343,11 +384,201 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
                             if s_id == self.id:
                                 teacher_attendance_entry_widget.remove_class(self.id, cls_id)
             
-            for cls in SCHOOL.class_levels[lvl_id].classes.values():
-                if self.id in cls.subjects:
-                    break
+            if self.id in lvl.subjects_occurence and next((False for cls in lvl.classes.values() if self.id in cls.subjects), True):
+                lvl.subjects_occurence.pop(self.id)
+            
+            for c_subject in self.c_subjects:
+                if cls_id in c_subject.classes[self.id]:
+                    c_subject.classes[self.id].pop(cls_id)
+                
+                if next((False for s in c_subject.subjects if s.id in cls.subjects), True):
+                    cls.subjects.pop(c_subject.id)
+
+class CombinedSubjectDropdownCheckBoxes(BaseSettingDialog):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__(title)
+        
+        self.__init = True
+        
+        self.id = id
+        self._parent = parent
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
+        
+        self.combined_subject: CombinedSubject = SCHOOL.subjects[self.id]
+        
+        self.setFixedSize(400, 300)
+        
+        self.main_guy_is_clicked = False
+        self.mini_guy_is_clicked = False
+        
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        self.subject_check_box_tracker = {}
+        self.class_check_box_tracker = {}
+        
+        for subject in self.combined_subject.subjects:
+            self.subject_check_box_tracker[subject.id] = {}
+            self.class_check_box_tracker[subject.id] = {"main_cb": {}, "sub_cbs": {}, "cls_cb_widget": {}, "icon": {}, "max_random": {}, "widget": {}}
+            
+            self.subject_check_box_tracker[subject.id]["widget"] = self.make_subject_widget(subject)
+            
+            main_widget = WidgetDropdown(subject.name.full(), self.subject_check_box_tracker[subject.id]["widget"])
+            
+            self.subject_check_box_tracker[subject.id]["icon"] = main_widget.toogle_icon
+            
+            self.addWidget(main_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        
+        self.addStretch()
+        
+        self.__init = False
+    
+    def make_subject_widget(self, subject: Subject):
+        widgets: list[QWidget] = []
+        
+        cls_lvls = []
+        for cls in subject.classes.values():
+            if cls.level.id not in cls_lvls:
+                cls_lvls.append(cls.level.id)
             else:
-                SCHOOL.class_levels[lvl_id].subjects_occurence.pop(self.id)
+                continue
+            
+            select_all_check_box = QCheckBox()
+            select_all_check_box.clicked.connect(self.make_select_all_checkbox_func(subject, cls.level.id))
+            
+            self.class_check_box_tracker[subject.id]["sub_cbs"][cls.level.id] = {}
+            self.class_check_box_tracker[subject.id]["cls_cb_widget"][cls.level.id] = {}
+            self.class_check_box_tracker[subject.id]["main_cb"][cls.level.id] = select_all_check_box
+            self.class_check_box_tracker[subject.id]["widget"][cls.level.id], to_be_clicked = self.make_level_dp_widget(subject, cls.level)
+            
+            widgets.append(main_widget := WidgetDropdown(cls.level.name.full(), self.class_check_box_tracker[subject.id]["widget"][cls.level.id]))
+            
+            main_widget.header.addWidget(select_all_check_box)
+            
+            self.class_check_box_tracker[subject.id]["icon"][cls.level.id] = main_widget.toogle_icon
+        
+        for cb in to_be_clicked:
+            cb.click()
+        
+        container_widget = BaseWidget()
+        
+        for widget in widgets:
+            container_widget.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
+        
+        container_widget.setVisible(False)
+        
+        return container_widget
+    
+    def make_level_dp_widget(self, subject: Subject, lvl: ClassLevel):
+        dp_widget = BaseWidget()
+        dp_widget.setProperty("class", "DPC_Body")
+        dp_widget.setSpacing(2)
+        
+        clicked_cbs: list[QCheckBox] = []
+        
+        for cls_id, cls in subject.classes.items():
+            if cls_id not in lvl.classes or (subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None):
+                continue
+            
+            option_widget = BaseWidget(QHBoxLayout)
+            
+            dp_title = QLabel(cls.name)
+            dp_checkbox = QCheckBox()
+            
+            self.class_check_box_tracker[subject.id]["sub_cbs"][lvl.id][cls_id] = dp_checkbox
+            self.class_check_box_tracker[subject.id]["cls_cb_widget"][lvl.id][cls_id] = option_widget
+            
+            dp_checkbox.clicked.connect(self.make_sub_checkbox_func(subject, lvl.id, cls_id))
+            
+            if cls_id in self.combined_subject.classes[subject.id]:
+                clicked_cbs.append(dp_checkbox)
+            
+            option_widget.addSpacing(50)
+            option_widget.addWidget(dp_title)
+            option_widget.addStretch()
+            option_widget.addWidget(dp_checkbox)
+            
+            dp_widget.addWidget(option_widget)
+        
+        dp_widget.setVisible(False)
+        
+        return dp_widget, clicked_cbs
+    
+    def make_select_all_checkbox_func(self, subject: Subject, lvl_id: ID):
+        def checkbox_func(is_on):
+            if not self.mini_guy_is_clicked:
+                if not self.__init:
+                    self._parent.window().saved_state_changed.emit(True)
+                
+                self.main_guy_is_clicked = True
+                
+                for c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].values():
+                    if is_on != c_box.isChecked():
+                        c_box.click()
+                
+                self.main_guy_is_clicked = False
+        
+        return checkbox_func
+    
+    def make_sub_checkbox_func(self, subject: Subject, lvl_id: ID, cls_id: CLASS_ID):
+        def checkbox_func(on):
+            if not self.__init:
+                self._parent.window().saved_state_changed.emit(True)
+                self.sub_checkbox_func(on, subject, lvl_id, cls_id)
+            
+            if not self.main_guy_is_clicked:
+                self.mini_guy_is_clicked = True
+                
+                if on:
+                    for c_id, cb in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
+                        if c_id != cls_id and not cb.isChecked():
+                            break
+                    else:
+                        self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
+                else:
+                    if self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].isChecked():
+                        self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
+                
+                self.mini_guy_is_clicked = False
+        
+        return checkbox_func
+    
+    def sub_checkbox_func(self, on: bool, subject: Subject, lvl_id: ID, cls_id: CLASS_ID):
+        cls = SCHOOL.class_levels[lvl_id].classes[cls_id]
+        
+        if on:
+            self.combined_subject.classes[subject.id][cls_id] = cls
+            
+            cls.subjects.pop(subject.id)
+            cls.subjects[self.id] = self.combined_subject.passCopy()
+            
+            if next((False for c in cls.level.classes.values() if subject.id in c.subjects), True):
+                cls.level.subjects_occurence.pop(subject.id)
+            
+            if self.id not in cls.level.subjects_occurence:
+                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+                
+                week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
+                min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+                
+                cls.level.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+        else:
+            self.combined_subject.classes[subject.id].pop(cls_id)
+            
+            cls.subjects.pop(self.id)
+            cls.subjects[subject.id] = subject.passCopy()
+            
+            if next((False for c_id in flatten(set(subj_classes) for subj_classes in self.combined_subject.classes.values()) if c_id.class_level_id == lvl_id), True):
+                cls.level.subjects_occurence.pop(self.id)
+            
+            if subject.id not in cls.level.subjects_occurence:
+                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+                
+                week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
+                min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+                
+                cls.level.subjects_occurence[subject.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
 
 class TeacherDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -370,12 +601,14 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         
         self.setContentsMargins(0, 0, 0, 0)
         
+        combined_subjects = {s_id: s for s_id, s in SCHOOL.subjects.items() if isinstance(s, CombinedSubject) and next((True for s_s in s.subjects if s_s.id in self.teacher.subjects), False)}
+        
         self.subject_check_box_tracker = {}
         self.class_check_box_tracker = {}
         
         for subject_id, subject in self.teacher.subjects.items():
             self.subject_check_box_tracker[subject_id] = {}
-            self.class_check_box_tracker[subject_id] = {"main_cb": {}, "sub_cbs": {}, "icon": {}, "max_random": {}, "widget": {}}
+            self.class_check_box_tracker[subject_id] = {"main_cb": {}, "sub_cbs": {}, "cls_cb_widget": {}, "icon": {}, "max_random": {}, "widget": {}}
             
             self.subject_check_box_tracker[subject_id]["widget"] = self.make_subject_widget(subject)
             
@@ -385,126 +618,150 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
             
             self.addWidget(main_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
+        for c_subject_id, c_subject in combined_subjects.items():
+            self.subject_check_box_tracker[c_subject_id] = {}
+            
+            ccbt = self.class_check_box_tracker[c_subject_id] = {}
+            scbt = self.subject_check_box_tracker[c_subject_id]["content"] = {}
+            
+            combined_subject_widget = self.subject_check_box_tracker[c_subject_id]["widget_dp"] = WidgetDropdown(c_subject.name.full(), self.c_make_subject_widget(c_subject, scbt, ccbt))
+            
+            self.addWidget(combined_subject_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        
         self.addStretch()
         
         self.__init = False
     
-    def go_to(self, subj_id: ID, lvl_id: Optional[ID], cls_id: Optional[CLASS_ID]):
-        if not lvl_id and not cls_id:
-            def func1():
-                if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
-                    self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
-                
-                def in_func():
-                    self.getScrollWidget().verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y())
+    def go_to(self, subj_id: ID, lvl_id: Optional[ID], cls_id: Optional[CLASS_ID], c_subj_id: Optional[ID] = None):
+        def s_func():
+            if not lvl_id and not cls_id:
+                def func1():
+                    if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
+                        self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
                     
-                    self.subject_check_box_tracker[subj_id]["widget"].setFocus()
-            
-                QTimer.singleShot(200, in_func)
-            
-            QTimer.singleShot(200, func1)
-        elif not cls_id:
-            def func2():
-                if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
-                    self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
-                
-                def in_func():
-                    if not self.class_check_box_tracker[subj_id]["widget"][lvl_id].isVisible():
-                        self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
-                    
-                    def inner_func():
-                        self.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
+                    def in_func():
+                        self.getScrollWidget().verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y())
                         
-                        self.class_check_box_tracker[subj_id]["widget"][lvl_id].setFocus()
+                        self.subject_check_box_tracker[subj_id]["widget"].setFocus()
                 
-                    QTimer.singleShot(200, inner_func)
+                    QTimer.singleShot(200, in_func)
                 
-                QTimer.singleShot(200, in_func)
-            
-            QTimer.singleShot(250, func2)
-        else:
-            def func3():
-                if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
-                    self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
+                QTimer.singleShot(200, func1)
+            elif not cls_id:
+                def func2():
+                    if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
+                        self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
+                    
+                    def in_func():
+                        if not self.class_check_box_tracker[subj_id]["widget"][lvl_id].isVisible():
+                            self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
+                        
+                        def inner_func():
+                            self.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
+                            
+                            self.class_check_box_tracker[subj_id]["widget"][lvl_id].setFocus()
+                    
+                        QTimer.singleShot(200, inner_func)
+                    
+                    QTimer.singleShot(200, in_func)
                 
-                self.update()
-                
-                def in_func():
-                    if not self.class_check_box_tracker[subj_id]["widget"][lvl_id].isVisible():
-                        self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
-                        self.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
+                QTimer.singleShot(250, func2)
+            else:
+                def func3():
+                    if not self.subject_check_box_tracker[subj_id]["widget"].isVisible():
+                        self.subject_check_box_tracker[subj_id]["icon"].mouseclicked.emit()
                     
                     self.update()
                     
-                    def inner_func():
-                        self.getScrollWidget().verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y() + self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].y())
+                    def in_func():
+                        if not self.class_check_box_tracker[subj_id]["widget"][lvl_id].isVisible():
+                            self.class_check_box_tracker[subj_id]["icon"][lvl_id].mouseclicked.emit()
+                            self.getScrollWidget().verticalScrollBar().setValue(self.class_check_box_tracker[subj_id]["widget"][lvl_id].y())
                         
-                        self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].setFocus()
+                        self.update()
+                        
+                        def inner_func():
+                            self.getScrollWidget().verticalScrollBar().setValue(self.subject_check_box_tracker[subj_id]["widget"].y() + self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].y())
+                            
+                            self.class_check_box_tracker[subj_id]["sub_cbs"][lvl_id][cls_id].setFocus()
+                
+                        QTimer.singleShot(500, inner_func)
+                    
+                    QTimer.singleShot(500, in_func)
+                    
+                QTimer.singleShot(500, func3)
+        
+        if c_subj_id is not None:
+            if not self.subject_check_box_tracker[c_subj_id]["widget_dp"].widget.isVisible():
+                self.subject_check_box_tracker[c_subj_id]["widget_dp"].toogle_icon.mouseclicked.emit()
             
-                    QTimer.singleShot(500, inner_func)
-                
-                QTimer.singleShot(500, in_func)
-                
-            QTimer.singleShot(500, func3)
+            QTimer.singleShot(200, s_func)
+        else:
+            s_func()
     
-    def _create_checkbox_widgets(self, subject: Subject):
+    def make_subject_widget(self, subject: Subject, scbt=None, ccbt=None, m_lvl_dp_w=None, combined_subject: Optional[CombinedSubject]=None):
+        scbt = scbt or self.subject_check_box_tracker
+        ccbt = ccbt or self.class_check_box_tracker
+        m_lvl_dp_w = m_lvl_dp_w or self.make_level_dp_widget
+        
+        classes = (combined_subject and combined_subject.classes[subject.id].values()) or list(subject.classes.values())
+        
         widgets: list[QWidget] = []
         random_on_checkboxes: list[QCheckBox] = []
         
         cls_lvls = []
-        for cls in subject.classes.values():
+        for cls in classes:
             if cls.level not in cls_lvls:
                 cls_lvls.append(cls.level)
                 
-                def rsma_func(number: Optional[int]):
-                    SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] = number
-                
-                max_random_text_input = NumberLineEdit(SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] is not None else 1, 1, len(cls.level.classes))
-                max_random_text_input.edit.setToolTip("Maximum Classes Taught")
-                max_random_text_input.setVisible(False)
-                max_random_text_input.textChanged.connect(rsma_func)
-                
-                is_random_check_box = QCheckBox("Random")
-                
-                select_all_check_box = QCheckBox("All")
-                select_all_check_box.clicked.connect(self.make_select_all_checkbox_func(subject, cls.level.id))
-                
-                if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id]:
-                    random_on_checkboxes.append(is_random_check_box)
-                
-                self.class_check_box_tracker[subject.id]["sub_cbs"][cls.level.id] = {}
-                self.class_check_box_tracker[subject.id]["main_cb"][cls.level.id] = select_all_check_box
-                self.class_check_box_tracker[subject.id]["widget"][cls.level.id], to_be_clicked = self.make_dp_widget(subject, cls.level)
-                
-                main_widget = WidgetDropdown(cls.level.name.full(), self.class_check_box_tracker[subject.id]["widget"][cls.level.id])
-                main_widget.header.addWidget(max_random_text_input)
-                # main_widget.header.addWidget(is_random_check_box)
-                main_widget.header.addWidget(select_all_check_box)
-                
-                is_random_check_box.clicked.connect(self.make_random_checkbox_func(subject, cls.level.id, main_widget, max_random_text_input, rsma_func))
-                
-                self.class_check_box_tracker[subject.id]["icon"][cls.level.id] = main_widget.toogle_icon
-                
-                random_on_checkboxes.extend(to_be_clicked)
-                
-                widgets.append(main_widget)
+                if combined_subject is not None or subject.id in cls.level.subjects_occurence:
+                    def rsma_func(number: Optional[int]):
+                        SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] = number
+                    
+                    max_random_text_input = NumberLineEdit(SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id] is not None else 1, 1, len(cls.level.classes))
+                    max_random_text_input.edit.setToolTip("Maximum Classes Taught")
+                    max_random_text_input.setVisible(False)  # This has been disabled for now
+                    max_random_text_input.textChanged.connect(rsma_func)
+                    
+                    is_random_check_box = QCheckBox("Random")
+                    
+                    select_all_check_box = QCheckBox("All")
+                    select_all_check_box.clicked.connect(self.make_select_all_checkbox_func(subject, cls.level.id, ccbt))
+                    
+                    if SCHOOL.settings.TEACHER_rsma_mapping[cls.level.id]:
+                        random_on_checkboxes.append(is_random_check_box)
+                    
+                    ccbt[subject.id]["sub_cbs"][cls.level.id] = {}
+                    ccbt[subject.id]["cls_cb_widget"][cls.level.id] = {}
+                    ccbt[subject.id]["main_cb"][cls.level.id] = select_all_check_box
+                    ccbt[subject.id]["widget"][cls.level.id], to_be_clicked = m_lvl_dp_w(subject, cls.level, ccbt, combined_subject)
+                    
+                    main_widget = WidgetDropdown(cls.level.name.full(), ccbt[subject.id]["widget"][cls.level.id])
+                    main_widget.header.addWidget(max_random_text_input)
+                    # main_widget.header.addWidget(is_random_check_box)
+                    main_widget.header.addWidget(select_all_check_box)
+                    
+                    is_random_check_box.clicked.connect(self.make_random_checkbox_func(subject, cls.level.id, main_widget, max_random_text_input, rsma_func, ccbt))
+                    
+                    ccbt[subject.id]["icon"][cls.level.id] = main_widget.toogle_icon
+                    
+                    random_on_checkboxes.extend(to_be_clicked)
+                    
+                    widgets.append(main_widget)
         
         for cb in random_on_checkboxes:
             cb.click()
         
-        return widgets
-    
-    def make_subject_widget(self, subject: Subject):
         container_widget = BaseWidget()
         
-        for widget in self._create_checkbox_widgets(subject):
+        for widget in widgets:
             container_widget.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         container_widget.setVisible(False)
         
         return container_widget
     
-    def make_dp_widget(self, subject: Subject, lvl: ClassLevel):
+    def make_level_dp_widget(self, subject: Subject, lvl: ClassLevel, *args):
         dp_widget = BaseWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
@@ -514,10 +771,10 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         something_is_disabled = False
         
         for cls_id, cls in lvl.classes.items():
-            if subject.id not in SCHOOL.class_levels[lvl.id].classes[cls_id].subjects:
+            if subject.id not in cls.subjects:
                 continue
             
-            u_subject = SCHOOL.class_levels[lvl.id].classes[cls_id].subjects[subject.id]
+            u_subject = cls.subjects[subject.id]
             
             optionState = u_subject.teacher is not None and u_subject.teacher.id == self.teacher.id
             is_disabled = u_subject.teacher is not None and u_subject.teacher.id != self.teacher.id
@@ -531,6 +788,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
             dp_checkbox.setDisabled(is_disabled)
             
             self.class_check_box_tracker[subject.id]["sub_cbs"][lvl.id][cls_id] = dp_checkbox
+            self.class_check_box_tracker[subject.id]["cls_cb_widget"][lvl.id][cls_id] = option_widget
             
             dp_checkbox.clicked.connect(self.make_sub_checkbox_func(subject, lvl.id, cls_id))
             
@@ -557,92 +815,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         
         return dp_widget, clicked_cbs
     
-    def make_link_func(self, s_id: ID, lvl_id: ID, cls_id: CLASS_ID, teacher: Teacher):
-        def func(e):
-            self.close()
-            
-            def func1():
-                widget = self._parent.go_to(teacher)
-                
-                QTimer.singleShot(500, lambda: func2(widget.dialog_widget_funcs[0]))
-            
-            def func2(d_func: Callable[[], BaseSettingDialog]):
-                w = d_func()
-                QTimer.singleShot(500, lambda: w.go_to(s_id, lvl_id, cls_id))
-                
-                w.exec()
-            
-            QTimer.singleShot(500, func1)
-        
-        return func
-    
-    def make_random_checkbox_func(self, subject: Subject, class_id: ID, widget_dp: WidgetDropdown, max_random_text_input: QLineEdit, rsma_func: Callable[[Optional[int]], None]):
-        def checkbox_func(on):
-            if not self.__init:
-                self._parent.window().saved_state_changed.emit(True)
-            
-            if on:
-                for c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][class_id].values():
-                    if c_box.isChecked():
-                        c_box.click()
-                
-                if self.class_check_box_tracker[subject.id]["icon"][class_id].angle != 270:
-                    self.class_check_box_tracker[subject.id]["icon"][class_id].mouseclicked.emit()
-                
-                if max_random_text_input.number() == -1:
-                    max_random_text_input.setNumber(SCHOOL.settings.DEFAULT_max_classes)
-                
-                if not self.__init:
-                    rsma_func(None)
-            
-            widget_dp.beDisabled(not on, True)
-            max_random_text_input.setVisible(on)
-            self.class_check_box_tracker[subject.id]["icon"][class_id].setDisabled(on)
-        
-        return checkbox_func
-    
-    def make_select_all_checkbox_func(self, subject: Subject, lvl_id: ID):
-        def checkbox_func(is_on):
-            if not self.mini_guy_is_clicked:
-                if not self.__init:
-                    self._parent.window().saved_state_changed.emit(True)
-                
-                self.main_guy_is_clicked = True
-                
-                cls_level = SCHOOL.class_levels[lvl_id]
-                
-                for c_id, c_box in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
-                    if is_on != c_box.isChecked():
-                        c_box.click()
-                
-                self.main_guy_is_clicked = False
-        
-        return checkbox_func
-    
-    def make_sub_checkbox_func(self, subject: Subject, lvl_id: ID, cls_id: CLASS_ID):
-        def checkbox_func(on):
-            if not self.__init:
-                self._parent.window().saved_state_changed.emit(True)
-                self.sub_checkbox_func(on, lvl_id, cls_id, subject)
-            
-            if not self.main_guy_is_clicked:
-                self.mini_guy_is_clicked = True
-                
-                if on:
-                    for c_id, cb in self.class_check_box_tracker[subject.id]["sub_cbs"][lvl_id].items():
-                        if c_id != cls_id and not cb.isChecked():
-                            break
-                    else:
-                        self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
-                else:
-                    if self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].isChecked():
-                        self.class_check_box_tracker[subject.id]["main_cb"][lvl_id].click()
-                
-                self.mini_guy_is_clicked = False
-        
-        return checkbox_func
-    
-    def sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: ID, subject: Subject):
+    def sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: ID, subject: Subject, *args):
         cls_level = SCHOOL.class_levels[lvl_id]
         cls = cls_level.classes[cls_id]
         
@@ -656,6 +829,195 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         else:
             cls.subjects[subject.id].teacher = None
             self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
+            
+            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                if self.id in teacher_filtered_dict:
+                    teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
+    
+    def make_link_func(self, s_id: ID, lvl_id: ID, cls_id: CLASS_ID, teacher: Teacher, c_s_id: Optional[ID] = None):
+        def func(e):
+            self.close()
+            
+            def func1():
+                widget = self._parent.go_to(teacher)
+                
+                QTimer.singleShot(500, lambda: func2(widget.dialog_widget_funcs[0]))
+            
+            def func2(d_func: Callable[[], BaseSettingDialog]):
+                w = d_func()
+                QTimer.singleShot(500, lambda: w.go_to(s_id, lvl_id, cls_id, c_s_id))
+                
+                w.exec()
+            
+            QTimer.singleShot(500, func1)
+        
+        return func
+    
+    def make_random_checkbox_func(self, subject: Subject, class_id: ID, widget_dp: WidgetDropdown, max_random_text_input: QLineEdit, rsma_func: Callable[[Optional[int]], None], ccbt=None):
+        ccbt = ccbt or self.class_check_box_tracker
+        
+        def checkbox_func(on):
+            if not self.__init:
+                self._parent.window().saved_state_changed.emit(True)
+            
+            if on:
+                for c_box in ccbt[subject.id]["sub_cbs"][class_id].values():
+                    if c_box.isChecked():
+                        c_box.click()
+                
+                if ccbt[subject.id]["icon"][class_id].angle != 270:
+                    ccbt[subject.id]["icon"][class_id].mouseclicked.emit()
+                
+                if max_random_text_input.number() == -1:
+                    max_random_text_input.setNumber(SCHOOL.settings.DEFAULT_max_classes)
+                
+                if not self.__init:
+                    rsma_func(None)
+            
+            widget_dp.beDisabled(not on, True)
+            max_random_text_input.setVisible(on)
+            ccbt[subject.id]["icon"][class_id].setDisabled(on)
+        
+        return checkbox_func
+    
+    def make_select_all_checkbox_func(self, subject: Subject, lvl_id: ID, ccbt=None):
+        ccbt = ccbt or self.class_check_box_tracker
+        
+        def checkbox_func(is_on):
+            if not self.mini_guy_is_clicked:
+                if not self.__init:
+                    self._parent.window().saved_state_changed.emit(True)
+                
+                self.main_guy_is_clicked = True
+                
+                for c_box in ccbt[subject.id]["sub_cbs"][lvl_id].values():
+                    if is_on != c_box.isChecked():
+                        c_box.click()
+                
+                self.main_guy_is_clicked = False
+        
+        return checkbox_func
+    
+    def make_sub_checkbox_func(self, subject: Subject, lvl_id: ID, cls_id: CLASS_ID, ccbt=None, s_cb_f=None, *args):
+        ccbt = ccbt or self.class_check_box_tracker
+        s_cb_f = s_cb_f or self.sub_checkbox_func
+        
+        def checkbox_func(on):
+            if not self.__init:
+                self._parent.window().saved_state_changed.emit(True)
+                s_cb_f(on, lvl_id, cls_id, subject, *args)
+            
+            if not self.main_guy_is_clicked:
+                self.mini_guy_is_clicked = True
+                
+                if on:
+                    for c_id, cb in ccbt[subject.id]["sub_cbs"][lvl_id].items():
+                        if c_id != cls_id and not cb.isChecked():
+                            break
+                    else:
+                        ccbt[subject.id]["main_cb"][lvl_id].click()
+                else:
+                    if ccbt[subject.id]["main_cb"][lvl_id].isChecked():
+                        ccbt[subject.id]["main_cb"][lvl_id].click()
+                
+                self.mini_guy_is_clicked = False
+        
+        return checkbox_func
+    
+    def c_make_subject_widget(self, combined_subject: CombinedSubject, scbt: dict[ID, dict], ccbt: dict[ID, dict]):
+        c_widget = BaseWidget()
+        
+        for subject in combined_subject.subjects:
+            if subject.id in self.teacher.subjects and combined_subject.classes[subject.id]:
+                scbt[subject.id] = {}
+                ccbt[subject.id] = {"main_cb": {}, "sub_cbs": {}, "cls_cb_widget": {}, "icon": {}, "max_random": {}, "widget": {}}
+                
+                scbt[subject.id]["widget"] = self.make_subject_widget(subject, scbt, ccbt, self.c_make_level_dp_widget, combined_subject)
+                
+                subject_widget = WidgetDropdown(subject.name.full(), scbt[subject.id]["widget"])
+                
+                scbt[subject.id]["icon"] = subject_widget.toogle_icon
+                
+                c_widget.addWidget(subject_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        
+        return c_widget
+    
+    def c_make_level_dp_widget(self, subject: Subject, lvl: ClassLevel, ccbt: dict[ID, dict], combined_subject: CombinedSubject):
+        dp_widget = BaseWidget()
+        dp_widget.setProperty("class", "DPC_Body")
+        dp_widget.setSpacing(2)
+        
+        clicked_cbs: list[QCheckBox] = []
+        
+        something_is_disabled = False
+        
+        for cls_id in subject.classes:
+            cls = SCHOOL.class_levels[lvl.id].classes[cls_id]
+            
+            if cls_id not in combined_subject.classes[subject.id]:
+                continue
+            
+            u_subject = next(s for s in cls.subjects[combined_subject.id].subjects if s.id == subject.id)
+            
+            optionState = u_subject.teacher is not None and u_subject.teacher.id == self.teacher.id
+            is_disabled = u_subject.teacher is not None and u_subject.teacher.id != self.teacher.id
+            
+            option_widget = BaseWidget(QHBoxLayout)
+            
+            dp_title = QLabel(cls.name)
+            dp_title.setDisabled(is_disabled)
+            
+            dp_checkbox = QCheckBox()
+            dp_checkbox.setDisabled(is_disabled)
+            
+            ccbt[subject.id]["sub_cbs"][lvl.id][cls_id] = dp_checkbox
+            ccbt[subject.id]["cls_cb_widget"][lvl.id][cls_id] = option_widget
+            
+            dp_checkbox.clicked.connect(self.make_sub_checkbox_func(subject, lvl.id, cls_id, ccbt, self.c_sub_checkbox_func, combined_subject.id, ccbt))
+            
+            if not is_disabled and optionState:
+                clicked_cbs.append(dp_checkbox)
+            
+            option_widget.addSpacing(50)
+            option_widget.addWidget(dp_title)
+            option_widget.addStretch()
+            if is_disabled:
+                link_label = QLabel(u_subject.teacher.name.full())
+                link_label.mousePressEvent = self.make_link_func(subject.id, lvl.id, cls.id, u_subject.teacher, combined_subject.id)
+                link_label.setProperty("class", "Link")
+                
+                option_widget.addWidget(link_label)
+                something_is_disabled = True
+            else:
+                option_widget.addWidget(dp_checkbox)
+            
+            dp_widget.addWidget(option_widget)
+        
+        dp_widget.setVisible(False)
+        ccbt[subject.id]["main_cb"][lvl.id].setDisabled(something_is_disabled)
+        
+        return dp_widget, clicked_cbs
+    
+    def c_sub_checkbox_func(self, on: bool, lvl_id: ID, cls_id: ID, subject: Subject, c_subject_id: ID, ccbt: dict[ID, dict]):
+        cls_level = SCHOOL.class_levels[lvl_id]
+        cls = cls_level.classes[cls_id]
+        c_subject = cls.subjects[c_subject_id]
+        u_subject = next(s for s in c_subject.subjects if s.id == subject.id)
+        
+        if on:
+            if next((False for s in c_subject.subjects if s.teacher is not None), True):
+                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
+            
+            u_subject.teacher = self.teacher
+            
+            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                if self.id in teacher_filtered_dict:
+                    teacher_filtered_dict[self.id].add_class(subject.id, cls)
+        else:
+            if next((False for s in c_subject.subjects if s.teacher is None), True):
+                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, -cls_level.subjects_occurence[c_subject_id].week_max)
+            
+            u_subject.teacher = None
             
             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 if self.id in teacher_filtered_dict:
@@ -790,7 +1152,7 @@ class OccuranceEditor(BaseSettingDialog):
             wds = self.class_level.weekdays
             diff = number - self.class_level.subjects_occurence[subject_id].week_max
             
-            min_rem = min(self.week_total - (sum(self.class_level.subjects_occurence[s.id].week_max for s in cls.subjects.values()) + diff) for cls in self.class_level.classes.values())
+            min_rem = min(self.week_total - (sum(self.class_level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id not in self.class_level.subjects_occurence) + diff) for cls in self.class_level.classes.values())
             
             for per_day_edit, per_week_edit in self.number_edits.values():
                 d_amt = per_day_edit.number()
@@ -860,7 +1222,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         is_new = id is None
         
         if is_new:
-            id = ID.new()
+            id = NEW_CLASS_ID(self.class_level.id)
             
             cls = Class(id, "", self.class_level, {}, SCHOOL)
             
@@ -876,10 +1238,16 @@ class ClassOptionsMaker(BaseSettingDialog):
             cls.name = u_text
             
             for subject in cls.subjects.values():
-                if subject.teacher:
-                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                        if subject.teacher.id in teacher_filtered_dict:
-                            teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
+                if isinstance(subject, Subject):
+                    subjects = [subject]
+                elif isinstance(subject, CombinedSubject):
+                    subjects = subject.subjects
+                
+                for subject in subjects:
+                    if subject.teacher:
+                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                            if subject.teacher.id in teacher_filtered_dict:
+                                teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
         
         update_option()
         
@@ -890,10 +1258,27 @@ class ClassOptionsMaker(BaseSettingDialog):
             self._parent.window().saved_state_changed.emit(True)
             
             for subject in self.class_level.classes[id].subjects.values():
-                if subject.teacher:
-                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                        if subject.teacher.id in teacher_filtered_dict:
-                            teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, id)
+                if isinstance(subject, Subject):
+                    subjects = [subject]
+                elif isinstance(subject, CombinedSubject):
+                    subjects = subject.subjects.copy()
+                    
+                    for subj_classes in subject.classes.values():
+                        if id in subj_classes:
+                            subj_classes.pop(id)
+                    
+                    subjects_with_this_class = []
+                    
+                    for subj in subject.subjects.copy():
+                        if id in subj.classes:
+                            subj.classes.pop(id)
+                            subjects_with_this_class.append(subj)
+                
+                for subject in subjects:
+                    if subject.teacher:
+                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                            if subject.teacher.id in teacher_filtered_dict:
+                                teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, id)
             
             self.timetable_editor.delete_timetable_class(self.class_level.classes[id])
             SCHOOL.class_levels.remove_class(self.id, id)

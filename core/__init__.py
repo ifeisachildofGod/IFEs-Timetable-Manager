@@ -1,15 +1,16 @@
 
 """Core framework backbone"""
 
+import random
 from dataclasses import dataclass
 from typing import Optional, TypeVar
 
-from core.base import *
-from core.settings import *
-from core.timetable import *
+from core.main import *
+from core.timing_and_timetable import *
 
 
 _T = TypeVar("_T")
+
 
 
 @dataclass
@@ -53,7 +54,7 @@ class Global(dict[ID, _T]):
         self.school = school
     
     def add(self, entry: _T):
-        assert entry.id not in self, f"{entry.__class__.__name__} {entry.name.full()} (ID: {entry.id}) exists already"
+        assert entry.id not in self, f"{entry.__class__.__name__} (ID: {entry.id}) exists already as {self[entry.id].__class__.__name__} {self[entry.id].name.full()}"
         
         self[entry.id] = entry
     
@@ -64,7 +65,7 @@ class Global(dict[ID, _T]):
 class GlobalSubjects(Global[Subject | CombinedSubject]):
     pass
 
-class GlobalTeachers(Global[Teacher| CombinedTeacher]):
+class GlobalTeachers(Global[Teacher]):
     pass
 
 class GlobalClassLevels(Global[ClassLevel]):
@@ -111,6 +112,8 @@ class Settings:
 
 class School:
     def __init__(self):
+        self.id_index = 0
+        
         self.subjects = GlobalSubjects(self)
         self.teachers = GlobalTeachers(self)
         self.prefects = {}
@@ -119,7 +122,7 @@ class School:
         self.gen_data = GeneratingData({}, {}, {}, {})
         self.settings = Settings(
             "dark-blue",
-            10, 7, 3, (2, 4), TimetableTime(Time(8, 10, 0), 35, 35),
+            10, 7, 3, (1, 1), TimetableTime(Time(8, 10, 0), 35, 35),
             {},
             ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], {},
             TimetableExportTheme(
@@ -170,6 +173,8 @@ class School:
         self._log_data = {}
     
     def set(self, school: "School"):
+        self.id_index = school.id_index
+        
         self.subjects.update(school.subjects)
         self.teachers.update(school.teachers)
         self.class_levels.update(school.class_levels)
@@ -282,13 +287,14 @@ class School:
                     if s_name.count("(") == 1 and s_name.count(")") == 1:
                         n, s_str = School.id_name_from_text(s_name)
                         
+                        cs_d_s = s_str
                         s_name = SubjectName(n.strip(), n.strip())
-                        subjs = [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_str.strip().split("/")]
                     else:
-                        subjs = [[cs_id for cs_id, _ in school_framework.subjects][int(s.strip()) - 1] for s in s_name.strip().split("/")]
-                        s_name = None
+                        cs_d_s = s_name
+                        s_name = SubjectName(None, None)
                     
-                    subject = CombinedSubject(s_id, s_name, subjs, None, {})
+                    subjs = [next(cs for i, cs in enumerate(school_framework.subjects.values()) if i == int(s.strip()) - 1) for s in cs_d_s.strip().split("/")]
+                    subject = CombinedSubject(s_id, s_name, subjs)
                 else:
                     if "â–" in s_name:
                         names = [n.strip() for n in s_name.split("â–")]
@@ -314,15 +320,13 @@ class School:
                 
                 t_id = ID(t_id)
                 t_name = t_name.strip()
-                if "/" in t_name:
-                    teacher = CombinedTeacher(t_id, [list(school_framework.teachers.values())[int(s.strip()) - 1] for s in t_name.split("/")])
+                
+                if "■" in t_name:
+                    names = [n.strip() if n.strip() else None for n in t_name.split("■")]
                 else:
-                    if "■" in t_name:
-                        names = [n.strip() if n.strip() else None for n in t_name.split("■")]
-                    else:
-                        names = [t_name, None, None, ""]
-                    
-                    teacher = Teacher(t_id, None, StaffName(*names), "AttendanceApp/src/profile-images/t_id1.png", [], {})
+                    names = [t_name, None, None, ""]
+                
+                teacher = Teacher(t_id, None, StaffName(*names), "AttendanceApp/src/profile-images/t_id1.png", [], {})
                 
                 school_framework.teachers.add(teacher)
                 
@@ -369,7 +373,7 @@ class School:
                 
                 cls_lvl_name, lvl_id = School.id_name_from_text(cls_lvl_id_data)
                 
-                subject_occurence = {}
+                subjects_occurence = {}
                 
                 if subjects_occurence_string is not None:
                     for occ_string in subjects_occurence_string.strip().split():
@@ -378,10 +382,10 @@ class School:
                         if occ_string:
                             gs_index, day_max, week_max = occ_string.split("/")
                             
-                            subject_occurence[l_subjects[int(gs_index.strip()) - 1].id] = SubjectOccurrance(int(day_max.strip()), int(week_max.strip()))
+                            subjects_occurence[l_subjects[int(gs_index.strip()) - 1].id] = SubjectOccurrance(int(day_max.strip()), int(week_max.strip()))
                     
                 lvl_id = ID(lvl_id) ; classes = {} ; (p_amt, b_p), weekdays = weekdays_data[cls_lvl_index]
-                cls_lvl = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subject_occurence, weekdays, p_amt, b_p)
+                cls_lvl = ClassLevel(lvl_id, ClassLevelName(cls_lvl_name), classes, subjects_occurence, weekdays, p_amt, b_p)
                 school_framework.class_levels.add(cls_lvl)
                 
                 for c_string in cls_data:
@@ -397,6 +401,7 @@ class School:
                     
                     subject_mapping = {}
                     
+                    # Volatile
                     if value is not None:
                         for v in value.strip().split():
                             s_list = v.split("/")
@@ -433,6 +438,7 @@ class School:
                             subject.teacher = teacher
                             
                             subject_mapping[subject.id] = subject
+                    # Volatile
                     
                     cls_id = ID(cls_id.strip())
                     cls = classes[cls_id] = Class(cls_id, cls_name, cls_lvl, subject_mapping, school_framework)
@@ -583,5 +589,16 @@ if __name__ == "__main__":
     display_school(sch)
 
 
+def NEW_ID():
+    SCHOOL.id_index += 1
+    _id = ID(SCHOOL.id_index)
+    
+    return _id
 
-
+def NEW_CLASS_ID(class_level_id: ID):
+    SCHOOL.id_index += 1
+    _id = CLASS_ID(SCHOOL.id_index)
+    
+    _id.class_level_id = class_level_id
+    
+    return _id

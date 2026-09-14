@@ -505,17 +505,24 @@ class BaseSettingDialog(BaseDialogWidget):
     def getScrollWidget(self):
         return self.getWidget().getScrollWidget()
 
-class BaseSettingEntry(BaseWidget):
+class BaseSettingEntry[_T](BaseWidget):
     IconToolBarOption = importlib.import_module("widgets.user_interface").IconToolBarOption
     
-    def __init__(self, i_parent: "BaseSettingWidget", general_entry_name: str, extended_placeholders: list[str], option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]], entry: Entry):
+    def __init__(
+            self,
+            i_parent: "BaseSettingWidget",
+            general_entry_name: str,
+            extended_placeholders: list[str],
+            option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]],
+            entry: Optional[_T]
+        ):
         super().__init__()
         
         self.__init = True
         
         self.setProperty("class", "SettingEntry")
         
-        self.entry = entry
+        self.entry = entry or self.new()
         self.i_parent = i_parent
         self.option_dialogs = option_dialogs
         self.general_entry_name = general_entry_name
@@ -669,6 +676,9 @@ class BaseSettingEntry(BaseWidget):
                 self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
         
         return func
+    
+    def new(self) -> _T:
+        raise NotImplementedError()
     
     def focusInput(self):
         QTimer.singleShot(100, self._focusInput)

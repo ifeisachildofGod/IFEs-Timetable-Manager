@@ -1,5 +1,5 @@
 
-import random
+from typing import Optional
 from dataclasses import dataclass
 
 
@@ -188,7 +188,6 @@ class Period:
         return Period(self.time.copy(), self.day, self.date, self.month, self.year)
 
 
-
 DAYS_OF_THE_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 MONTHS_OF_THE_YEAR = {
     "January": 31,
@@ -225,74 +224,60 @@ def S_MONTH(month: str):
     return S_DAY * MONTHS_OF_THE_YEAR[month]
 S_YEAR = S_DAY * 365
 
-NUMBER = [10000]
 
-class ID(str):
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        
-        self.parents: list[ID] = []
-    
-    def __add__(self, value):
-        id = ID(value)
-        
-        id.parents = self.parents.copy()
-        id.parents.append(self)
-        
-        return id
-    
-    def __radd__(self, other):
-        return self.__add__(other)
-    
-    def __sub__(self, other):
-        if self == other:
-            id = self.parents[-1]
-        else:
-            self.parents.remove(other)
-            
-            for p in self.parents:
-                if p.parents == self.parents:
-                    id = p
-                    break
-            else:
-                id = self
-        
-        return id
-    
-    def __rsub__(self, other):
-        return self.__sub__(other)
-    
-    @staticmethod
-    def new():
-        _id = ID(NUMBER[0])
-        NUMBER[0] += random.randint(1, 50)
-        
-        return _id
+@dataclass
+class Margins:
+    left: int
+    top: int
+    right: int
+    bottom: int
 
-class CLASS_ID(ID):
-    def __init__(self, *args, class_level_id: ID = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        assert class_level_id is not None
-        
-        self.class_level_id = class_level_id
+@dataclass
+class TextTheme:
+    family: str
+    size: int
+    bold: bool
+    italic: bool
     
-    def __add__(self, value):
-        if isinstance(value, CLASS_ID):
-            assert self.class_level_id == value.class_level_id
-        
-        id = CLASS_ID(value, class_level_id=self.class_level_id)
-        
-        id.parents = self.parents.copy()
-        id.parents.append(self)
-        
-        return id
+    color: str
+    letter_spacing: int
+    opacity: int
+    underline: bool
+    overline: bool
+    text_alignment: str
     
-    @staticmethod
-    def new(class_level_id):
-        tmp = random.randint(0, 500000)
-        
-        return CLASS_ID(id(tmp), class_level_id=class_level_id)
+    stylesheet: Optional[str] = None
+
+@dataclass
+class TimetableExportTheme:
+    cls_title_text_theme: TextTheme
+    ttbl_content_text_theme: TextTheme
+    ttbl_heading_text_theme: TextTheme
+    
+    ttbl_bg_color: str
+    ttbl_content_bg_color: str
+    ttbl_heading_bg_color: str
+    break_bg_color: str
+    border_color: str
+    
+    horizontal_line_thickness: int
+    vertical_line_thickness: int
+    
+    export_mode: int
+    export_file_type: str
+
+@dataclass
+class TimetableTime:
+    start_time: Time
+    interval: int
+    break_time_duration: int
+    
+    def copy(self):
+        return TimetableTime(self.start_time, self.interval, self.break_time_duration)
+
+class TimetableGeneratorError(Exception):
+    pass
+
 
 
 

@@ -6,8 +6,60 @@ from matplotlib.cbook import flatten
 
 from os import PathLike
 
-from core.base import *
-from core.timetable import *
+from core.timing_and_timetable import *
+
+
+class ID(str):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        
+        self.parents: list[ID] = []
+    
+    def __add__(self, value):
+        id = ID(value)
+        
+        id.parents = self.parents.copy()
+        id.parents.append(self)
+        
+        return id
+    
+    def __radd__(self, other):
+        return self.__add__(other)
+    
+    def __sub__(self, other):
+        if self == other:
+            id = self.parents[-1]
+        else:
+            self.parents.remove(other)
+            
+            for p in self.parents:
+                if p.parents == self.parents:
+                    id = p
+                    break
+            else:
+                id = self
+        
+        return id
+    
+    def __rsub__(self, other):
+        return self.__sub__(other)
+
+class CLASS_ID(ID):
+    def __init__(self, *args):
+        super().__init__()
+        
+        self.class_level_id = None
+    
+    def __add__(self, value):
+        if isinstance(value, CLASS_ID):
+            assert self.class_level_id == value.class_level_id
+        
+        id = CLASS_ID(value, class_level_id=self.class_level_id)
+        
+        id.parents = self.parents.copy()
+        id.parents.append(self)
+        
+        return id
 
 
 @dataclass
@@ -43,14 +95,11 @@ class Subject(Entry):
     teacher: Optional["Teacher"]
     classes: dict[ID, "Class"]
     
-    def passCopy(self):
-        return Subject(self.id, self.name, None, self.classes)
-    
     def get_periods(self):
         s_periods = []
         
         for cls in self.classes.values():
-            if cls.timetable.table_remains.count(self) < cls.level.subjects_occurence[self.id].week_max:
+            if self.id in cls.level.subjects_occurence and cls.timetable.table_remains.count(self) < cls.level.subjects_occurence[self.id].week_max:
                 for day, w_periods in cls.timetable.table.items():
                     if self in w_periods:
                         for i, s in enumerate(w_periods):
@@ -58,15 +107,46 @@ class Subject(Entry):
                                 s_periods.append((day, i + 1))
         
         return s_periods
-@dataclass
-class CombinedSubject(Entry):
-    name: Optional[SubjectName]
-    
-    subjects: list[Subject]
-    teacher: Optional["CombinedTeacher"]
     
     def passCopy(self):
-        return CombinedSubject(self.id, self.subjects, None)
+        return Subject(self.id, self.name, None, self.classes)
+@dataclass
+class CombinedSubjectName(SubjectName):
+    full_name: Optional[str]
+    abbrev: Optional[str]
+    
+    def full(self):
+        return self.full_name or (self.abbrev or "")
+    
+    def short(self):
+        return self.full()
+@dataclass
+class CombinedSubject(Entry):
+    focus_id: Optional[ID]
+    name: CombinedSubjectName
+    
+    subjects: list[Subject]
+    classes: dict[ID, dict[CLASS_ID, Class]]
+    default_occurance_data: tuple[int, int]
+    
+    def remove_subject(self, subject: Subject):
+        self.subjects.remove(subject)
+        
+        for cls_id, cls in self.classes[subject.id].items():
+            if self.id in cls.subjects and next((False for s in self.subjects if cls_id in s.classes), True):
+                cls.subjects.pop(self.id)
+            
+            if subject.id not in cls.subjects:
+                cls.subjects[subject.id] = subject.passCopy()
+            
+            if subject.id not in cls.level.subjects_occurence:
+                per_day, per_week = self.default_occurance_data
+                cls.level.subjects_occurence[subject.id] = SubjectOccurrance(per_day, per_week)
+        
+        self.classes.pop(subject.id)
+    
+    def passCopy(self):
+        return CombinedSubject(self.id, self.focus_id, self.name, [s.passCopy() for s in self.subjects], self.classes, self.default_occurance_data)
 @dataclass
 class FreePeriod:
     id: str = "FreePeriodID"
@@ -119,10 +199,6 @@ class Prefect(Staff):
 @dataclass
 class Teacher(Staff):
     subjects: dict[ID, Subject]
-@dataclass
-class CombinedTeacher(Entry):
-    teachers: list[Teacher]
-
 
 
 class Class:
@@ -209,7 +285,7 @@ class Timetable:
         self.class_levels = class_levels
         
         self.table: TimetableTableType = {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays}
-        self.table_remains: list[Subject] = list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.teacher is not None]))
+        self.table_remains: list[Subject] = list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.id in cls.level.subjects_occurence and s.teacher is not None]))
         
         self._log_data: dict = {}
     
@@ -286,9 +362,9 @@ class Timetable:
                 s_subject = s_cls.timetable.table[day][p_index]
                 
                 if s_cls.id != self.cls.id and s_subject.id not in (FreePeriod.id, BreakPeriod.id):
-                    s_teacher = s_subject.teacher
+                    s_teacher = s_subject.teacher if isinstance(s_subject, Subject) else [(s.teacher.id if s.teacher else None) for s in s_subject.subjects]
                     
-                    assert s_teacher
+                    assert s_teacher, f"{s_cls.level.name.full()} {s_cls.name} does not have a {s_subject.name.full()} teacher"
                     
                     combined = next(
                         (
@@ -303,21 +379,20 @@ class Timetable:
                     is_clashing = None
                     
                     if isinstance(s_teacher, Teacher):
-                        if isinstance(subject.teacher, Teacher):
+                        if isinstance(subject, Subject):
                             is_clashing = subject.teacher.id == s_teacher.id
-                        elif isinstance(subject.teacher, CombinedTeacher):
-                            is_clashing = s_teacher.id in [t_id for t_id, _ in subject.teacher.teachers]
-                    elif isinstance(s_teacher, CombinedTeacher):
-                        if isinstance(subject.teacher, Teacher):
-                            is_clashing = subject.teacher.id in [t_id for t_id, _ in s_teacher.teachers]
-                        elif isinstance(subject.teacher, CombinedTeacher):
-                            is_clashing = next((True for t in s_teacher.teachers if t.id in [s_t.id for s_t in subject.teacher.teachers]), False)
+                        elif isinstance(subject, CombinedSubject):
+                            is_clashing = s_teacher.id in s_teacher
+                    elif isinstance(s_teacher, list):
+                        if isinstance(subject, Subject):
+                            is_clashing = subject.teacher.id in s_teacher
+                        elif isinstance(subject, CombinedSubject):
+                            is_clashing = next((True for t_id in s_teacher if t_id in [(s.teacher.id if s.teacher else None) for s in subject.subjects]), False)
                     
-                    if is_clashing is None:
-                        raise Exception()
+                    assert is_clashing is not None, "Internal Error: Clash check type mismatch"
                     
                     if is_clashing and not combined:
-                        self._log_data[s_id].append(((day, p_index + 1), f"Alignment Error: subject is{"not " if isinstance(subject.teacher, Teacher) else ""} combined and{"" if isinstance(subject.teacher, Teacher) else "not "} clashing/aligned with {"another subject" if isinstance(s_teacher, Teacher) else "any subject"}"))
+                        self._log_data[s_id].append(((day, p_index + 1), f"Alignment Error: Subject is{"not " if isinstance(subject.teacher, Teacher) else ""} combined and{"" if isinstance(subject.teacher, Teacher) else "not "} clashing/aligned with {"another subject" if isinstance(s_teacher, Teacher) else "any subject"}"))
                         
                         return -math.inf
         else:
@@ -425,7 +500,7 @@ class Timetable:
     
     def generate(self):
         total_available_periods = sum(len(periods) for periods in self.table.values())
-        total_subj_amt = sum(self.cls.level.subjects_occurence[s_id].week_max for s_id in self.cls.subjects)
+        total_subj_amt = sum(self.cls.level.subjects_occurence[s_id].week_max for s_id in self.cls.subjects if s_id in self.cls.level.subjects_occurence)
         
         assert total_available_periods > total_subj_amt, "Period slots are not enough for the amount of subjects"
         

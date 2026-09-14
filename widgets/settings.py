@@ -6,13 +6,8 @@ from .settings_options import *
 from AttendanceApp import AttendanceManager
 
 
-class SubjectsSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[Subject], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        if entry:
-            NUMBER[0] = max(int(entry.id), NUMBER[0])
-        
-        entry = entry or Subject(ID.new(), SubjectName("", ""), None, {})
-        
+class SubjectsSettingEntry(BaseSettingEntry[Subject]):
+    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -26,12 +21,27 @@ class SubjectsSettingEntry(BaseSettingEntry):
             },
             entry
         )
-        
-        self.entry = entry  # This is for the intellisense to know that this is SubjectEntry and not just an Entry
+    
+    def new(self):
+        return Subject(NEW_ID(), SubjectName("", ""), None, {})
     
     def remove(self):
+        for c_subject_id, c_subject in SCHOOL.subjects.items():
+            if isinstance(c_subject, CombinedSubject) and next((True for s in c_subject.subject if self.id == s.id), False):
+                index = c_subject.subjects.index(self.entry)
+                c_subject.subjects.pop(index)
+                
+                for cls_id, cls in self.entry.classes.items():
+                    if cls_id in c_subject.classes[self.entry.id]:
+                        c_subject.classes[self.entry.id].pop(cls_id)
+                        
+                        c_c_subject = cls.subjects.pop(c_subject_id)
+                        c_c_subject.subjects[index].teacher.subjects.pop(c_subject_id)
+                
+                c_subject.classes.pop(self.entry.id)
+        
         for cls in self.entry.classes.copy().values():
-            if self.entry.id in cls.subjects:
+            if self.entry.id in cls.subjects and self.entry.id in cls.level.subjects_occurence:
                 self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
                 
                 self.entry.classes.pop(cls.id)
@@ -82,13 +92,8 @@ class SubjectsSettingEntry(BaseSettingEntry):
                 else:
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
 
-class CombinedSubjectsSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[CombinedSubject], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        if entry:
-            NUMBER[0] = max(int(entry.id), NUMBER[0])
-        
-        entry = entry or CombinedSubject(ID.new(), SubjectName("", ""), [], CombinedTeacher(ID.new(), []))
-        
+class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
+    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -97,17 +102,19 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry):
             "Combined Subject",
             None,
             {
+                "Offering Classes": ("Classes offering {name}", CombinedSubjectDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
                 "Child Subjects": ("Subjects under {name}", CombinedSubjectSelectionList, (self.attendance_manager, ))
             },
             entry
         )
-        
-        self.entry = entry  # This is for the intellisense to know that this is SubjectEntry and not just an Entry
+    
+    def new(self):
+        return CombinedSubject(NEW_ID(), None, CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
     
     def remove(self):
         for subject in self.entry.subjects:
             for cls in subject.classes.copy().values():
-                if self.entry.id in cls.subjects:
+                if self.entry.id in cls.subjects and self.entry.id in cls.level.subjects_occurence:
                     self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
                     
                     cls.subjects.pop(self.entry.id)
@@ -124,11 +131,13 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry):
     def simple_name_changed(self, text, _):
         if text:
             self.entry.name.full_name = text
+            self.entry.name.abbrev = None
         else:
-            self.entry.name.full_name = "/".join([s.name.short() for s in self.entry.subjects])
+            self.entry.name.full_name = None
+            self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
             
-            if self.entry.name.full_name:
-                default = f"Default: {self.entry.name.full_name}"
+            if self.entry.name.abbrev:
+                default = f"Default: {self.entry.name.abbrev}"
                 self.status_widget.removeLinient("EmptyNameWarning")
             else:
                 default = "No Child Subjects"
@@ -140,13 +149,8 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry):
         if not self.entry.subjects:
             super().simple_name_empty(text)
 
-class TeachersSettingEntry(BaseSettingEntry):
+class TeachersSettingEntry(BaseSettingEntry[Teacher]):
     def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        if entry:
-            NUMBER[0] = max(int(entry.id), NUMBER[0])
-        
-        entry = entry or Teacher(ID.new(), None, StaffName("", "", "", ""), "AttendanceApp/src/profile-images/t_id1.png", [], {})
-        
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -160,17 +164,33 @@ class TeachersSettingEntry(BaseSettingEntry):
             },
             entry
         )
-        
-        self.entry = entry  # This is for the intellisense to know that this is TeacherEntry and not just an Entry
+    
+    def new(self):
+        return Teacher(NEW_ID(), None, StaffName("", "", "", ""), "AttendanceApp/src/profile-images/t_id1.png", [], {})
     
     def remove(self):
         for subject_id, subject in self.entry.subjects.items():
             for cls_id, cls in subject.classes.items():
-                cls_subject = cls.subjects[subject_id]
-                
-                if cls_subject.teacher is not None and self.entry.id == cls_subject.teacher.id:
-                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
-                    cls_subject.teacher = None
+                if subject_id in cls.subjects:
+                    cls_subject = cls.subjects[subject_id]
+                    
+                    if cls_subject.teacher is not None and self.entry.id == cls_subject.teacher.id:
+                        self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
+                        cls_subject.teacher = None
+                else:
+                    for subj in SCHOOL.subjects.values():
+                        if (
+                                isinstance(subj, CombinedSubject) and
+                                (u_subj := next((cls.subjects[subj.id].subjects[i] for i, s in enumerate(subj.subjects) if s.id == subject.id), False)) and
+                                u_subj.teacher is not None and
+                                u_subj.teacher.id == self.id
+                            ):
+                            
+                            if u_subj.teacher is not None and self.entry.id == u_subj.teacher.id:
+                                if next((False for s in cls.subjects[subj.id].subjects if s.teacher is None), True):
+                                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subj, -cls.level.subjects_occurence[subj].week_max)                            
+                                
+                                u_subj.teacher = None
         
         self.attendance_manager.staff_list_widget.delete_staff(self.entry)
         
@@ -232,13 +252,8 @@ class TeachersSettingEntry(BaseSettingEntry):
                 if not text:
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
-class ClassLevelsSettingEntry(BaseSettingEntry):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[ClassLevel], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        if entry:
-            NUMBER[0] = max(int(entry.id), NUMBER[0])
-        
-        entry = entry or ClassLevel(ID.new(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
-        
+class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
+    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -252,16 +267,23 @@ class ClassLevelsSettingEntry(BaseSettingEntry):
             },
             entry
         )
-        
-        self.entry = entry  # This is for the intellisense to know that this is a ClassLevelEntry and not just an Entry
+    
+    def new(self):
+        return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
     
     def remove(self):
         for cls in self.entry.classes.values():
             for subject in cls.subjects.values():
-                if subject.teacher:
-                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                        if subject.teacher.id in teacher_filtered_dict:
-                            teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, cls.id)
+                if isinstance(subject, Subject):
+                    subjects = [subject]
+                elif isinstance(subject, CombinedSubject):
+                    subjects = subject.subjects
+                
+                for subject in subjects:
+                    if subject.teacher:
+                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                            if subject.teacher.id in teacher_filtered_dict:
+                                teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, cls.id)
         
         self.timetable_editor.delete_timetable_level(self.entry.id)
         

@@ -46,6 +46,7 @@ class _CharacterNameWidget(QWidget):
 class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
     def __init__(self, data: AttendanceEntry):
         super().__init__("Teacher", data)
+        self.staff: Teacher = self.staff
         
         self.labeled_container.setProperty("class", "AttendanceTeacherEntryWidget")
         
@@ -90,8 +91,6 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
             periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}
             
             for subject in self.staff.subjects.values():
-                # clses: dict[CLASS_ID, Class] = {}
-                # subject.classes = clses
                 s_periods = []
                 
                 for cls in subject.classes.values():
@@ -223,8 +222,14 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
         self.subj_data_widget.addWidget(self.subject_fields[subject.id])
         
         for cls in subject.classes.values():
-            if cls.subjects[subject.id].teacher and cls.subjects[subject.id].teacher.id == self.teacher.id:
-                self.add_class(subject.id, cls)
+            if subject.id in cls.subjects:
+                if cls.subjects[subject.id].teacher and cls.subjects[subject.id].teacher.id == self.teacher.id:
+                    self.add_class(subject.id, cls)
+            else:
+                for subj in SCHOOL.subjects.values():
+                    if isinstance(subj, CombinedSubject) and next((cls.subjects[subj.id].subjects[i].teacher and cls.subjects[subj.id].subjects[i].teacher.id == self.teacher.id for i, s in enumerate(subj.subjects) if s.id == subject.id), False):
+                        self.add_class(subject.id, cls)
+                        break
     
     def remove_subject(self, subject: Subject):
         field = self.subject_fields[subject.id]
