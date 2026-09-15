@@ -7,11 +7,6 @@ from .user_interface import *
 
 from AttendanceApp import AttendanceManager
 
-# Subjects occurence has a problem, you need to make it so
-# all the combined subject influences on subject occurence
-# handled appropriately, meaning you have to check constantly
-# if a subject is in the subjects occurence for all appearances
-# of subject occurence
 
 class BaseSelectionList(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, attendance_manager: AttendanceManager):

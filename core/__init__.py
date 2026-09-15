@@ -187,7 +187,7 @@ class School:
     def detect_clashes(self):
         """
         Returns {
-            ((Day, PeriodIndex), SubjectID + TeacherID): [Class, ...]
+            ((Day, PeriodIndex), (SubjectID, TeacherID)): [Class, ...]
         }
         """
         

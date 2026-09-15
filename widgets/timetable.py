@@ -12,7 +12,7 @@ class UnMouseableOverlay(BaseWidget):
         super().__init__(parent=parent)
         
         self.editor = editor
-        self.rects: list[tuple[Class, str, int, QColor, Subject]] = []
+        self.rects: list[tuple[Class, str, int, QColor, Subject | CombinedSubject]] = []
         
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setStyleSheet("background-color: transparent")
@@ -74,7 +74,7 @@ class ClashOverlay(UnMouseableOverlay):
     def paintEvent(self, a0):
         painter = QPainter(self)
         
-        clash_rects: list[tuple[QColor, list[tuple[QRectF, Subject, tuple[str, int]]]]] = []
+        clash_rects: list[tuple[QColor, list[tuple[QRectF, Subject | CombinedSubject, tuple[str, int]]]]] = []
         positions_connections_alignment_mappings = {}
         
         for (pos, (s_id, _)), classes in SCHOOL.detect_clashes().items():
@@ -250,13 +250,7 @@ class ExtraSubjectDraggableLabel(QLabel):
     clicked = pySignal(QMouseEvent)
     
     def __init__(self, subject: Subject | CombinedSubject, cls: Class):
-        name = subject.name.full()
-        
-        if isinstance(subject, CombinedSubject):
-            name = "/".join([s.name.short() for s in subject.subjects]) if subject.name is None else subject.name.short()
-            sub_subject_names = "\n".join([f"\tID: {s.id}\n\tSubject: {s.name.full()}\n" for s in subject.subjects])
-        
-        super().__init__(name)
+        super().__init__(subject.name.full())
         
         self.subject = subject
         self.cls = cls
@@ -264,10 +258,7 @@ class ExtraSubjectDraggableLabel(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setProperty("class", 'RemSubjectItem')
         
-        if isinstance(self.subject, Subject):
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}")
-        else:
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: {sub_subject_names}")
+        self.update_info()
         
         self.setFixedSize(150, 40)
     
@@ -277,16 +268,12 @@ class ExtraSubjectDraggableLabel(QLabel):
     
     def update_info(self):
         if isinstance(self.subject, Subject):
-            name = self.subject.name.full()
-            
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}")
-        else:
-            name = "/".join([s.name.short() for s in self.subject.subjects]) if self.subject.name is None else self.subject.name.short()
-            sub_subject_names = "\n".join([f"\tID: {s.id}\n\tSubject: {s.name.full()}\n" for s in self.subject.subjects])
-            
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: {sub_subject_names}")
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nTeacher: {self.subject.teacher.name.full()}")
+        elif isinstance(self.subject, CombinedSubject):
+            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects])
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nChild Subjects: {sub_subject_names}")
         
-        self.setText(name)
+        self.setText(self.subject.name.full())
 
 class TimeTableItem(QTableWidgetItem):
     def __init__(self, subject: Subject | CombinedSubject, cls: Class, locked: bool = False):
@@ -318,14 +305,12 @@ class TimeTableItem(QTableWidgetItem):
     
     def update(self):
         if isinstance(self.subject, Subject):
-            self.setText(self.subject.name.short())
             self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
-        else:
-            name = "/".join([s.name.short() for s in self.subject.subjects]) if self.subject.name is None else self.subject.name.full()
-            sub_subject_names = "\n".join([f"\tName: {s.name.full()}\n\tID: {s.id}\n" for s in self.subject.subjects])
-            
-            self.setText(name)
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: {sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
+        elif isinstance(self.subject, CombinedSubject):
+            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects])
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nChild Subjects: {sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
+        
+        self.setText(self.subject.name.short())
     
     def set_locked_state(self, state: bool):
         self.locked = state
@@ -798,7 +783,7 @@ class ClassTimetable(QTableWidget):
         self.editor.remainder_unfocused()
         self.current_source = None
     
-    def addRemainder(self, subject: Subject, index: int | None = None):
+    def addRemainder(self, subject: Subject | CombinedSubject, index: int | None = None):
         if not self.__init:
             self.window().saved_state_changed.emit(True)
         
