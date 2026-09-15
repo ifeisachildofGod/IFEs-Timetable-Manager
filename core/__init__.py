@@ -106,14 +106,12 @@ class Settings:
     EXPORT_timetable_export_theme: TimetableExportTheme
     EXPORT_selected_classes: dict[ID, list[ID]]
     
-    def set(self, value):
-        self.__dict__ = value.__dict__
+    ID_index: int
+    auto_save: bool
 
 
 class School:
     def __init__(self):
-        self.id_index = 0
-        
         self.subjects = GlobalSubjects(self)
         self.teachers = GlobalTeachers(self)
         self.prefects = {}
@@ -130,7 +128,8 @@ class School:
                 "white", "white", "black", "black", "black",
                 1, 1,
                 0, "PNG"
-            ), {}
+            ),
+            {}, 0, False
         )
         
         self.attendance = AppData(
@@ -173,15 +172,12 @@ class School:
         self._log_data = {}
     
     def set(self, school: "School"):
-        self.id_index = school.id_index
-        
         self.subjects.update(school.subjects)
         self.teachers.update(school.teachers)
         self.class_levels.update(school.class_levels)
         
         self.settings.__dict__.update(school.settings.__dict__)
         self.gen_data.__dict__.update(school.gen_data.__dict__)
-        
         self.attendance.__dict__.update(school.attendance.__dict__)
     
     def detect_clashes(self):
@@ -590,14 +586,14 @@ if __name__ == "__main__":
 
 
 def NEW_ID():
-    SCHOOL.id_index += 1
-    _id = ID(SCHOOL.id_index)
+    SCHOOL.settings.ID_index += 1
+    _id = ID(SCHOOL.settings.ID_index)
     
     return _id
 
 def NEW_CLASS_ID(class_level_id: ID):
-    SCHOOL.id_index += 1
-    _id = CLASS_ID(SCHOOL.id_index)
+    SCHOOL.settings.ID_index += 1
+    _id = CLASS_ID(SCHOOL.settings.ID_index)
     
     _id.class_level_id = class_level_id
     

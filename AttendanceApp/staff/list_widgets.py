@@ -11,7 +11,7 @@ from .option_widgets import *
 class AttendanceWidget(BaseScrollListWidget):
     comm_signal = pySignal(str)
     
-    def __init__(self, parent_widget: TabViewWidget, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem, saved_state_changed: pyBoundSignal, card_scanner_widget: CardScanScreenWidget):
+    def __init__(self, parent_widget: TabViewWidget, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget):
         super().__init__()
         
         self.kb_dbg_action_mapping = {}
@@ -45,7 +45,6 @@ class AttendanceWidget(BaseScrollListWidget):
         
         self.comm_system = comm_system
         self.parent_widget = parent_widget
-        self.saved_state_changed = saved_state_changed
         self.card_scanner_widget = card_scanner_widget
         
         self.attendance_chart_widget = attendance_chart_widget
@@ -92,7 +91,6 @@ class AttendanceWidget(BaseScrollListWidget):
         filter_layout.addStretch()
         filter_layout.addWidget(self.time_label, alignment=Qt.AlignmentFlag.AlignCenter)
         filter_layout.addStretch()
-        
         
         self.filter_comboboxes = []
         
@@ -233,8 +231,6 @@ class AttendanceWidget(BaseScrollListWidget):
             self.punctuality_graph_widget.prefect_data_changed()
         else:
             raise TypeError(f"Type: {type(attendance_entry.staff)} is not supported")
-        
-        self.saved_state_changed.emit(False)
         
         curr_widget = self.stack.currentWidget()
         
@@ -636,8 +632,6 @@ class AttendanceWidget(BaseScrollListWidget):
                 
                 return
             
-            self.window().saved_state_changed.emit(True)
-            
             entry = AttendanceEntry(period, staff, is_check_in)
             
             SCHOOL.attendance.attendance_data.append(entry)
@@ -650,6 +644,8 @@ class AttendanceWidget(BaseScrollListWidget):
                 500,
                 lambda: self.comm_system.send_message(f"   Good{' morning' if is_check_in else "bye"}" + "_"+ (" " * int(8 - (len(entry.staff.name.abbrev) / 2))) + f"{entry.staff.name.abbrev}")
             )
+            
+            self.window().saved_state_changed.emit(True)
     
     def keyPressEvent(self, a0):
         period = Period.str_to_period(time.ctime())

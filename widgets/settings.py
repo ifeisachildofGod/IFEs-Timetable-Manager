@@ -27,7 +27,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
     
     def remove(self):
         for c_subject_id, c_subject in SCHOOL.subjects.items():
-            if isinstance(c_subject, CombinedSubject) and next((True for s in c_subject.subject if self.id == s.id), False):
+            if isinstance(c_subject, CombinedSubject) and next((True for s in c_subject.subjects if self.id == s.id), False):
                 index = c_subject.subjects.index(self.entry)
                 c_subject.subjects.pop(index)
                 
@@ -99,7 +99,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         
         super().__init__(
             parent,
-            "Combined Subject",
+            "Subject",
             None,
             {
                 "Offering Classes": ("Classes offering {name}", CombinedSubjectDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
@@ -107,6 +107,9 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             },
             entry
         )
+        
+        if self.entry.subjects:
+            self.simple_name_changed(self.simple_line_edit.text(), None)
     
     def new(self):
         return CombinedSubject(NEW_ID(), None, CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
@@ -183,7 +186,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
                                 isinstance(subj, CombinedSubject) and
                                 (u_subj := next((cls.subjects[subj.id].subjects[i] for i, s in enumerate(subj.subjects) if s.id == subject.id), False)) and
                                 u_subj.teacher is not None and
-                                u_subj.teacher.id == self.id
+                                u_subj.teacher.id == self.entry.id
                             ):
                             
                             if u_subj.teacher is not None and self.entry.id == u_subj.teacher.id:
@@ -367,6 +370,9 @@ class SubjectsMainWidget(BaseSettingWidget):
         
         if entry is None:
             SCHOOL.subjects.add(final_entry)
+        
+        if focus or index is not None:
+            self.window().saved_state_changed.emit(True)
 
 class TeachersMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -388,6 +394,9 @@ class TeachersMainWidget(BaseSettingWidget):
             SCHOOL.teachers.add(final_entry)
         
         self.attendance_manager.staff_list_widget.add_staff(final_entry)
+        
+        if focus or index is not None:
+            self.window().saved_state_changed.emit(True)
 
 class ClassLevelsMainWidget(BaseSettingWidget):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -412,6 +421,9 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         
         for cls in final_entry.classes.values():
             self.timetable_editor.add_timetable_class(cls)
+        
+        if focus or index is not None:
+            self.window().saved_state_changed.emit(True)
 
 
 

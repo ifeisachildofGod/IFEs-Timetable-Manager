@@ -129,6 +129,11 @@ class CombinedSubject(Entry):
     classes: dict[ID, dict[CLASS_ID, Class]]
     default_occurance_data: tuple[int, int]
     
+    def cls_name(self):
+        name_list = [s.name.short() for s in self.subjects if s.teacher is not None]
+        
+        return self.name.full() if self.name.full_name is not None or not name_list else "/".join(name_list) + ("/" if name_list == 1 else "")
+    
     def remove_subject(self, subject: Subject):
         self.subjects.remove(subject)
         

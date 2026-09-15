@@ -227,7 +227,7 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
                     self.add_class(subject.id, cls)
             else:
                 for subj in SCHOOL.subjects.values():
-                    if isinstance(subj, CombinedSubject) and next((cls.subjects[subj.id].subjects[i].teacher and cls.subjects[subj.id].subjects[i].teacher.id == self.teacher.id for i, s in enumerate(subj.subjects) if s.id == subject.id), False):
+                    if isinstance(subj, CombinedSubject) and next((subj.id in cls.subjects and cls.subjects[subj.id].subjects[i].teacher and cls.subjects[subj.id].subjects[i].teacher.id == self.teacher.id for i, s in enumerate(subj.subjects) if s.id == subject.id), False):
                         self.add_class(subject.id, cls)
                         break
     

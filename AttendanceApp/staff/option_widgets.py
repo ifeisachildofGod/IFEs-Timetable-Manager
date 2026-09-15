@@ -263,11 +263,10 @@ class StaffDataWidget(BaseOptionsWidget):
 class CardScanScreenWidget(BaseOptionsWidget):
     comm_signal = pySignal(str)
     
-    def __init__(self, comm_system: BaseCommSystem, parent_widget: TabViewWidget, saved_state_changed: pyBoundSignal):
+    def __init__(self, comm_system: BaseCommSystem, parent_widget: TabViewWidget):
         super().__init__(parent_widget, "static")
         
         self.comm_system = comm_system
-        self.saved_state_changed = saved_state_changed
         
         self.just_scanned = False
         
@@ -358,14 +357,12 @@ class CardScanScreenWidget(BaseOptionsWidget):
                         
                         return
             
-            self.window().saved_state_changed.emit(True)
-            
             self.staff.IUD = iud
             self.iud_label.setText(self.staff.IUD)
-            
-            self.saved_state_changed.emit(False)
             
             self.iud_changed = True
             self.finished()
             self.iud_changed = False
+            
+            self.window().saved_state_changed.emit(True)
 

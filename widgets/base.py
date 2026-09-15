@@ -648,17 +648,17 @@ class BaseSettingEntry[_T](BaseWidget):
             self.extended_line_edits[0].setFocus()
     
     def _simple_name_changed(self, text: str):
+        self.simple_name_changed(text, self.extended_line_edits)
+        
         if not self.__init:
             self.window().saved_state_changed.emit(True)
-        
-        self.simple_name_changed(text, self.extended_line_edits)
     
     def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
         def func(text: str):
+            self.extended_name_changed(index, text, simple_line_edit)
+            
             if not self.__init:
                 self.window().saved_state_changed.emit(True)
-            
-            self.extended_name_changed(index, text, simple_line_edit)
         
         return func
     
@@ -684,9 +684,8 @@ class BaseSettingEntry[_T](BaseWidget):
         QTimer.singleShot(100, self._focusInput)
     
     def remove(self):
-        self.window().saved_state_changed.emit(True)
-        
         self.i_parent.remove(self)
+        self.i_parent.window().saved_state_changed.emit(True)
     
     def get_dialog_buttons(self):
         for name, dialog_info in self.option_dialogs.items():
@@ -782,9 +781,6 @@ class BaseSettingWidget(BaseWidget):
             self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None)
     
     def add(self, entry: Optional[Entry] = None, index: Optional[int] = None, focus: Optional[bool] = None, button_index: Optional[int] = None):
-        if focus or index is not None:
-            self.window().saved_state_changed.emit(True)
-        
         if button_index is not None:
             widget_data = self.get_widget_type(button_index)
         else:

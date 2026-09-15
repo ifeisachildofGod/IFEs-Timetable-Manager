@@ -268,12 +268,16 @@ class ExtraSubjectDraggableLabel(QLabel):
     
     def update_info(self):
         if isinstance(self.subject, Subject):
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nTeacher: {self.subject.teacher.name.full()}")
+            name = self.subject.name.full()
+            
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}")
         elif isinstance(self.subject, CombinedSubject):
-            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects])
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nChild Subjects: {sub_subject_names}")
+            name = self.subject.cls_name()
+            
+            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects if s.teacher is not None])
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: \n\t{sub_subject_names}")
         
-        self.setText(self.subject.name.full())
+        self.setText(name)
 
 class TimeTableItem(QTableWidgetItem):
     def __init__(self, subject: Subject | CombinedSubject, cls: Class, locked: bool = False):
@@ -305,12 +309,16 @@ class TimeTableItem(QTableWidgetItem):
     
     def update(self):
         if isinstance(self.subject, Subject):
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
+            name = self.subject.name.full()
+            
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
         elif isinstance(self.subject, CombinedSubject):
-            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects])
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.name.full()}\nChild Subjects: {sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
+            name = self.subject.cls_name()
+            
+            sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects if s.teacher is not None])
+            self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nChild Subjects: \n\t{sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
         
-        self.setText(self.subject.name.short())
+        self.setText(name)
     
     def set_locked_state(self, state: bool):
         self.locked = state
@@ -360,23 +368,23 @@ class TimetableTimeEditor(BaseWidget):
         self.__init = False
     
     def start_time_changed(self, time: QTime):
-        if not self.__init:
-            self._parent.window().saved_state_changed.emit(True)
-        
         self.t_time.start_time.hour = time.hour()
         self.t_time.start_time.minute = time.minute()
+        
+        if not self.__init:
+            self._parent.window().saved_state_changed.emit(True)
     
     def interval_changed(self, interval: int):
+        self.t_time.interval = interval
+        
         if not self.__init:
             self._parent.window().saved_state_changed.emit(True)
-        
-        self.t_time.interval = interval
     
     def break_time_duration_changed(self, duration: int):
+        self.t_time.break_time_duration = duration
+        
         if not self.__init:
             self._parent.window().saved_state_changed.emit(True)
-        
-        self.t_time.break_time_duration = duration
 
 
 class TimetableSettings(BaseWidget):
@@ -430,11 +438,11 @@ class TimetableSettings(BaseWidget):
         self.__init = False
     
     def _set_period_amt(self, period_amt: int):
-        self.editor.window().saved_state_changed.emit(True)
-        
         self.breakperiod_edit.blockSignals(True)
         self.breakperiod_edit.max_num = period_amt
         self.breakperiod_edit.blockSignals(False)
+        
+        self.editor.window().saved_state_changed.emit(True)
         
         for cls_level in SCHOOL.class_levels.values():
             for cls in cls_level.classes.values():
@@ -443,13 +451,13 @@ class TimetableSettings(BaseWidget):
             cls_level.period_amount = period_amt
     
     def _set_break_periods(self, break_period: int):
-        self.editor.window().saved_state_changed.emit(True)
-        
         for cls_level in SCHOOL.class_levels.values():
             for cls in cls_level.classes.values():
                 self.editor.timetable_widgets[cls_level.id][cls.id].set_break_period(break_period)
             
             cls_level.break_period = break_period
+        
+        self.editor.window().saved_state_changed.emit(True)
     
     def _toogle_self(self):
         self.settings_menu.set_pos(self.toogle_button.mapToGlobal(QPoint(-470, self.toogle_button.height())))
@@ -486,13 +494,15 @@ class TimetableSettings(BaseWidget):
         for lvl_ttbl_content in self.editor.timetable_widgets.values():
             for ttbl in lvl_ttbl_content.values():
                 ttbl.populate_timetable()
+        
+        self.editor.window().saved_state_changed.emit(True)
     
     def clear_all_timetables(self):
-        self.editor.window().saved_state_changed.emit(True)
-        
         for lvl_ttbl_content in self.editor.timetable_widgets.values():
             for ttbl in lvl_ttbl_content.values():
                 ttbl.clear_timetable()
+        
+        self.editor.window().saved_state_changed.emit(True)
     
     def continue_with_irreversable_action(self):
         return QMessageBox.StandardButton.Yes == QMessageBox.warning(
@@ -511,8 +521,6 @@ class TimetableSettings(BaseWidget):
             if callable(pre_func):
                 pre_func()
             
-            self.editor.window().saved_state_changed.emit(True)
-            
             self.new = Thread(self.window(), self._generate)
             self.new.finished.connect(self.generating_finished)
             self.new.start()
@@ -524,12 +532,12 @@ class TimetableSettings(BaseWidget):
         QMessageBox.critical(self, "ThreadingError", "School Timetable is already being generated")
 
     def randomize(self, state: bool):
-        if not self.__init:
-            self.editor.window().saved_state_changed.emit(True)
-        
         for lvl_id in SCHOOL.class_levels:
             if state != self.editor.level_randomize_cbs[lvl_id].isChecked():
                 self.editor.level_randomize_cbs[lvl_id].click()
+        
+        if not self.__init:
+            self.editor.window().saved_state_changed.emit(True)
 
 class ClassTimetable(QTableWidget):
     def __init__(self, cls: Class, editor: 'SchoolTimetableEditor'):
@@ -585,8 +593,6 @@ class ClassTimetable(QTableWidget):
         self.__init = False
     
     def set_period_amt(self, period_amt: int):
-        self.window().saved_state_changed.emit(True)
-        
         for col, day in enumerate(self.weekdays):
             is_diff_positive = period_amt - self.cls.level.period_amount > 0
             is_diff_negative = period_amt - self.cls.level.period_amount < 0
@@ -617,10 +623,10 @@ class ClassTimetable(QTableWidget):
                     self.setItem(row, col, TimeTableItem(FreePeriod(), self.cls))
         
         self.period_amt = period_amt
+        
+        self.window().saved_state_changed.emit(True)
     
     def set_break_period(self, break_period: int):
-        self.window().saved_state_changed.emit(True)
-        
         for col, day in enumerate(self.weekdays):
             ls_key = day, break_period - 1
             
@@ -630,6 +636,8 @@ class ClassTimetable(QTableWidget):
                 self.cls.locked_subjects.pop(ls_key)
             
             self.timetable_exchange(self.item(break_index, col), self.item(break_period - 1, col))
+        
+        self.window().saved_state_changed.emit(True)
     
     def update_break_time_color(self):
         for row in range(self.rowCount()):
@@ -640,9 +648,6 @@ class ClassTimetable(QTableWidget):
                     item.set_color()
     
     def timetable_exchange(self, source_item: TimeTableItem, target_item: TimeTableItem):
-        if not self.__init:
-            self.window().saved_state_changed.emit(True)
-        
         source_row, source_col = self.row(source_item), self.column(source_item)
         target_row, target_col = self.row(target_item), self.column(target_item)
         
@@ -670,6 +675,9 @@ class ClassTimetable(QTableWidget):
         # Force refresh
         self.blockSignals(False)
         self.editor.update()
+        
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
     
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -784,9 +792,6 @@ class ClassTimetable(QTableWidget):
         self.current_source = None
     
     def addRemainder(self, subject: Subject | CombinedSubject, index: int | None = None):
-        if not self.__init:
-            self.window().saved_state_changed.emit(True)
-        
         remainder_label = ExtraSubjectDraggableLabel(subject, self.cls)
         remainder_label.clicked.connect(self.editor.make_ds_func(remainder_label))
         
@@ -798,16 +803,19 @@ class ClassTimetable(QTableWidget):
             self.remainder_widget.insertWidget(len(self.remainder_widget.getChildren()), remainder_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.remainder_labels.append(remainder_label)
             self.cls.timetable.table_remains.append(subject)
-    
-    def removeRemainder(self, remainder: ExtraSubjectDraggableLabel):
+        
         if not self.__init:
             self.window().saved_state_changed.emit(True)
-        
+    
+    def removeRemainder(self, remainder: ExtraSubjectDraggableLabel):
         self.remainder_labels.remove(remainder)
         self.remainder_widget.removeWidget(remainder)
         self.cls.timetable.table_remains.remove(remainder.subject)
         
         remainder.deleteLater()
+        
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
     
     def clear_remains(self):
         for widg in self.remainder_labels.copy():
@@ -819,11 +827,11 @@ class ClassTimetable(QTableWidget):
         self.cls.timetable.table_remains.clear()
     
     def clear_timetable(self):
-        if not self.__init:
-            self.window().saved_state_changed.emit(True)
-        
         self.cls.timetable.clear()
         self.populate_timetable()
+        
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
     
     def generate(self):
         try:
@@ -893,12 +901,18 @@ class ClassTimetable(QTableWidget):
                 self.setItem(row, col, TimeTableItem(free_period, self.cls))
                 
                 self.cls.timetable.table[self.weekdays[col]][row] = free_period
+                
+                self.window().saved_state_changed.emit(True)
             elif action == lock_period_action:
                 item.set_locked_state(True)
                 self.cls.locked_subjects[(self.weekdays[item.column()], item.row() + 1)] = item.subject.id
+                
+                self.window().saved_state_changed.emit(True)
             elif action == unlock_period_action:
                 item.set_locked_state(False)
                 self.cls.locked_subjects.pop((self.weekdays[item.column()], item.row() + 1))
+                
+                self.window().saved_state_changed.emit(True)
             elif action == goto_subject_action:
                 pass
             elif action == goto_teacher_action:
@@ -1005,6 +1019,8 @@ class SchoolTimetableEditor(BaseWidget):
             
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.populate_timetable()
+            
+            self.window().saved_state_changed.emit(True)
         
         def period_amt_changed(curr_period_amt: int):
             breakperiod_edit.blockSignals(True)
@@ -1030,8 +1046,6 @@ class SchoolTimetableEditor(BaseWidget):
                 if callable(pre_func):
                     pre_func()
                 
-                self.window().saved_state_changed.emit(True)
-                
                 self.class_generator_threads[cls_level.id] = Thread(self.window(), _generate)
                 self.class_generator_threads[cls_level.id].finished.connect(generating_finished)
                 self.class_generator_threads[cls_level.id].start()
@@ -1041,15 +1055,12 @@ class SchoolTimetableEditor(BaseWidget):
             QMessageBox.critical(self, "Threading Error", "Level is already being generated")
         
         def clear_func():
-            self.window().saved_state_changed.emit(True)
-            
             for ttbl in self.timetable_widgets[cls_level.id].values():
                 ttbl.clear_timetable()
+            
+            self.window().saved_state_changed.emit(True)
         
         def randomize(state: bool):
-            if not _init:
-                self.window().saved_state_changed.emit(True)
-            
             if state and next((False for cb in self.level_randomize_cbs.values() if not cb.isChecked()), True):
                 if not self.settings_widget.randomize_button.isChecked():
                     self.settings_widget.randomize_button.click()
@@ -1061,6 +1072,9 @@ class SchoolTimetableEditor(BaseWidget):
             for cls_id in SCHOOL.class_levels[cls_level.id].classes:
                 if state != self.cls_randomize_cbs[cls_id].isChecked():
                     self.cls_randomize_cbs[cls_id].click()
+            
+            if not _init:
+                self.window().saved_state_changed.emit(True)
         
         def _add_everyday(set_default: bool = True):
             widg = BaseWidget() ; widg.setProperty("class", "Bordered")
@@ -1077,9 +1091,6 @@ class SchoolTimetableEditor(BaseWidget):
             timing_widget.insertWidget(0, widg)
         
         def new_day_added(def_day: Optional[str], time_setting: TimetableTime):
-            if def_day is None:
-                self.window().saved_state_changed.emit(True)
-            
             days = [day for day in cls_level.weekdays if day not in SCHOOL.settings.TIMETABLE_time_settings[cls_level.id] or day == def_day]
             
             if time_setting is None:
@@ -1163,6 +1174,9 @@ class SchoolTimetableEditor(BaseWidget):
                 day_cb.blockSignals(False)
             
             QTimer.singleShot(100, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
+            
+            if def_day is None:
+                self.window().saved_state_changed.emit(True)
         
         _init = True
         
@@ -1235,9 +1249,6 @@ class SchoolTimetableEditor(BaseWidget):
     
     def add_timetable_class(self, cls: Class):
         def randomize(state: bool):
-            if not _init:
-                self.window().saved_state_changed.emit(True)
-            
             if state and next((False for cb in self.cls_randomize_cbs.values() if not cb.isChecked()), True):
                 self.level_randomize_cbs[cls.level.id].setChecked(True)
             else:
@@ -1250,6 +1261,9 @@ class SchoolTimetableEditor(BaseWidget):
                 self.settings_widget.randomize_button.blockSignals(False)
             
             SCHOOL.gen_data.randomize[cls.id] = state
+            
+            if not _init:
+                self.window().saved_state_changed.emit(True)
         
         settings_menu = BaseWidget()
         settings_menu.setWindowFlags(Qt.WindowType.Popup)

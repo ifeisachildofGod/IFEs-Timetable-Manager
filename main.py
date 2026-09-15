@@ -19,7 +19,10 @@ class Window(QMainWindow):
         
         def ssc_func(state: bool):
             if state:
-                self.unsaved_callback()
+                if SCHOOL.settings.auto_save:
+                    self.file.save()
+                else:
+                    self.unsaved_callback()
             else:
                 self.saved_callback()
         
@@ -157,6 +160,8 @@ class Window(QMainWindow):
         self.title_bar.go_forward_button.setDisabled(True)
         
         self.view_tracker = [self.option_buttons[0]]
+        
+        self.auto_save_action.setChecked(SCHOOL.settings.auto_save)
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -357,12 +362,22 @@ class Window(QMainWindow):
         help_menu = menubar.addMenu("Help")
         
         # Add all actions
+        def auto_save_clicked(state):
+            SCHOOL.settings.auto_save = state
+            
+            self.file.save()
+        
+        self.auto_save_action = QAction("Auto Save", self)
+        self.auto_save_action.setCheckable(True)
+        self.auto_save_action.triggered.connect(auto_save_clicked)
+        
         file_menu.addAction("New", "Ctrl+N", self.file.new)
         file_menu.addSeparator()
         file_menu.addAction("Open", "Ctrl+O", self.file.open)
         file_menu.addSeparator()
         file_menu.addAction("Save", "Ctrl+S", self.file.save)
         file_menu.addAction("Save As", "Ctrl+Shift+S", self.file.save_as)
+        file_menu.addAction(self.auto_save_action)
         file_menu.addSeparator()
         file_menu.addAction("Export", lambda: self.export_editor.exec())
         file_menu.addSeparator()
