@@ -16,7 +16,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             "Subject",
             ["Full Name", "Abbreviation"],
             {
-                "Offering Classes": ("Classes offering {name}", SubjectDropdownCheckBoxes, (self.attendance_manager, )),
+                "Offering Classes": ("Classes offering {name}", SubjectDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, )),
                 "Assign Teachers": ("Teachers teaching {name}", SubjectSelectionList, (self.attendance_manager, ))
             },
             entry
@@ -27,7 +27,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
     
     def remove(self):
         for c_subject_id, c_subject in SCHOOL.subjects.items():
-            if isinstance(c_subject, CombinedSubject) and next((True for s in c_subject.subjects if self.id == s.id), False):
+            if isinstance(c_subject, CombinedSubject) and next((True for s in c_subject.subjects if self.entry.id == s.id), False):
                 index = c_subject.subjects.index(self.entry)
                 c_subject.subjects.pop(index)
                 
@@ -42,7 +42,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         
         for cls in self.entry.classes.copy().values():
             if self.entry.id in cls.subjects and self.entry.id in cls.level.subjects_occurence:
-                self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
+                self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, 0)
                 
                 self.entry.classes.pop(cls.id)
                 cls.subjects.pop(self.entry.id)
@@ -118,7 +118,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         for subject in self.entry.subjects:
             for cls in subject.classes.copy().values():
                 if self.entry.id in cls.subjects and self.entry.id in cls.level.subjects_occurence:
-                    self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, -cls.level.subjects_occurence[self.entry.id].week_max)
+                    self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(self.entry.id, 0)
                     
                     cls.subjects.pop(self.entry.id)
             
@@ -178,7 +178,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
                     cls_subject = cls.subjects[subject_id]
                     
                     if cls_subject.teacher is not None and self.entry.id == cls_subject.teacher.id:
-                        self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, -cls.level.subjects_occurence[subject_id].week_max)
+                        self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, 0)
                         cls_subject.teacher = None
                 else:
                     for subj in SCHOOL.subjects.values():
@@ -190,8 +190,9 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
                             ):
                             
                             if u_subj.teacher is not None and self.entry.id == u_subj.teacher.id:
-                                if next((False for s in cls.subjects[subj.id].subjects if s.teacher is None), True):
-                                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subj, -cls.level.subjects_occurence[subj].week_max)                            
+                                self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subj.id, 0)
+                                if next((True for s in cls.subjects[subj.id].subjects if s.teacher is not None), False):
+                                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subj.id, cls.level.subjects_occurence[subj.id].week_max)
                                 
                                 u_subj.teacher = None
         

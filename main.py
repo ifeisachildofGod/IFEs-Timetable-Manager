@@ -203,7 +203,7 @@ class Window(QMainWindow):
                 return (
                     sorted(
                         [
-                            (sw, " ".join(display_data[current_display_index][sw_id].name.full()), (display_data[current_display_index][sw_id].name.short() if display_data[current_display_index][sw_id].name.full() != display_data[current_display_index][sw_id].name.short() else None, sw_id, None), [])
+                            (sw, "".join(display_data[current_display_index][sw_id].name.full()), (display_data[current_display_index][sw_id].name.short() if display_data[current_display_index][sw_id].name.full() != display_data[current_display_index][sw_id].name.short() else None, sw_id, None), [])
                             for sw_id, sw in
                             current_display_widget.widgets.items()
                         ],

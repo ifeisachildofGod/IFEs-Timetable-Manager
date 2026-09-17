@@ -251,6 +251,25 @@ STYLESHEET = '''
     }}
     
     
+    QWidget.SearchEdit {{
+        background-color: {bg1};
+        color: {primary_text};
+        border: 1px solid {border1};
+        padding: 0px
+    }}
+    
+    QWidget.SearchEdit * QLabel.SearchOptions {{
+        border-radius: 0px;
+        margin: 0px;
+        border: none;
+        background-color: {bg3};
+    }}
+    
+    QWidget.SearchEdit * QLabel.SearchOptions:hover {{
+        background-color: {hover__bg3};
+    }}
+    
+    
     QWidget.LabeledContainer {{
         border: 2px solid {border1};
         border-radius: 8px;

@@ -239,6 +239,8 @@ class _SearchEditOption(BaseWidget):
         self.right_label = QLabel() ; self.main_label.setMinimumHeight(19)
         self.end_label = QLabel() ; self.main_label.setMinimumHeight(15)
         
+        self.metrics = QFontMetrics(self.main_label.font())
+        
         w1 = BaseWidget()
         w1.setContentsMargins(0, 0, 0, 0)
         w1.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
@@ -258,6 +260,17 @@ class _SearchEditOption(BaseWidget):
         
         self.clicked.connect(self.selected)
     
+    def _wrapify_text(self, text: str, length: int):
+        if len(text) > length:
+            if " " in text:
+                index = text[:length].rfind(" ")
+            else:
+                index = length
+            
+            return text[:index] + "■" + self._wrapify_text(text[index:], length)
+        else:
+            return text
+    
     def update_highlights(self, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
         score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
         
@@ -265,7 +278,7 @@ class _SearchEditOption(BaseWidget):
             if not self.isVisible():
                 self.setVisible(True)
             
-            self.main_label.setText("".join([f"<span style='font-size: 25px; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" for i, c in enumerate(self.main_text)]))
+            self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate(self._wrapify_text(self.main_text, 30))]))
             self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
             self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
             self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
@@ -300,7 +313,7 @@ class SearchEdit(QFrame):
 
         self.setWindowFlags(Qt.WindowType.Popup)
         self.setFrameShape(QFrame.Shape.Box)
-        self.setProperty("class", "option-menu")
+        self.setProperty("class", "SearchEdit")
         self.setFixedWidth(500)
 
         self.ref_data = {}
@@ -338,9 +351,6 @@ class SearchEdit(QFrame):
         
         self.search_le.textEdited.connect(self._on_text_edited)
     
-    def _on_text_edited(self, _):
-        self._search_timer.start(self.DEBOUNCE_MS)
-
     def show(self):
         self.search_le.blockSignals(True)
         self.search_le.clear()
@@ -349,7 +359,10 @@ class SearchEdit(QFrame):
         self._run_search()
         super().show()
         self.search_le.setFocus()
-    
+        
+    def _on_text_edited(self, _):
+        self._search_timer.start(self.DEBOUNCE_MS)
+
     def _run_search(self):
         if self._updating:
             return
@@ -387,7 +400,7 @@ class SearchEdit(QFrame):
             added += 1
             
             if data_point not in ref_data_copy:
-                widget = _SearchEditOption(self, data_point, f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;", info)
+                widget = _SearchEditOption(self, data_point, f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: 900;", info)
                 
                 self.options_widget.addWidget(widget)
             else:

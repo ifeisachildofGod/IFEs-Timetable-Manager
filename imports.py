@@ -17,11 +17,12 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon, QPixmap, QFont, QPen,
     QFontMetrics, QIntValidator, QPainter, QColor, QDrag, QCursor,
-    QDragMoveEvent, QDragEnterEvent, QDropEvent, QEnterEvent, QMouseEvent
+    QDragMoveEvent, QDragEnterEvent, QDropEvent, QEnterEvent, QMouseEvent,
+    QRegularExpressionValidator
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,
-    QPoint, QPointF, QObject, QRect, QRectF,
+    QPoint, QPointF, QObject, QRect, QRectF, QRegularExpression,
     pyqtBoundSignal as pyBoundSignal, pyqtSignal as pySignal
 )
 

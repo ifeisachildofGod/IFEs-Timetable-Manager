@@ -556,8 +556,11 @@ class BaseSettingEntry[_T](BaseWidget):
         edits_area = BaseWidget(QHBoxLayout)
         edits_area.setContentsMargins(0, 0, 0, 0)
         
+        validator = QRegularExpressionValidator(QRegularExpression("[^■]+"))
+        
         self.simple_line_edit = QLineEdit()
         self.simple_line_edit.setText(simple)
+        self.simple_line_edit.setValidator(validator)
         self.simple_line_edit.setPlaceholderText(self.simple_placeholder)
         
         self.extended_line_edits: list[QLineEdit] = []
@@ -569,6 +572,7 @@ class BaseSettingEntry[_T](BaseWidget):
         if extended_placeholders:
             for i, placeholder in enumerate(extended_placeholders):
                 line_edit = QLineEdit()
+                line_edit.setValidator(validator)
                 line_edit.textChanged.connect(self._make_ext_name_changed(i, self.simple_line_edit))
                 line_edit.returnPressed.connect(self._make_extended_return_pressed_func(i))
                 line_edit.setPlaceholderText(placeholder)

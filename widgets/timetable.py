@@ -279,7 +279,7 @@ class ExtraSubjectDraggableLabel(QLabel):
         
         self.setText(name)
 
-class TimeTableItem(QTableWidgetItem):
+class TimetableItem(QTableWidgetItem):
     def __init__(self, subject: Subject | CombinedSubject, cls: Class, locked: bool = False):
         super().__init__()
         
@@ -620,7 +620,7 @@ class ClassTimetable(QTableWidget):
         for col in range(self.columnCount()):
             for row in range(self.rowCount()):
                 if self.item(row, col) is None:
-                    self.setItem(row, col, TimeTableItem(FreePeriod(), self.cls))
+                    self.setItem(row, col, TimetableItem(FreePeriod(), self.cls))
         
         self.period_amt = period_amt
         
@@ -647,7 +647,7 @@ class ClassTimetable(QTableWidget):
                 if item.break_time:
                     item.set_color()
     
-    def timetable_exchange(self, source_item: TimeTableItem, target_item: TimeTableItem):
+    def timetable_exchange(self, source_item: TimetableItem, target_item: TimetableItem):
         source_row, source_col = self.row(source_item), self.column(source_item)
         target_row, target_col = self.row(target_item), self.column(target_item)
         
@@ -659,8 +659,8 @@ class ClassTimetable(QTableWidget):
         self.takeItem(target_row, target_col)
         
         # Create new items
-        new_target = TimeTableItem(source_item.subject, self.cls)
-        new_source = TimeTableItem(target_item.subject, self.cls)
+        new_target = TimetableItem(source_item.subject, self.cls)
+        new_source = TimetableItem(target_item.subject, self.cls)
         
         # Set new items
         self.setItem(target_row, target_col, new_target)
@@ -683,7 +683,7 @@ class ClassTimetable(QTableWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             item = self.itemAt(event.pos())
             
-            if item and isinstance(item, TimeTableItem) and item.subject:
+            if item and isinstance(item, TimetableItem) and item.subject:
                 self.drag_source_col = self.column(item)
                 self.drag_source_row = self.row(item)
                 
@@ -708,7 +708,7 @@ class ClassTimetable(QTableWidget):
             row = self.rowAt(int(event.position().y()))
             col = self.columnAt(int(event.position().x()))
             
-            source: TimeTableItem = self.item(row, col)
+            source: TimetableItem = self.item(row, col)
             
             if source is not None and not source.locked and (self.editor.remainder_source_ref is not None or source.subject.id != FreePeriod.id):
                 event.accept()
@@ -751,7 +751,7 @@ class ClassTimetable(QTableWidget):
                 target_item = self.item(target_row, target_col)
                 
                 # Handle swapping
-                if target_item is not None and not target_item.locked and isinstance(target_item, TimeTableItem):
+                if target_item is not None and not target_item.locked and isinstance(target_item, TimetableItem):
                     if self.current_source.cls.id == self.cls.id:
                         self.timetable_exchange(self.current_source, target_item)
                         
@@ -765,12 +765,12 @@ class ClassTimetable(QTableWidget):
                 
                 self.blockSignals(True)  # Prevent unnecessary updates
                 
-                new_target = TimeTableItem(self.editor.remainder_source_ref.subject, self.cls)
+                new_target = TimetableItem(self.editor.remainder_source_ref.subject, self.cls)
                 
                 self.takeItem(row, col)
                 self.setItem(row, col, new_target)
                 
-                if isinstance(target_item, TimeTableItem) and not target_item.free_period:
+                if isinstance(target_item, TimetableItem) and not target_item.free_period:
                     # Set new items
                     self.addRemainder(target_item.subject, self.remainder_widget.indexOf(self.editor.remainder_source_ref))
                     
@@ -858,7 +858,7 @@ class ClassTimetable(QTableWidget):
     def populate_timetable(self):
         for col, day in enumerate(self.weekdays):
             for row, subject in enumerate(self.cls.timetable.table[day] + [FreePeriod() for _ in range(self.period_amt - len(self.cls.timetable.table[day]))]):
-                item = TimeTableItem(subject, self.cls, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
+                item = TimetableItem(subject, self.cls, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
                 
                 self.setItem(row, col, item)
         
@@ -872,7 +872,7 @@ class ClassTimetable(QTableWidget):
     def show_context_menu(self, pos):
         item = self.itemAt(pos)
         
-        if item and isinstance(item, TimeTableItem) and not item.free_period and not item.break_time:
+        if item and isinstance(item, TimetableItem) and not item.free_period and not item.break_time:
             menu = QMenu(self)
             
             lock_period_action = -1
@@ -898,7 +898,7 @@ class ClassTimetable(QTableWidget):
                 
                 self.addRemainder(item.subject)
                 
-                self.setItem(row, col, TimeTableItem(free_period, self.cls))
+                self.setItem(row, col, TimetableItem(free_period, self.cls))
                 
                 self.cls.timetable.table[self.weekdays[col]][row] = free_period
                 
@@ -918,8 +918,26 @@ class ClassTimetable(QTableWidget):
             elif action == goto_teacher_action:
                 pass
     
-    def change_subject_amount(self, subject_id: ID, diff: int):
+    def change_subject_amount(self, subject_id: ID, amount: int):
         subject = self.cls.subjects[subject_id]
+        
+        timetable_subject_amt = 0
+        
+        for x in range(self.columnCount() * self.rowCount()):
+            row = x // self.columnCount()
+            col = x % self.columnCount()
+            
+            if subject.id == self.cls.timetable.table[self.weekdays[col]][row].id:
+                item: TimetableItem = self.item(row, col)
+                
+                if item and subject_id == item.subject.id:
+                    timetable_amt += 1
+        
+        timetable_subject_amt += sum(subject_id == rl.subject.id for rl in self.remainder_labels)
+        
+        diff = amount - timetable_subject_amt
+        
+        print(subject.name.full(), timetable_subject_amt, diff, amount)
         
         if diff > 0:
             for _ in range(diff):
@@ -941,7 +959,7 @@ class ClassTimetable(QTableWidget):
                     if subject.id == self.cls.timetable.table[self.weekdays[col]][row].id:
                         free_period = FreePeriod()
                         
-                        self.setItem(row, col, TimeTableItem(free_period, self.cls))
+                        self.setItem(row, col, TimetableItem(free_period, self.cls))
                         self.cls.timetable.table[self.weekdays[col]][row] = free_period
                         
                         ttbl_rem_amt -= 1
@@ -953,7 +971,7 @@ class SchoolTimetableEditor(BaseWidget):
     def __init__(self):
         super().__init__()
         
-        self.remainder_source_ref: Optional[TimeTableItem] = None
+        self.remainder_source_ref: Optional[TimetableItem] = None
         
         self.class_generator_threads: dict[ID, Thread] = {}
         

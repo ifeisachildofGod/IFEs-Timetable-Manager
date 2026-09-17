@@ -205,7 +205,7 @@ class TeacherSelectionList(BaseSelectionList):
                 staff_widget_dict[self.id].remove_subject(subject)
 
 class SubjectDropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
         self.__init = True
@@ -214,6 +214,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         self._parent = parent
         self.subject = SCHOOL.subjects[self.id]
         
+        self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
         self.setFixedSize(400, 300)
@@ -377,7 +378,10 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
             self.subject.classes.pop(cls_id)
             
             if self.id in cls.subjects:
-                cls.subjects.pop(self.id)
+                subj = cls.subjects.pop(self.id)
+                
+                if subj.teacher is not None:
+                    self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(self.id, lvl.subjects_occurence[self.id].week_max)
             
             for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 for teacher_attendance_entry_widget in teacher_widget_dict.values():
@@ -844,7 +848,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
                     teacher_filtered_dict[self.id].add_class(subject.id, cls)
         else:
             cls.subjects[subject.id].teacher = None
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, -cls_level.subjects_occurence[subject.id].week_max)
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, 0)
             
             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 if self.id in teacher_filtered_dict:
@@ -1017,19 +1021,18 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         u_subject = next(s for s in c_subject.subjects if s.id == subject.id)
         
         if on:
-            if next((False for s in c_subject.subjects if s.teacher is not None), True):
-                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
-            
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
             u_subject.teacher = self.teacher
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
             
             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 if self.id in teacher_filtered_dict:
                     teacher_filtered_dict[self.id].add_class(subject.id, cls)
         else:
-            if next((False for s in c_subject.subjects if s.teacher is None), True):
-                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, -cls_level.subjects_occurence[c_subject_id].week_max)
-            
+            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
             u_subject.teacher = None
+            if next((True for s in c_subject.subjects if s.teacher is not None), False):
+                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
             
             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
                 if self.id in teacher_filtered_dict:
@@ -1181,10 +1184,10 @@ class OccuranceEditor(BaseSettingDialog):
                         (
                             cls.subjects[subject_id].teacher is not None
                             if isinstance(cls.subjects[subject_id], Subject) else
-                            next((False for s in cls.subjects[subject_id].subjects if s.teacher is None), True)
+                            next((True for s in cls.subjects[subject_id].subjects if s.teacher is not None), False)
                         )
                     ):
-                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, diff)
+                    self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, number)
             
             if not self.__init:
                 self._parent.window().saved_state_changed.emit(True)
