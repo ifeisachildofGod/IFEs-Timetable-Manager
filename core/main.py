@@ -282,14 +282,13 @@ class GeneratingData:
     combined_subjects: dict[list[ID], list[ID]]
 
 
-TimetableTableType = dict[str, list[Subject | CombinedSubject | BreakPeriod | FreePeriod]]
 class Timetable:
     def __init__(self, cls: Class, class_levels: dict[ID, ClassLevel], gen_data: GeneratingData):
         self.cls = cls
         self.gen_data = gen_data
         self.class_levels = class_levels
         
-        self.table: TimetableTableType = {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays}
+        self.table: dict[str, list[Subject | CombinedSubject | BreakPeriod | FreePeriod]] = {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays}
         self.table_remains: list[Subject] = list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.id in cls.level.subjects_occurence and s.teacher is not None]))
         
         self._log_data: dict = {}
@@ -341,7 +340,7 @@ class Timetable:
             self._log_data[s_id].append(((day, p_index + 1), "Period out of table range"))
             return -math.inf
         
-        assert subject.teacher, f"{self.cls.level.name.full()} {self.cls.name} does not have a {subject.name.full()} teacher"
+        assert subject.teacher if isinstance(subject, Subject) else next((True for s in subject.subjects if s.teacher is not None), False), f"{self.cls.level.name.full()} {self.cls.name} does not have a {subject.name.full()} teacher"
         
         if (
                 period.id != FreePeriod.id or
@@ -387,17 +386,17 @@ class Timetable:
                         if isinstance(subject, Subject):
                             is_clashing = subject.teacher.id == s_teacher.id
                         elif isinstance(subject, CombinedSubject):
-                            is_clashing = s_teacher.id in s_teacher
+                            is_clashing = s_teacher.id in [s.teacher.id for s in subject.subjects if s.teacher is not None]
                     elif isinstance(s_teacher, list):
                         if isinstance(subject, Subject):
                             is_clashing = subject.teacher.id in s_teacher
                         elif isinstance(subject, CombinedSubject):
-                            is_clashing = next((True for t_id in s_teacher if t_id in [(s.teacher.id if s.teacher else None) for s in subject.subjects]), False)
+                            is_clashing = next((True for t_id in s_teacher if t_id in [s.teacher.id for s in subject.subjects if s.teacher is not None]), False)
                     
                     assert is_clashing is not None, "Internal Error: Clash check type mismatch"
                     
-                    if is_clashing and not combined:
-                        self._log_data[s_id].append(((day, p_index + 1), f"Alignment Error: Subject is{"not " if isinstance(subject.teacher, Teacher) else ""} combined and{"" if isinstance(subject.teacher, Teacher) else "not "} clashing/aligned with {"another subject" if isinstance(s_teacher, Teacher) else "any subject"}"))
+                    if is_clashing ^ combined:
+                        self._log_data[s_id].append(((day, p_index + 1), f"Alignment Error: Subject is{"not " if isinstance(subject, Subject) else ""} combined and{"" if isinstance(subject, Subject) else "not "} clashing/aligned with {"another subject" if isinstance(s_teacher, Teacher) else "any subject"}"))
                         
                         return -math.inf
         else:

@@ -370,7 +370,7 @@ class SubjectsMainWidget(BaseSettingWidget):
         final_entry = super().add(entry, index, focus, button_index)
         
         if entry is None:
-            SCHOOL.subjects.add(final_entry)
+            SCHOOL.subjects.add(final_entry, index)
         
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
@@ -392,7 +392,7 @@ class TeachersMainWidget(BaseSettingWidget):
         final_entry = super().add(entry, index, focus)
         
         if entry is None:
-            SCHOOL.teachers.add(final_entry)
+            SCHOOL.teachers.add(final_entry, index)
         
         self.attendance_manager.staff_list_widget.add_staff(final_entry)
         
@@ -416,7 +416,7 @@ class ClassLevelsMainWidget(BaseSettingWidget):
         final_entry: ClassLevel = super().add(entry, index, focus)
         
         if entry is None:
-            SCHOOL.class_levels.add(final_entry)
+            SCHOOL.class_levels.add(final_entry, index)
         
         self.timetable_editor.add_timetable_level(final_entry)
         

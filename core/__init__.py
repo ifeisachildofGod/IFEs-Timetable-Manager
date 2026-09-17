@@ -53,10 +53,17 @@ class Global(dict[ID, _T]):
     def set_school(self, school: "School"):
         self.school = school
     
-    def add(self, entry: _T):
+    def add(self, entry: _T, index: Optional[int] = None):
         assert entry.id not in self, f"{entry.__class__.__name__} (ID: {entry.id}) exists already as {self[entry.id].__class__.__name__} {self[entry.id].name.full()}"
         
-        self[entry.id] = entry
+        if index is None:
+            self[entry.id] = entry
+        else:
+            items = list(self.items())
+            items.insert(index, (entry.id, entry))
+            
+            self.clear()
+            self.update(dict(items))
     
     def remove(self, id: ID):
         self.pop(id)
@@ -69,12 +76,12 @@ class GlobalTeachers(Global[Teacher]):
     pass
 
 class GlobalClassLevels(Global[ClassLevel]):
-    def add(self, entry: ClassLevel):
+    def add(self, entry: ClassLevel, index):
         self.school.settings.TEACHER_rsma_mapping[entry.id] = None
         self.school.settings.TIMETABLE_time_settings[entry.id] = {"Everyday": SCHOOL.settings.DEFAULT_timetable_time_setting.copy()}
         self.school.settings.EXPORT_selected_classes[entry.id] = []
         
-        return super().add(entry)
+        return super().add(entry, index)
     
     def add_class(self, id: ID, cls: Class):
         self[id].classes[cls.id] = cls
