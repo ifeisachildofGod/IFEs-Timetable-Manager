@@ -1,6 +1,7 @@
 
 """Core framework backbone"""
 
+import json
 import random
 from dataclasses import dataclass
 from typing import Optional, TypeVar
@@ -124,7 +125,7 @@ class School:
         self.prefects = {}
         self.class_levels = GlobalClassLevels(self)
         
-        self.gen_data = GeneratingData({}, {}, {}, {})
+        self.gen_data = GeneratingData({}, {}, {}, [])
         self.settings = Settings(
             "dark-blue",
             10, 7, 3, (1, 1), TimetableTime(Time(8, 10, 0), 35, 35),
@@ -196,38 +197,81 @@ class School:
         
         clashes: dict[tuple[tuple[str, int], tuple[ID, ID]], list[Class]] = {}
         
-        days_uid_tracker: dict[str, list[tuple[tuple[ID, ID], Class]]] = {}
+        days_uid_tracker: dict[str, dict[tuple[str, int], list[tuple[tuple[ID, ID], Class]]]] = {}
         
         for class_level in self.class_levels.values():
             for c_id, cls in class_level.classes.items():
                 for day, periods in cls.timetable.table.items():
                     if day not in days_uid_tracker:
-                        days_uid_tracker[day] = [[((s.id, s.teacher.id), s.classes[c_id]) if s.id not in (FreePeriod.id, BreakPeriod.id) else (None, None)] for s in periods]
+                        days_uid_tracker[day] = {}
+                        
+                        for i, subj in enumerate(periods):
+                            if subj.id in (FreePeriod.id, BreakPeriod.id):
+                                continue
+                            
+                            if isinstance(subj, CombinedSubject):
+                                subjs = [s for s in subj.subjects if s.teacher is not None]
+                            elif isinstance(subj, Subject):
+                                if subj.teacher is not None:
+                                    continue
+                                
+                                subjs = [subj]
+                            
+                            if i not in days_uid_tracker:
+                                days_uid_tracker[day][i] = []
+                            
+                            for s in subjs:
+                                days_uid_tracker[day][i].append(((s.id, s.teacher.id, i), s.classes[c_id]))
+                        
                         continue
                     
                     for i, subj in enumerate(periods):
-                        if subj.id not in (FreePeriod.id, BreakPeriod.id):
-                            s_uid = subj.id, subj.teacher.id
+                        if subj.id in (FreePeriod.id, BreakPeriod.id):
+                            continue
+                        
+                        if isinstance(subj, CombinedSubject):
+                            subjs = [s for s in subj.subjects]
+                        elif isinstance(subj, Subject):
+                            assert subj.teacher is not None
                             
-                            key = (day, i), s_uid
-                            cls = subj.classes[c_id]
+                            subjs = [subj]
+                        
+                        for s in subjs:
+                            if s.teacher is None:
+                                continue
                             
-                            if i < len(days_uid_tracker[day]):
-                                clash_subject_index = next((j for j, (uid, c) in enumerate(days_uid_tracker[day][i]) if s_uid == uid and c.id != cls.id), None)
+                            key = (day, i), (s_uid := (s.id, s.teacher.id))
+                            cls = s.classes[c_id]
+                            
+                            if i in days_uid_tracker[day]:
+                                clash_data = next(((j, uid, c) for j, (uid, c) in enumerate(days_uid_tracker[day][i]) if (s_uid == uid) and c.id != cls.id), None)
                                 
-                                if clash_subject_index is not None:
-                                    if key not in clashes:
-                                        clashes[key] = []
+                                if clash_data is not None:
+                                    clash_subject_index, (o_s_id, _, _), o_cls = clash_data
                                     
-                                    clash_cls = days_uid_tracker[day][i][clash_subject_index][1]
+                                    is_combined = next(
+                                        (
+                                            True
+                                            for s_list, c_list in
+                                            cls.timetable.gen_data.combined_subjects.items()
+                                            if (subj.id in s_list and o_s_id in s_list) and (cls.id in c_list and o_cls.id in c_list)
+                                        ),
+                                        False
+                                    )
                                     
-                                    if clash_cls not in clashes[key]:
-                                        clashes[key].append(clash_cls)
-                                    
-                                    clashes[key].append(cls)
+                                    if not is_combined:
+                                        if key not in clashes:
+                                            clashes[key] = []
+                                        
+                                        clash_cls = days_uid_tracker[day][i][clash_subject_index][1]
+                                        
+                                        if clash_cls not in clashes[key]:
+                                            clashes[key].append(clash_cls)
+                                        
+                                        clashes[key].append(cls)
                                 else:
                                     days_uid_tracker[day][i].append((s_uid, cls))
-        
+        print(days_uid_tracker)
         return clashes
     
     def detect_islands(self):
@@ -562,7 +606,7 @@ SCHOOL = School()
 
 if __name__ == "__main__":
     def display_school(sch: School):
-        for _, cls_lvl in sch.class_levels:
+        for cls_lvl in sch.class_levels.values():
             for cls in cls_lvl.classes.values():
                 print(cls_lvl.name.full(), cls.name)
                 for day, periods in cls.timetable.table.items():
@@ -579,15 +623,15 @@ if __name__ == "__main__":
         data = file.read()
     
     sch = School.from_template(data)
-    print(2)
     
     print("Started Generating")
-    sch.generate()
+    for cls_lvl in sch.class_levels.values():
+        for cls in cls_lvl.classes.values():
+            cls.timetable.generate()
     print("Started Clash detection")
     print(sch.detect_clashes())
     print("Ended")
     print()
-    print(11)
     
     display_school(sch)
 

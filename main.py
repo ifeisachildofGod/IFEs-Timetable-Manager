@@ -82,19 +82,14 @@ class Window(QMainWindow):
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
-        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(v) if v else None)
+        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(f"Search {v}") if v else self.title_bar.search_pb.setText(None))
         
-        # Create viewing container
-        main_container = BaseWidget()
-        main_container.setContentsMargins(0, 0, 5, 5)
-        
+        # Title bar widget
         self.title_bar = MainTitleBar(self, menu_bar, self._get_search_scope, self._goto_search, self.go_back, self.go_forward)
-        main_container.addWidget(self.title_bar)
         
         # Create viewing container
         viewing_container = BaseWidget(QHBoxLayout)
         viewing_container.setContentsMargins(0, 10, 5, 5)
-        main_container.addWidget(viewing_container)
         
         # Create sidebar
         main_sidebar_widget = BaseWidget(QHBoxLayout)
@@ -150,7 +145,6 @@ class Window(QMainWindow):
         viewing_container.addWidget(main_sidebar_widget)
         viewing_container.addWidget(self.stack)
         
-        self.setCentralWidget(main_container)
         subjects_btn.click()  # Start with subjects page selected
         
         self.go_back_action.setDisabled(True)
@@ -162,6 +156,15 @@ class Window(QMainWindow):
         self.view_tracker = [self.option_buttons[0]]
         
         self.auto_save_action.setChecked(SCHOOL.settings.auto_save)
+        
+        # Create viewing widget
+        central_widget = BaseWidget()
+        central_widget.setContentsMargins(0, 0, 5, 5)
+        
+        central_widget.addWidget(self.title_bar)
+        central_widget.addWidget(viewing_container)
+        
+        self.setCentralWidget(central_widget)
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -467,11 +470,10 @@ class Window(QMainWindow):
                     
                     self.view_tracker.append(self.option_buttons[index])
                 
-                self.title_bar.search_pb.setText(f"Search {name}")
+                self.title_bar.search_pb.setDisabled(index == 5)
+                self.title_bar.search_pb.setText(None if index == 5 else f"Search {name}")
                 
-                if self.display_index != index:
-                    self.title_bar.search_pb.setDisabled(index == 5)
-                    self.stack.setCurrentWidget(self.option_buttons[index][1])
+                self.stack.setCurrentWidget(self.option_buttons[index][1])
                 
                 self.display_index = index
             

@@ -84,7 +84,7 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
         if data.is_check_in:
             _, layout_2_2 = create_widget(layout_2, QVBoxLayout)
             
-            widget_2_2_2, layout_2_2_2 = create_scrollable_widget(None, QVBoxLayout)
+            widget_2_2_2 = BaseScrollWidget()
             
             layout_2_2.addWidget(LabeledField("Subjects", widget_2_2_2, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
             
@@ -120,7 +120,7 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
                     for period in periods:
                         layout_2_2_2_1_1.addWidget(QLabel(f"{positionify(str(period))} period"), alignment=Qt.AlignmentFlag.AlignTop)
                     layout_2_2_2_1.addWidget(LabeledField(cls_name, widget_2_2_2_1_1), int(index / 3), index % 3)
-                layout_2_2_2.addWidget(LabeledField(subject_name, widget_2_2_2_1))
+                widget_2_2_2.addWidget(LabeledField(subject_name, widget_2_2_2_1))
 
 class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
     def __init__(self, data: AttendanceEntry):
@@ -165,10 +165,10 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         self.update_class_name(self.staff.cls)
         
         if data.is_check_in:
-            widget_1_3_1, layout_1_3_1 = create_scrollable_widget(None, QVBoxLayout)
+            widget_1_3_1 = BaseScrollWidget()
             
             for index, duty in enumerate(self.staff.duties.get(self.data.period.day, [])):
-                layout_1_3_1.addWidget(QLabel(f"{index + 1}. {duty}"))
+                widget_1_3_1.addWidget(QLabel(f"{index + 1}. {duty}"))
             
             layout_2_2.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         
@@ -206,7 +206,7 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
         
         self.subj_data_widget = BaseScrollWidget()
         self.subj_data_widget.setMinimumHeight(110)
-        self.subj_data_widget.getWidget().setMinimumHeight(110)
+        self.subj_data_widget.setMinimumHeight(110)
         
         for subject in self.staff.subjects.values():
             self.add_subject(subject)

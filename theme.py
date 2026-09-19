@@ -799,7 +799,7 @@ STYLESHEET = '''
         background: none;
     }}
     
-    QSpinBox {{
+    QSpinBox, QTimeEdit {{
         color: {text};
         background-color: {bg4};
         border: 1px solid {maximum};

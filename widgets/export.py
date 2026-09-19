@@ -548,7 +548,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.select_all_cb.clicked.connect(self._select_sch)
         
         self.sch_subject_selection_widget = BaseScrollWidget()
-        self.sch_subject_selection_widget.getScrollWidget().setFixedHeight(300)
+        self.sch_subject_selection_widget.setFixedHeight(300)
         self.sch_subject_selection_widget.addStretch()
         
         sch_subject_selection_widget_dp = WidgetDropdown("Select Classes", self.sch_subject_selection_widget)

@@ -77,9 +77,7 @@ class ClashOverlay(UnMouseableOverlay):
         clash_rects: list[tuple[QColor, list[tuple[QRectF, Subject | CombinedSubject, tuple[str, int]]]]] = []
         positions_connections_alignment_mappings = {}
         
-        for (pos, (s_id, _)), classes in SCHOOL.detect_clashes().items():
-            day, row = pos
-            
+        for ((day, row), (s_id, _)), classes in SCHOOL.detect_clashes().items():
             clash_rects.append([None, []])
             
             for cls in classes:
@@ -144,7 +142,7 @@ class IslandOverlay(UnMouseableOverlay):
                 painter.drawRoundedRect(island_rect, 5, 5)
                 
                 painter.setPen(QColor(THEME_MANAGER.process_stylesheet("{primary_text}")))
-                painter.drawText(island_rect, Qt.AlignmentFlag.AlignCenter, cls.subjects[s_id].name.short())
+                painter.drawText(island_rect, Qt.AlignmentFlag.AlignCenter, SCHOOL.subjects[s_id].name.short())
         
         return super().paintEvent(a0)
 
@@ -214,10 +212,11 @@ class ClashDisplayDialog(BaseDialogWidget):
         
         for ((day, row), (s_id, t_id)), classes in SCHOOL.detect_clashes().items():
             for cls in classes:
-                subject = cls.subjects[s_id]
+                subject = SCHOOL.subjects[s_id]
+                teacher = SCHOOL.teachers[t_id]
                 
                 if t_id not in self.main_teacher_widgets:
-                    self.main_teacher_widgets[t_id] = WidgetDropdown(subject.teacher.name.full(), BaseWidget())
+                    self.main_teacher_widgets[t_id] = WidgetDropdown(teacher.name.full(), BaseWidget())
                     self.addWidget(self.main_teacher_widgets[t_id])
                     
                     self.subjects_widgets[t_id] = {}
@@ -244,6 +243,121 @@ class ClashDisplayDialog(BaseDialogWidget):
         self.addStretch()
         
         return super().exec()
+
+class CombinationEditor(BaseWidget):
+    def __init__(self):
+        super().__init__()
+        
+        self.setFixedHeight(300)
+        
+        self.combo_box_widgets: list[dict[str, list[QComboBox]]] = []
+        
+        self.sets_widget = BaseScrollWidget() ; self.sets_widget.addStretch()
+        add_set_pb = QPushButton("Add Set") ; add_set_pb.clicked.connect(self.make_combination_set)
+        
+        self.addWidget(self.sets_widget)
+        self.addWidget(add_set_pb, alignment=Qt.AlignmentFlag.AlignRight)
+    
+    def make_combination_set(self):
+        def removed_set_func():
+            index = self.sets_widget.indexOf(combination_set_widget)
+            SCHOOL.gen_data.combined_subjects.pop(index)
+            
+            self.sets_widget.removeWidget(combination_set_widget)
+        
+        def add_subject_func():
+            def delete_func():
+                subject_index = subjects_widget.indexOf(subject_widget)
+                
+                self.combo_box_widgets[index]["subjects"].pop(subject_index)
+                subjects_widget.removeWidget(subject_widget) ; subject_widget.deleteLater()
+            
+            index = self.sets_widget.indexOf(combination_set_widget)
+            
+            subject_widget = BaseWidget(QHBoxLayout)
+            
+            subjects_cb = QComboBox()
+            subjects_cb.setFixedWidth(25)
+            # subjects_cb.addItems()
+            
+            delete_pb = QPushButton("×")
+            delete_pb.setProperty("class", "SettingEntryClose")
+            delete_pb.clicked.connect(delete_func)
+            
+            subject_widget.addWidget(subjects_cb)
+            subject_widget.addWidget(delete_pb)
+            
+            self.combo_box_widgets[index]["subjects"].append(subjects_cb)
+            subjects_widget.insertWidget(len(subjects_widget.getChildren(BaseWidget)), subject_widget)
+        
+        def add_class_func():
+            def delete_func():
+                class_index = classes_widget.indexOf(class_widget)
+                
+                self.combo_box_widgets[index]["classes"].pop(class_index)
+                classes_widget.removeWidget(class_widget) ; class_widget.deleteLater()
+                
+                if not self.combo_box_widgets[index]["classes"]:
+                    add_subject_pb.setDisabled(True)
+            
+            add_subject_pb.setDisabled(False)
+            
+            index = self.sets_widget.indexOf(combination_set_widget)
+            
+            class_widget = BaseWidget(QHBoxLayout)
+            
+            classes_cb = QComboBox()
+            classes_cb.setFixedWidth(25)
+            # classes_cb.addItems()
+            
+            delete_pb = QPushButton("×")
+            delete_pb.setProperty("class", "SettingEntryClose")
+            delete_pb.clicked.connect(delete_func)
+            
+            class_widget.addWidget(classes_cb)
+            class_widget.addWidget(delete_pb)
+            
+            self.combo_box_widgets[index]["classes"].append(classes_cb)
+            classes_widget.insertWidget(len(classes_widget.getChildren(BaseWidget)), class_widget)
+        
+        self.combo_box_widgets.append({"subjects": [], "classes": []})
+        SCHOOL.gen_data.combined_subjects.append(([], []))
+        
+        combination_set_widget = BaseWidget()
+        
+        cancel_pb = QPushButton("×")
+        cancel_pb.setProperty("class", "SettingEntryClose")
+        cancel_pb.clicked.connect(removed_set_func)
+        
+        title_widget = BaseWidget(QHBoxLayout)
+        title_widget.addWidget(QLabel("Subjects"))
+        title_widget.addStretch()
+        title_widget.addWidget(QLabel("Classes"))
+        
+        main_set_widget = BaseWidget(QHBoxLayout)
+        main_set_widget.setProperty("class", "BG_Color")
+        main_set_widget.setStyleSheet("QWidget.BG_Color {background-color: #999}")
+        main_set_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        main_set_widget.addWidget((subjects_widget := BaseWidget()), stretch=5) ; subjects_widget.addStretch()
+        main_set_widget.addWidget((classes_widget := BaseWidget()), stretch=5) ; classes_widget.addStretch()
+        
+        buttons_area_widget = BaseWidget(QHBoxLayout)
+        add_subject_pb = QPushButton("Add Subject")
+        add_subject_pb.setDisabled(True)
+        add_subject_pb.clicked.connect(add_subject_func)
+        add_class_pb = QPushButton("Add Class")
+        add_class_pb.clicked.connect(add_class_func)
+        buttons_area_widget.addWidget(add_subject_pb)
+        buttons_area_widget.addStretch()
+        buttons_area_widget.addWidget(add_class_pb)
+        
+        combination_set_widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
+        combination_set_widget.addSpacing(5)
+        combination_set_widget.addWidget(title_widget)
+        combination_set_widget.addWidget(main_set_widget)
+        combination_set_widget.addWidget(buttons_area_widget)
+        
+        self.sets_widget.insertWidget(len(self.sets_widget.getChildren(BaseWidget)), combination_set_widget)
 
 
 class ExtraSubjectDraggableLabel(QLabel):
@@ -1025,8 +1139,8 @@ class SchoolTimetableEditor(BaseWidget):
         return func
     
     def make_class_level_settings(self, cls_level: ClassLevel):
-        widget = BaseWidget()
-        widget.setFixedWidth(350)
+        widget = BaseScrollWidget()
+        widget.setFixedSize(450, 450)
         
         def _generate():
             for cls in cls_level.classes.values():
@@ -1170,7 +1284,10 @@ class SchoolTimetableEditor(BaseWidget):
             cancel_pb.setProperty("class", "SettingEntryClose")
             cancel_pb.clicked.connect(removed)
             
-            top_widget = BaseWidget(QHBoxLayout) ; top_widget.addWidget(day_cb) ; top_widget.addStretch() ; top_widget.addWidget(cancel_pb)
+            top_widget = BaseWidget(QHBoxLayout)
+            top_widget.addWidget(day_cb)
+            top_widget.addStretch()
+            top_widget.addWidget(cancel_pb)
             
             day_time_widget.addWidget(top_widget)
             day_time_widget.addWidget(TimetableTimeEditor(self, time_setting))
@@ -1198,7 +1315,7 @@ class SchoolTimetableEditor(BaseWidget):
         
         _init = True
         
-        period_amt_edit = NumberLineEdit(cls_level.period_amount, 1, 20)
+        period_amt_edit = NumberLineEdit(cls_level.period_amount, 1, 25)
         period_amt_edit.setPlaceholderText("Periods Amt")
         period_amt_edit.textChanged.connect(period_amt_changed)
         
@@ -1218,7 +1335,10 @@ class SchoolTimetableEditor(BaseWidget):
         timing_area_widget = BaseWidget()
         
         timing_widget = BaseScrollWidget()
-        add_new_day_pb = QPushButton("Add new") ; add_new_day_pb.clicked.connect(lambda: new_day_added(None, None))
+        timing_widget.setFixedHeight(200)
+        
+        add_new_day_pb = QPushButton("Add new")
+        add_new_day_pb.clicked.connect(lambda: new_day_added(None, None))
         
         timing_area_widget.addWidget(timing_widget)
         timing_area_widget.addWidget(add_new_day_pb, alignment=Qt.AlignmentFlag.AlignRight)
@@ -1228,6 +1348,8 @@ class SchoolTimetableEditor(BaseWidget):
                 _add_everyday(False)
             else:
                 new_day_added(name, content)
+        
+        combination_editor = CombinationEditor()
         
         widget.addWidget(LabeledWidget("Period Amount", period_amt_edit))
         widget.addWidget(LabeledWidget("Break Period", breakperiod_edit))
@@ -1239,6 +1361,10 @@ class SchoolTimetableEditor(BaseWidget):
         widget.addSpacing(10)
         widget.addWidget(randomize_button)
         widget.addSpacing(10)
+        widget.addWidget(QLabel("Combined Subjects"))
+        widget.addWidget(combination_editor)
+        widget.addSpacing(10)
+        widget.addWidget(QLabel("Period Timing"))
         widget.addWidget(timing_area_widget)
         
         self.level_randomize_cbs[cls_level.id] = randomize_button

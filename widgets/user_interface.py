@@ -339,7 +339,7 @@ class SearchEdit(QFrame):
         self.options_widget_wrapper.addStretch()
         
         self.options_widget_wrapper.setFixedWidth(496)
-        self.options_widget_wrapper.setMinimumHeight(220)
+        self.options_widget_wrapper.setFixedHeight(220)
         self.options_widget_wrapper.setVisible(False)
 
         self.main_layout.addWidget(self.options_widget_wrapper, alignment=Qt.AlignmentFlag.AlignTop)

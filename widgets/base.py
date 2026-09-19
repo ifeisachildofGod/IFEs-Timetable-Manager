@@ -286,6 +286,12 @@ class BaseScrollWidget(BaseWidget):
         
         layout.addWidget(self.scroll_widget)
     
+    def setFixedWidth(self, width):
+        self.getScrollWidget().setFixedWidth(width)
+    
+    def setFixedHeight(self, height):
+        self.getScrollWidget().setFixedHeight(height)
+    
     def getWidgets(self):
         return [self.scroll_widget]
 

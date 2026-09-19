@@ -25,14 +25,14 @@ class BaseSelectionList(BaseSettingDialog):
         # Add selected items
         for item_id, item in selected_items:
             selected_ids.append(item_id)
-            widget = _SL_SelectedWidget(self, item_id, item.name.full(), self.getLayout(), self.item_removed, self.item_selected, self._parent.window())
+            widget = _SL_SelectedWidget(self, item_id, item.name.full(), self.item_removed, self.item_selected, self._parent.window())
             
             self.addWidget(widget)
         
         # Add unselected items
         for item_id, item in content_scope.items():
             if item_id not in selected_ids:
-                widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.getLayout(), self.item_selected, self.item_removed, self._parent.window())
+                widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window())
                 
                 self.addWidget(widget)
         
@@ -75,13 +75,50 @@ class SubjectSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
         self.subject = SCHOOL.subjects[id]
         
-        selected_iter = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
+        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and next((True for s_s in s.subjects if s_s.id == id), False)]
+        
+        selected, scope = self._get_list_data(id)
+        
+        super().__init__(parent, id, title, selected.items(), scope, attendance_manager)
+    
+    def _get_list_data(self, id: ID):
+        selected = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
         
         scope = SCHOOL.teachers
-        if next((False for cls in self.subject.classes.values() if cls.subjects[id].teacher is None), True):
-            scope = selected_iter.copy()
+        if next(
+                (
+                    False
+                    for cls in
+                    self.subject.classes.values()
+                    if (
+                        (id in cls.subjects and cls.subjects[id].teacher is None) or
+                        next(
+                            (
+                                True
+                                for s in
+                                self.combined_subjects
+                                if (
+                                    s.id in cls.subjects and
+                                    next(
+                                        (
+                                            True
+                                            for s_s in
+                                            cls.subjects[s.id].subjects
+                                            if s_s.id == id and s_s.teacher is None
+                                        ),
+                                        False
+                                    )
+                                )
+                            ),
+                            False
+                        )
+                    )
+                ),
+                True
+            ):
+            scope = selected.copy()
         
-        super().__init__(parent, id, title, iter(selected_iter.items()), scope, attendance_manager)
+        return selected, scope
     
     def item_selected(self, id: ID):
         SCHOOL.teachers[id].subjects[self.id] = self.subject
@@ -94,8 +131,25 @@ class SubjectSelectionList(BaseSelectionList):
         SCHOOL.teachers[id].subjects.pop(self.id)
         
         for cls in self.subject.classes.values():
-            if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
-                cls.subjects[self.id].teacher = None
+            if self.id in cls.subjects:
+                if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
+                    cls.subjects[self.id].teacher = None
+            else:
+                for s in self.combined_subjects:
+                    if s.id not in cls.subjects:
+                        continue
+                    
+                    for s_s in cls.subjects[s.id].subjects:
+                        if s_s.id == self.id and s_s.teacher is not None and s_s.teacher.id == id:
+                            s_s.teacher = None
+        
+        _, scope = self._get_list_data(self.id)
+        selected_ids = [item_id for item_id, item_widget in self.widgets if isinstance(item_widget, _SL_SelectedWidget)]
+        
+        for item_id, item in scope.items():
+            if item_id not in selected_ids and item_id not in self.widgets:
+                widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window())
+                self.addWidget(widget)
         
         for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
             if id in staff_widget_dict:
@@ -108,7 +162,7 @@ class CombinedSubjectSelectionList(BaseSelectionList):
         self.selected_items = {s.id: s for s in self.c_subject.subjects}
         self.full_scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if self._scope_check(s)}
         
-        super().__init__(parent, id, title, iter(self.selected_items.items()), self.full_scope, attendance_manager)
+        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope, attendance_manager)
     
     def _scope_check(self, subject: Subject | CombinedSubject):
         return isinstance(subject, Subject) and subject.classes
@@ -151,7 +205,7 @@ class TeacherSelectionList(BaseSelectionList):
         self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
         scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(id, s)}
         
-        super().__init__(parent, id, title, iter(self.teacher.subjects.items()), scope, attendance_manager)
+        super().__init__(parent, id, title, self.teacher.subjects.items(), scope, attendance_manager)
     
     def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
         if not isinstance(subject, Subject):
@@ -1318,14 +1372,13 @@ class ClassOptionsMaker(BaseSettingDialog):
 
 
 class SelectWidget(BaseWidget):
-    def __init__(self, parent: BaseSelectionList, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None], window: QMainWindow):
+    def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None], window: QMainWindow):
         super().__init__(QHBoxLayout)
         
         self.id = id
         self.text = text
         self._parent = parent
         self._window = window
-        self.host_container_layout = host_container_layout
         
         self.on_remove = on_remove
         self.on_opp_remove = on_opp_remove
@@ -1355,33 +1408,20 @@ class SelectWidget(BaseWidget):
         raise NotImplementedError()
 
 class _SL_SelectedWidget(SelectWidget):
-    def __init__(self, parent: BaseSelectionList, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove, on_opp_remove, window):
-        super().__init__(parent, id, text, host_container_layout, on_remove, on_opp_remove, window)
+    def __init__(self, parent, id, text, on_remove, on_opp_remove, window):
+        super().__init__(parent, id, text, on_remove, on_opp_remove, window)
         
         self.setProperty("class", "SelectedSelectionListEntry")
     
     def get_new_widget_index(self):
-        insert_index = self.host_container_layout.count() - 1
-        
-        for i in range(self.host_container_layout.count() - 1, -1, -1):
-            if isinstance(self.host_container_layout.itemAt(i).widget(), _SL_UnSelectedWidget):
-                insert_index = i
-                break
-        
-        return insert_index, _SL_UnSelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_opp_remove, self.on_remove, self._window)
+        return len(self._parent.widgets), _SL_UnSelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window)
 
 class _SL_UnSelectedWidget(SelectWidget):
-    def __init__(self, parent: BaseSelectionList, id: ID, text: str, host_container_layout: QVBoxLayout, on_remove, on_opp_remove, window):
-        super().__init__(parent, id, text, host_container_layout, on_remove, on_opp_remove, window)
+    def __init__(self, parent, id, text, on_remove, on_opp_remove, window):
+        super().__init__(parent, id, text, on_remove, on_opp_remove, window)
         
         self.setProperty("class", "UnselectedSelectionListEntry")
     
     def get_new_widget_index(self):
-        insert_index = 0
-        
-        for i in range(self.host_container_layout.count()):
-            if isinstance(self.host_container_layout.itemAt(i).widget(), _SL_SelectedWidget):
-                insert_index = i + 1
-        
-        return insert_index, _SL_SelectedWidget(self._parent, self.id, self.text, self.host_container_layout, self.on_opp_remove, self.on_remove, self._window)
+        return sum(1 for widget in self._parent.widgets.values() if isinstance(widget, _SL_SelectedWidget)), _SL_SelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window)
 

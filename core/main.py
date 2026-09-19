@@ -278,8 +278,8 @@ class GeneratingData:
     #                          ClassID  SubjectID    Day  Weight
     subject_clumping_weights: dict[ID, dict[ID, dict[str, float]]]
     
-    #                       SubjectID  ClassIDs
-    combined_subjects: dict[list[ID], list[ID]]
+    #                            SubjectID  ClassIDs
+    combined_subjects: list[tuple[list[ID], list[ID]]]
 
 
 class Timetable:
@@ -370,11 +370,11 @@ class Timetable:
                     
                     assert s_teacher, f"{s_cls.level.name.full()} {s_cls.name} does not have a {s_subject.name.full()} teacher"
                     
-                    combined = next(
+                    is_combined = next(
                         (
                             True
                             for s_list, c_list in
-                            self.gen_data.combined_subjects.items()
+                            self.gen_data.combined_subjects
                             if (s_id in s_list and s_subject.id in s_list) and (self.cls.id in c_list and s_cls.id in c_list)
                         ),
                         False
@@ -395,7 +395,7 @@ class Timetable:
                     
                     assert is_clashing is not None, "Internal Error: Clash check type mismatch"
                     
-                    if is_clashing ^ combined:
+                    if is_clashing ^ is_combined:
                         self._log_data[s_id].append(((day, p_index + 1), f"Alignment Error: Subject is{"not " if isinstance(subject, Subject) else ""} combined and{"" if isinstance(subject, Subject) else "not "} clashing/aligned with {"another subject" if isinstance(s_teacher, Teacher) else "any subject"}"))
                         
                         return -math.inf
