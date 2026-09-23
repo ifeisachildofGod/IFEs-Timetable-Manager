@@ -1,4 +1,6 @@
 
+# from widgets.base import BaseScrollWidget
+
 from ..base_widgets import *
 from ..data_display_widgets import *
 
@@ -13,11 +15,11 @@ class StaffDataWidget(BaseOptionsWidget):
             self.staff_working_days[prefect.id] = list(prefect.duties)
         
         for teacher in SCHOOL.teachers.values():
-            self.staff_working_days[teacher.id] = list(set(flatten([[d for d, _ in s.get_periods()] for s in teacher.subjects.values()])))
+            self.staff_working_days[teacher.id] = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == teacher.id] for s in teacher.subjects.values()])))
         
         self.attendance_amt_widget = QLabel()
         
-        staff_data_widget, self.staff_data_layout = create_widget(None, QVBoxLayout)
+        self.staff_data_widget = BaseWidget()
         
         self.punctuality_widget: GraphWidget | None = None
         
@@ -32,7 +34,7 @@ class StaffDataWidget(BaseOptionsWidget):
         stats_widget.setMinimumHeight(200)
         stats_layout.setSpacing(150)
         
-        stats_layout.addWidget(staff_data_widget, alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
+        stats_layout.addWidget(self.staff_data_widget, alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
         stats_layout.addWidget(self.attendance_amt_widget, alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
         
         chart_layout.addWidget(self.attendance_widget)
@@ -86,7 +88,7 @@ class StaffDataWidget(BaseOptionsWidget):
         if isinstance(staff, Teacher):
             timeline_dates = SCHOOL.attendance.teacher_timeline_dates
             cit = SCHOOL.attendance.teacher_cit
-            working_days = list(set(flatten([[d for d, _ in s.get_periods()] for s in staff.subjects.values()])))
+            working_days = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == staff.id] for s in staff.subjects.values()])))
         elif isinstance(staff, Prefect):
             timeline_dates = SCHOOL.attendance.prefect_timeline_dates
             cit = SCHOOL.attendance.prefect_cit
@@ -106,7 +108,7 @@ class StaffDataWidget(BaseOptionsWidget):
     def set_self(self, staff):
         super().set_self(staff)
         
-        clear_layout(self.staff_data_layout)
+        self.staff_data_widget.clearLayout()
         
         if isinstance(staff, Teacher):
             bar_title = f"{staff.name.full()}'s Monthly Cummulative Attendance Chart"
@@ -168,7 +170,7 @@ class StaffDataWidget(BaseOptionsWidget):
         self.attendance_amt_widget.setText(
             f"""
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Total Attended:  </span>
+                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Total Attendance:  </span>
                 <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
                         {str(sum(amt_attended for amt_attended, _ in weeks_data.values())) if plot_data else "No Data"}
                     </span>
@@ -225,30 +227,51 @@ class StaffDataWidget(BaseOptionsWidget):
                 </span>
             """
         
-        self.staff_data_layout.addWidget(QLabel(staff_data_base_content))
+        self.staff_data_widget.addWidget(QLabel(staff_data_base_content))
         
         duties_widget, duties_layout = create_widget(None, QVBoxLayout)
         
         if isinstance(staff, Teacher):
-            duty_days_map: dict[str, QLabel] = {}
+            duty_days_map: dict[str, dict[str, QLabel]] = {}
             
             for subject in staff.subjects.values():
-                for day, _ in subject.get_periods():
-                    if day not in duty_days_map:
-                        duty_days_map[day] = QLabel()
-                        duties_layout.addWidget(LabeledField(day, duty_days_map[day]))
+                cls_displayed_list = []
+                
+                for cls_id, cls in subject.classes.items():
+                    subject_periods = []
                     
-                    duty_days_map[day].setText(
-                        duty_days_map[day].text() + f"""
-                            <span>
-                                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>{subject.cls.name}:  </span>
-                                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{subject.name}</span>
-                            </span>
-                            <br>
-                        """
-                    )
+                    for day, periods in cls.timetable.table.items():
+                        for s in periods:
+                            if isinstance(s, Subject):
+                                if staff.id == s.teacher.id and day not in subject_periods:
+                                    subject_periods.append(day)
+                            elif isinstance(s, CombinedSubject):
+                                if next((True for s_s in s.subjects if s_s.id == subject.id and s_s.teacher is not None and s_s.teacher.id == staff.id), False):
+                                    subject_periods.append(day)
+                        
+                    for day in subject_periods:
+                        k = day, cls_id
+                        
+                        if k not in cls_displayed_list:
+                            cls_displayed_list.append(k)
+                        else:
+                            continue
+                        
+                        if day not in duty_days_map:
+                            duty_days_map[day] = QLabel()
+                            duties_layout.addWidget(LabeledField(day, duty_days_map[day]))
+                        
+                        duty_days_map[day].setText(
+                            duty_days_map[day].text() + f"""
+                                <span>
+                                    <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>{cls.level.name.full()} {cls.name}:  </span>
+                                    <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{subject.name.full()}</span>
+                                </span>
+                                <br>
+                            """
+                        )
             
-            self.staff_data_layout.addWidget(LabeledField("Classes", duties_widget))
+            self.staff_data_widget.addWidget(LabeledField("Classes", duties_widget))
         elif isinstance(staff, Prefect):
             for day, duties in staff.duties.items():
                 duties_content = ""
@@ -258,7 +281,7 @@ class StaffDataWidget(BaseOptionsWidget):
                 
                 duties_layout.addWidget(LabeledField(day, QLabel(duties_content)))
             
-            self.staff_data_layout.addWidget(LabeledField("Duties", duties_widget))
+            self.staff_data_widget.addWidget(LabeledField("Duties", duties_widget))
 
 class CardScanScreenWidget(BaseOptionsWidget):
     comm_signal = pySignal(str)

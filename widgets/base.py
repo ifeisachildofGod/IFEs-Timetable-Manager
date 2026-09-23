@@ -277,7 +277,7 @@ class BaseScrollWidget(BaseWidget):
         self.container = QWidget()
         self.container.setProperty("class", "BaseWidget")
         self.scroll_widget.setWidget(self.container)
-        self.main_layout = QVBoxLayout(self.container)
+        self.main_layout = self.layout_type(self.container)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

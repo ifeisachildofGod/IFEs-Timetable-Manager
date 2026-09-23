@@ -1376,7 +1376,7 @@ def get_export_surface(cls: Class):
     _cell_content_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme, s.name.short()).get_width() for s in SCHOOL.subjects.values())
     
     width = max(_cell_content_width, _time_width) + TTBL_EXPORT_CELL_X_MARGIN * 2
-    height = max(FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme)].get_height(), FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme)].get_height()) + TTBL_EXPORT_CELL_Y_MARGIN * 2
+    height = max(FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme)].size, FONTS[id(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme)].size) + TTBL_EXPORT_CELL_Y_MARGIN * 2
     title_width = max(_get_text(SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme, d).get_width() for d in cls.level.weekdays) + TTBL_EXPORT_CELL_X_MARGIN * 2
     
     ttbl_width = title_width + width * max(len(p) for p in timetable.values())
@@ -1438,7 +1438,7 @@ def get_export_surface(cls: Class):
                         case "Right":
                             ttbl_t_t_x = ttbl_time_rect.right - ttbl_time_surf.get_width() - SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness
                     
-                    ttbl_time_text_rect = _Rect(((ttbl_t_t_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_t_t_y), ttbl_time_rect.size))
+                    ttbl_time_text_rect = _Rect(ttbl_t_t_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_t_t_y, ttbl_time_rect.width, ttbl_time_rect.height)
                     
                     _draw_rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     screen.blit(ttbl_time_surf, ttbl_time_text_rect)
@@ -1481,7 +1481,7 @@ def get_export_surface(cls: Class):
                         case "Right":
                             ttbl_t_t_x = ttbl_time_rect.right - ttbl_time_surf.get_width() - SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness
                     
-                    ttbl_time_text_rect = _Rect(((ttbl_t_t_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_t_t_y), ttbl_time_rect.size))
+                    ttbl_time_text_rect = _Rect(ttbl_t_t_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_t_t_y, ttbl_time_rect.width, ttbl_time_rect.height)
                     
                     _draw_rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     screen.blit(ttbl_time_surf, ttbl_time_text_rect)
@@ -1508,7 +1508,7 @@ def get_export_surface(cls: Class):
         
         ttbl_t_y = ttbl_weekday_rect.centery - ttbl_weekday_text.get_height() / 2
         
-        ttbl_title_text_rect = _Rect((ttbl_t_x, ttbl_t_y), ttbl_weekday_rect.size)
+        ttbl_title_text_rect = _Rect(ttbl_t_x, ttbl_t_y, ttbl_weekday_rect.width, ttbl_weekday_rect.height)
         
         _draw_rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color, ttbl_weekday_rect)
         screen.blit(ttbl_weekday_text, ttbl_title_text_rect)
@@ -1549,7 +1549,7 @@ def get_export_surface(cls: Class):
                 
                 ttbl_s_y = ttbl_subject_rect.centery - ttbl_subject_text_surf.get_height() / 2
                 
-                ttbl_subject_text_rect = _Rect(((ttbl_s_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_s_y), ttbl_subject_rect.size))
+                ttbl_subject_text_rect = _Rect(ttbl_s_x + (SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness if (row != 0 and periods[row - 1].id == BreakPeriod.id) or row == 0 else 0), ttbl_s_y, ttbl_subject_rect.width, ttbl_subject_rect.height)
                 
                 _draw_rect(screen, SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color, ttbl_subject_rect)
                 screen.blit(ttbl_subject_text_surf, ttbl_subject_text_rect)

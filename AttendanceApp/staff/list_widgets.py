@@ -300,7 +300,7 @@ class AttendanceWidget(BaseScrollListWidget):
                                 ] + (
                                     (list(set(flatten(sw_list[-1].staff.duties.values()))) + list(sw_list[-1].staff.duties))
                                     if isinstance(sw_list[-1].staff, Prefect) else
-                                    ([s.name.full() for s in sw_list[-1].staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw_list[-1].staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw_list[-1].staff.subjects.values()])))
+                                    ([s.name.full() for s in sw_list[-1].staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw_list[-1].staff.subjects.values()] + list(flatten([[d for t, d, _ in s.get_periods() if t.id == sw_list[-1].staff.id] for s in sw_list[-1].staff.subjects.values()])))
                                     )
                         )
                         for sw_list in
@@ -331,7 +331,7 @@ class AttendanceWidget(BaseScrollListWidget):
                                 ] + (
                                     (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
                                     if isinstance(sw.staff, Prefect) else
-                                    ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
+                                    ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for t, d, _ in s.get_periods() if t.id == sw.staff.id] for s in sw.staff.subjects.values()])))
                                     )
                         )
                         for sw in
@@ -505,48 +505,46 @@ class AttendanceWidget(BaseScrollListWidget):
         cit_teacher_widget, cit_teacher_layout = create_widget(None, QHBoxLayout)
         cot_teacher_widget, cot_teacher_layout = create_widget(None, QHBoxLayout)
         
-        it_time_label = QLabel(SCHOOL.attendance.teacher_cit.to_str().replace(":", " : "))
-        it_time_label.setProperty("class", "labeled-widget")
+        self.t_it_time_label = QLabel(SCHOOL.attendance.teacher_cit.to_str().replace(":", " : "))
+        self.t_it_time_label.setProperty("class", "labeled-widget")
         
-        ot_time_label = QLabel(SCHOOL.attendance.teacher_cot.to_str().replace(":", " : "))
-        ot_time_label.setProperty("class", "labeled-widget")
+        self.t_ot_time_label = QLabel(SCHOOL.attendance.teacher_cot.to_str().replace(":", " : "))
+        self.t_ot_time_label.setProperty("class", "labeled-widget")
         
         cit_teacher_layout.addWidget(QLabel(f'Teacher CIT'))
-        cit_teacher_layout.addWidget(it_time_label)
+        cit_teacher_layout.addWidget(self.t_it_time_label)
         
         cot_teacher_layout.addWidget(QLabel(f'Teacher COT'))
-        cot_teacher_layout.addWidget(ot_time_label)
+        cot_teacher_layout.addWidget(self.t_ot_time_label)
         
         teacher_layout.addWidget(cit_teacher_widget)
         teacher_layout.addWidget(cot_teacher_widget)
         
-        
-        base_widget, base_layout = create_widget(None, QHBoxLayout)
         
         prefect_widget, prefect_layout = create_widget(self.main_layout, QHBoxLayout)
         
         cit_prefect_widget, cit_prefect_layout = create_widget(None, QHBoxLayout)
         cot_prefect_widget, cot_prefect_layout = create_widget(None, QHBoxLayout)        
              
-        it_time_label = QLabel(SCHOOL.attendance.prefect_cit.to_str().replace(":", " : "))
-        it_time_label.setProperty("class", "labeled-widget")
+        self.p_it_time_label = QLabel(SCHOOL.attendance.prefect_cit.to_str().replace(":", " : "))
+        self.p_it_time_label.setProperty("class", "labeled-widget")
         
-        ot_time_label = QLabel(SCHOOL.attendance.prefect_cot.to_str().replace(":", " : "))
-        ot_time_label.setProperty("class", "labeled-widget")
+        self.p_ot_time_label = QLabel(SCHOOL.attendance.prefect_cot.to_str().replace(":", " : "))
+        self.p_ot_time_label.setProperty("class", "labeled-widget")
         
-        cit_prefect_layout.addWidget(it_time_label)
+        cit_prefect_layout.addWidget(self.p_it_time_label)
         cit_prefect_layout.addWidget(QLabel(f'Prefect CIT'))
         
-        cot_prefect_layout.addWidget(ot_time_label)
+        cot_prefect_layout.addWidget(self.p_ot_time_label)
         cot_prefect_layout.addWidget(QLabel(f'Prefect COT'))
         
         prefect_layout.addWidget(cit_prefect_widget)
         prefect_layout.addWidget(cot_prefect_widget)
         
         
-        time_layout.addWidget(teacher_widget, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        time_layout.addWidget(base_widget, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop)
-        time_layout.addWidget(prefect_widget, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        time_layout.addWidget(teacher_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        time_layout.addStretch()
+        time_layout.addWidget(prefect_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         self.main_layout.insertWidget(0, time_widget)
     
@@ -642,7 +640,7 @@ class AttendanceWidget(BaseScrollListWidget):
             self.comm_system.send_message(f"SCANNED")
             QTimer.singleShot(
                 500,
-                lambda: self.comm_system.send_message(f"   Good{' morning' if is_check_in else "bye"}" + "_"+ (" " * int(8 - (len(entry.staff.name.abbrev) / 2))) + f"{entry.staff.name.abbrev}")
+                lambda: self.comm_system.send_message(f"   Good{' morning' if is_check_in else "bye"}" + "_"+ (" " * int(8 - (len(entry.staff.name.short()) / 2))) + f"{entry.staff.name.short()}")
             )
             
             self.window().saved_state_changed.emit(True)
@@ -662,13 +660,14 @@ class AttendanceWidget(BaseScrollListWidget):
         return super().keyPressEvent(a0)
 
 class StaffListWidget(BaseScrollListWidget):
-    def __init__(self, parent_widget: TabViewWidget, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget):
+    def __init__(self, parent_widget: TabViewWidget, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget, attendance_widget: AttendanceWidget):
         super().__init__()
         
         self.parent_widget = parent_widget
         self.comm_system = comm_system
         self.card_scanner_widget = card_scanner_widget
         self.staff_data_widget = staff_data_widget
+        self.attendance_widget = attendance_widget
         
         self.curr_filter = None
         
@@ -694,17 +693,50 @@ class StaffListWidget(BaseScrollListWidget):
             staff_widget.setVisible(i == 0)
             self.main_layout.addWidget(staff_widget)
         
-        self.filter_widget, filter_layout = create_widget(None, QHBoxLayout)
+        self.filter_widget = BaseWidget(QHBoxLayout)
         
         self.filter_cb = QComboBox()
         self.filter_cb.addItems(list(self.widgets))
         self.filter_cb.currentIndexChanged.connect(self.filter)
         
-        filter_layout.addWidget(self.filter_cb, alignment=Qt.AlignmentFlag.AlignRight)
+        teacher_cit_editor = QTimeEdit(QTime(SCHOOL.attendance.teacher_cit.hour, SCHOOL.attendance.teacher_cit.minute))
+        teacher_cit_editor.timeChanged.connect(self._make_ct_changed_func(SCHOOL.attendance.teacher_cit, self.attendance_widget.t_it_time_label))
+        teacher_cot_editor = QTimeEdit(QTime(SCHOOL.attendance.teacher_cot.hour, SCHOOL.attendance.teacher_cot.minute))
+        teacher_cot_editor.timeChanged.connect(self._make_ct_changed_func(SCHOOL.attendance.teacher_cot, self.attendance_widget.t_ot_time_label))
+        
+        prefect_cit_editor = QTimeEdit(QTime(SCHOOL.attendance.prefect_cit.hour, SCHOOL.attendance.prefect_cit.minute))
+        prefect_cit_editor.timeChanged.connect(self._make_ct_changed_func(SCHOOL.attendance.prefect_cit, self.attendance_widget.p_it_time_label))
+        prefect_cot_editor = QTimeEdit(QTime(SCHOOL.attendance.prefect_cot.hour, SCHOOL.attendance.prefect_cot.minute))
+        prefect_cot_editor.timeChanged.connect(self._make_ct_changed_func(SCHOOL.attendance.prefect_cot, self.attendance_widget.p_ot_time_label))
+        
+        self.filter_widget.addWidget(QLabel("Teacher CIT"))
+        self.filter_widget.addWidget(teacher_cit_editor)
+        self.filter_widget.addSpacing(10)
+        self.filter_widget.addWidget(QLabel("Teacher COT"))
+        self.filter_widget.addWidget(teacher_cot_editor)
+        self.filter_widget.addStretch()
+        self.filter_widget.addWidget(QLabel("Prefect CIT"))
+        self.filter_widget.addWidget(prefect_cit_editor)
+        self.filter_widget.addSpacing(10)
+        self.filter_widget.addWidget(QLabel("Prefect COT"))
+        self.filter_widget.addWidget(prefect_cot_editor)
+        self.filter_widget.addStretch()
+        self.filter_widget.addWidget(self.filter_cb)
         
         self._layout.insertWidget(0, self.filter_widget)
         
         self.filter(0)
+    
+    def _make_ct_changed_func(self, target_time: Time, target_label: QLabel):
+        def func(time: QTime):
+            target_time.hour = time.hour()
+            target_time.minute = time.minute()
+            
+            target_label.setText(target_time.to_str().replace(":", " : "))
+            
+            self.window().saved_state_changed.emit(True)
+        
+        return func
     
     def get_filtered_widgets(
         self,
@@ -744,7 +776,7 @@ class StaffListWidget(BaseScrollListWidget):
                             ] + (
                                 (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
                                 if isinstance(sw.staff, Prefect) else
-                                ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for d, _ in s.get_periods()] for s in sw.staff.subjects.values()])))
+                                ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for t, d, _ in s.get_periods() if t.id == sw.staff.id] for s in sw.staff.subjects.values()])))
                                 )
                         )
                     for sw in
@@ -834,13 +866,13 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
             p_attendance = self.get_percentage_attendance(prefect)
             
             if p_attendance is not None:
-                prefect_data[prefect.id] = prefect.name.abbrev, p_attendance
+                prefect_data[prefect.id] = prefect.name.short(), p_attendance
         
         for index, (name, data) in enumerate(prefect_data.values()):
             self.prefect_info_widget.add_data(name, list(get_named_colors_mapping().values())[index], ([name], [data]))
     
     def teacher_data_changed(self):
-        teacher_data: dict[tuple[str, str], list[tuple[list[str], list[int]]]] = {}
+        teacher_data: dict[ID, list[tuple[list[str], list[int]]]] = {}
         
         for teacher in SCHOOL.teachers.values():
             for subject in teacher.subjects.values():
@@ -857,13 +889,14 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
         if teacher_data:
             index = 0
             
-            for (dep_id, dep_name), total_teacher_data in teacher_data.items():
-                widget = self.teacher_dep_widgets[dep_id]
+            for subj_id, total_teacher_data in teacher_data.items():
+                
+                widget = self.teacher_dep_widgets[subj_id]
                 widget.clear()
                 
                 for t_data in total_teacher_data:
                     index += 1
-                    widget.add_data(dep_name, list(get_named_colors_mapping().values())[index], t_data, False)
+                    widget.add_data(SCHOOL.subjects[subj_id].name.full(), list(get_named_colors_mapping().values())[index], t_data, False)
     
     def get_percentage_attendance(self, staff: Staff):
         _, plot_data = self.staff_data_widget.get_staff_attendance_data(staff)
@@ -929,7 +962,7 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         if isinstance(staff, Teacher):
             timeline_dates = SCHOOL.attendance.teacher_timeline_dates
             cit = SCHOOL.attendance.teacher_cit
-            working_days = list(set(flatten([[d for d, _ in s.get_periods()] for s in staff.subjects.values()])))
+            working_days = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == staff.id] for s in staff.subjects.values()])))
         elif isinstance(staff, Prefect):
             timeline_dates = SCHOOL.attendance.prefect_timeline_dates
             cit = SCHOOL.attendance.prefect_cit
@@ -940,6 +973,6 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         y_plot_points = [cit.in_minutes() - attendance.period.time.in_minutes() for attendance in staff.attendance if BaseDataDisplayWidget.is_entry_countable(attendance, working_days, timeline_dates) is not None]
         
         if y_plot_points:
-            return staff.name.abbrev, y_plot_points
+            return staff.name.short(), y_plot_points
 
 

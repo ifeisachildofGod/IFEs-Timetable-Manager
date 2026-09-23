@@ -95,16 +95,29 @@ class Subject(Entry):
     teacher: Optional["Teacher"]
     classes: dict[ID, "Class"]
     
-    def get_periods(self):
+    def get_periods(self, teacher: Optional[Teacher] = None):
         s_periods = []
         
         for cls in self.classes.values():
-            if self.id in cls.level.subjects_occurence and cls.timetable.table_remains.count(self) < cls.level.subjects_occurence[self.id].week_max:
+            if self.id in cls.subjects:
                 for day, w_periods in cls.timetable.table.items():
-                    if self in w_periods:
-                        for i, s in enumerate(w_periods):
-                            if self.id == s.id:
-                                s_periods.append((day, i + 1))
+                    for i, s in enumerate(w_periods):
+                        if self.id != s.id:
+                            continue
+                        
+                        if teacher is None or s.teacher.id == teacher.id:
+                            s_periods.append((s.teacher, day, i + 1))
+            elif (comb_subjects := [s for s in cls.subjects.values() if isinstance(s, CombinedSubject) and self.id in s.classes]):
+                for comb_subj in comb_subjects:
+                    for cls in comb_subj.classes[self.id].values():
+                        for day, w_periods in cls.timetable.table.items():
+                            for i, s in enumerate(w_periods):
+                                if comb_subj.id != s.id:
+                                    continue
+                                s_teacher = next((s_s.teacher for s_s in s.subjects if self.id == s_s.id), None)
+                                
+                                if teacher is None or s_teacher is None or s_teacher.id == teacher.id:
+                                    s_periods.append((s_teacher, day, i + 1))
         
         return s_periods
     

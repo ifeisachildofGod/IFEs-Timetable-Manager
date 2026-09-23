@@ -245,32 +245,109 @@ class ClashDisplayDialog(BaseDialogWidget):
         return super().exec()
 
 class CombinationEditor(BaseWidget):
-    def __init__(self):
+    def __init__(self, editor: SchoolTimetableEditor, class_level: ClassLevel):
         super().__init__()
         
-        self.setFixedHeight(300)
+        self.__init = True
+        
+        self.setFixedHeight(400)
+        
+        self.editor = editor
+        self.class_level = class_level
         
         self.combo_box_widgets: list[dict[str, list[QComboBox]]] = []
+        self.add_new_buttons: list[tuple[QPushButton, QPushButton]] = []
         
-        self.sets_widget = BaseScrollWidget() ; self.sets_widget.addStretch()
-        add_set_pb = QPushButton("Add Set") ; add_set_pb.clicked.connect(self.make_combination_set)
+        self.sets_widget = BaseScrollWidget()
+        self.sets_widget.addStretch()
+        
+        add_set_pb = QPushButton("Add Set")
+        add_set_pb.clicked.connect(lambda: self.make_combination_set())
         
         self.addWidget(self.sets_widget)
         self.addWidget(add_set_pb, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        self._add_init = True
+        self.__allow_index_change = True
+        
+        _temp_combined_stuff = []
+        for index, (subjects, classes) in enumerate(SCHOOL.gen_data.combined_subjects):
+            self.make_combination_set(_temp_combined_stuff)
+            
+            for i, cls_id in enumerate(classes):
+                _, class_pb = self.add_new_buttons[index]
+                class_pb.click()
+                
+                cb = self.combo_box_widgets[index]["classes"][i]
+                cb.setCurrentIndex(next(j for j in range(cb.count()) if cls_id == cb.itemData(j)))
+            
+            for i, subj_id in enumerate(subjects):
+                subject_pb, _ = self.add_new_buttons[index]
+                subject_pb.click()
+            
+                cb = self.combo_box_widgets[index]["subjects"][i]
+                cb.setCurrentIndex(next(j for j in range(cb.count()) if subj_id == cb.itemData(j)))
+        
+        self.__init = False
     
-    def make_combination_set(self):
+    def make_combination_set(self, combined_stuff: Optional[list[dict[str, list[QComboBox]]]] = None):
+        if combined_stuff is None:
+            combined_stuff = SCHOOL.gen_data.combined_subjects
+        
         def removed_set_func():
             index = self.sets_widget.indexOf(combination_set_widget)
-            SCHOOL.gen_data.combined_subjects.pop(index)
+            
+            combined_stuff.pop(index)
+            self.combo_box_widgets.pop(index)
             
             self.sets_widget.removeWidget(combination_set_widget)
+            combination_set_widget.deleteLater()
+        
+            self.editor.window().saved_state_changed.emit(True)
         
         def add_subject_func():
             def delete_func():
-                subject_index = subjects_widget.indexOf(subject_widget)
+                index = self.sets_widget.indexOf(combination_set_widget)
+                subject_pos_index = next(ci for ci, cb in enumerate(self.combo_box_widgets[index]["subjects"]) if cb == subjects_cb)
                 
-                self.combo_box_widgets[index]["subjects"].pop(subject_index)
                 subjects_widget.removeWidget(subject_widget) ; subject_widget.deleteLater()
+                
+                self.combo_box_widgets[index]["subjects"].pop(subject_pos_index)
+                sl_subj_id = combined_stuff[index][0].pop(subject_pos_index) ; sl_subj = SCHOOL.subjects[sl_subj_id]
+                
+                for cb in self.combo_box_widgets[index]["subjects"]:
+                    if next((False for j in range(cb.count()) if cb.itemData(j) == sl_subj_id), True):
+                        cb.addItem(sl_subj.name.full(), userData=sl_subj_id)
+                
+                add_subject_pb.setDisabled(False)
+                                
+                self.editor.window().saved_state_changed.emit(True)
+            
+            def subject_index_changed_func(i: int):
+                if not self.__allow_index_change:
+                    return
+                
+                index = self.sets_widget.indexOf(combination_set_widget)
+                subject_pos_index = next(ci for ci, cb in enumerate(self.combo_box_widgets[index]["subjects"]) if cb == subjects_cb)
+                
+                s_subj_id = subjects_cb.itemData(i)
+                
+                prev_subj_id = combined_stuff[index][0][subject_pos_index] ; prev_subj = SCHOOL.subjects[prev_subj_id]
+                combined_stuff[index][0][subject_pos_index] = s_subj_id
+                
+                self.__allow_index_change = False
+                for cb in self.combo_box_widgets[index]["subjects"]:
+                    if cb != subjects_cb:
+                        if ((rem_index := next((j for j in range(cb.count()) if cb.itemData(j) == s_subj_id), None)) is not None):
+                            cb.removeItem(rem_index)
+                        
+                        if not _init:
+                            if next((False for j in range(cb.count()) if cb.itemData(j) == prev_subj_id), True):
+                                cb.addItem(prev_subj.name.full(), userData=prev_subj_id)
+                self.__allow_index_change = True
+                
+                if not self.__init:
+                    self.editor.window().saved_state_changed.emit(True)
             
             index = self.sets_widget.indexOf(combination_set_widget)
             
@@ -278,7 +355,15 @@ class CombinationEditor(BaseWidget):
             
             subjects_cb = QComboBox()
             subjects_cb.setFixedWidth(25)
-            # subjects_cb.addItems()
+            
+            _s_ids = []
+            for c_id in combined_stuff[index][1]:
+                for s_id, subj in self.class_level.classes[c_id].subjects.items():
+                    if s_id not in combined_stuff[index][0] + _s_ids:
+                        _s_ids.append(s_id)
+                        subjects_cb.addItem(subj.name.full(), userData=s_id)
+            
+            subjects_cb.currentIndexChanged.connect(subject_index_changed_func)
             
             delete_pb = QPushButton("×")
             delete_pb.setProperty("class", "SettingEntryClose")
@@ -288,19 +373,107 @@ class CombinationEditor(BaseWidget):
             subject_widget.addWidget(delete_pb)
             
             self.combo_box_widgets[index]["subjects"].append(subjects_cb)
+            combined_stuff[index][0].append(subjects_cb.itemData(0))
             subjects_widget.insertWidget(len(subjects_widget.getChildren(BaseWidget)), subject_widget)
+            
+            _init = True
+            subject_index_changed_func(0)
+            _init = False
+            
+            if subjects_cb.count() == 1:
+                add_subject_pb.setDisabled(True)
+            
+            if not self.__init:
+                self.editor.window().saved_state_changed.emit(True)
         
         def add_class_func():
             def delete_func():
-                class_index = classes_widget.indexOf(class_widget)
+                index = self.sets_widget.indexOf(combination_set_widget)
+                class_pos_index = next(ci for ci, cb in enumerate(self.combo_box_widgets[index]["classes"]) if cb == classes_cb)
                 
-                self.combo_box_widgets[index]["classes"].pop(class_index)
                 classes_widget.removeWidget(class_widget) ; class_widget.deleteLater()
+                
+                self.combo_box_widgets[index]["classes"].pop(class_pos_index)
+                sl_cls_id = combined_stuff[index][1].pop(class_pos_index) ; sl_cls = self.class_level.classes[sl_cls_id]
                 
                 if not self.combo_box_widgets[index]["classes"]:
                     add_subject_pb.setDisabled(True)
+                else:
+                    for cb in self.combo_box_widgets[index]["classes"]:
+                        if next((False for j in range(cb.count()) if cb.itemData(j) == sl_cls_id), True):
+                            cb.addItem(f"{sl_cls.level.name.full()} {sl_cls.name}", userData=sl_cls_id)
+                    
+                for s_cb in self.combo_box_widgets[index]["subjects"].copy():
+                    if (s_id := s_cb.itemData(s_cb.currentIndex())) in sl_cls.subjects and next((False for c_id in combined_stuff[index][1] if s_id in self.class_level.classes[c_id].subjects), True):
+                        cancel_pb = next(widg.indexWidget(1) for widg in subjects_widget.getChildren(BaseWidget) if widg.indexWidget(0) == s_cb)
+                        cancel_pb.click()
+                
+                for s_cb in self.combo_box_widgets[index]["subjects"]:
+                    for s_id in sl_cls.subjects:
+                        if (
+                                ((rem_index := next((j for j in range(s_cb.count()) if s_cb.itemData(j) == s_id), None)) is not None) and
+                                next((False for c_id in combined_stuff[index][1] if s_id in self.class_level.classes[c_id].subjects), True)
+                            ):
+                            s_cb.removeItem(rem_index)
+                            
+                            if s_cb.count() == 1:
+                                add_subject_pb.setDisabled(True)
+                
+                add_class_pb.setDisabled(False)
+                
+                if not self.combo_box_widgets[index]["classes"]:
+                    add_subject_pb.setDisabled(True)
+                
+                self.editor.window().saved_state_changed.emit(True)
             
-            add_subject_pb.setDisabled(False)
+            def class_index_changed_func(i: int):
+                if not self.__allow_index_change:
+                    return
+                
+                index = self.sets_widget.indexOf(combination_set_widget)
+                class_pos_index = next(ci for ci, cb in enumerate(self.combo_box_widgets[index]["classes"]) if cb == classes_cb)
+                
+                sl_cls_id = classes_cb.itemData(i)
+                
+                if next((True for s_id in self.class_level.classes[sl_cls_id].subjects if s_id not in combined_stuff[index][0]), False):
+                    add_subject_pb.setDisabled(False)
+                
+                sl_cls = self.class_level.classes[sl_cls_id]
+                
+                prev_cls_id = combined_stuff[index][1][class_pos_index] ; prev_cls = self.class_level.classes[prev_cls_id]
+                combined_stuff[index][1][class_pos_index] = sl_cls_id
+                
+                self.__allow_index_change = False
+                for cb in self.combo_box_widgets[index]["classes"]:
+                    if cb != classes_cb:
+                        if ((rem_index := next((j for j in range(cb.count()) if cb.itemData(j) == sl_cls_id), None))) is not None:
+                            cb.removeItem(rem_index)
+                        
+                        if not self._add_init:
+                            if next((False for j in range(cb.count()) if cb.itemData(j) == prev_cls_id), True):
+                                cb.addItem(f"{prev_cls.level.name.full()} {prev_cls.name}", userData=prev_cls_id)
+                self.__allow_index_change = True
+                
+                for s_cb in self.combo_box_widgets[index]["subjects"].copy():
+                    if (s_id := s_cb.itemData(s_cb.currentIndex())) in prev_cls.subjects and next((False for c_id in combined_stuff[index][1] if s_id in self.class_level.classes[c_id].subjects), True):
+                        cancel_pb = next(widg.indexWidget(1) for widg in subjects_widget.getChildren(BaseWidget) if widg.indexWidget(0) == s_cb)
+                        cancel_pb.click()
+                
+                for s_cb in self.combo_box_widgets[index]["subjects"]:
+                    for s_id in prev_cls.subjects:
+                        if (
+                                ((rem_index := next((j for j in range(s_cb.count()) if s_cb.itemData(j) == s_id), None)) is not None) and
+                                next((False for c_id in combined_stuff[index][1] if s_id in self.class_level.classes[c_id].subjects), True)
+                            ):
+                            s_cb.removeItem(rem_index)
+                    
+                    for s_id in sl_cls.subjects:
+                        if next((False for j in range(s_cb.count()) if s_cb.itemData(j) == s_id), True) and s_id not in combined_stuff[index][0]:
+                            subj = SCHOOL.subjects[s_id]
+                            s_cb.addItem(subj.name.full(), userData=s_id)
+                
+                if not self.__init:
+                    self.editor.window().saved_state_changed.emit(True)
             
             index = self.sets_widget.indexOf(combination_set_widget)
             
@@ -308,7 +481,12 @@ class CombinationEditor(BaseWidget):
             
             classes_cb = QComboBox()
             classes_cb.setFixedWidth(25)
-            # classes_cb.addItems()
+            
+            for cls_id, cls in self.class_level.classes.items():
+                if cls_id not in combined_stuff[index][1]:
+                    classes_cb.addItem(f"{cls.level.name.full()} {cls.name}", userData=cls_id)
+            
+            classes_cb.currentIndexChanged.connect(class_index_changed_func)
             
             delete_pb = QPushButton("×")
             delete_pb.setProperty("class", "SettingEntryClose")
@@ -318,10 +496,21 @@ class CombinationEditor(BaseWidget):
             class_widget.addWidget(delete_pb)
             
             self.combo_box_widgets[index]["classes"].append(classes_cb)
+            combined_stuff[index][1].append(classes_cb.itemData(0))
             classes_widget.insertWidget(len(classes_widget.getChildren(BaseWidget)), class_widget)
+            
+            self._add_init = True
+            class_index_changed_func(0)
+            self._add_init = False
+            
+            if classes_cb.count() == 1:
+                add_class_pb.setDisabled(True)
+            
+            if not self.__init:
+                self.editor.window().saved_state_changed.emit(True)
         
         self.combo_box_widgets.append({"subjects": [], "classes": []})
-        SCHOOL.gen_data.combined_subjects.append(([], []))
+        combined_stuff.append(([], []))
         
         combination_set_widget = BaseWidget()
         
@@ -329,17 +518,13 @@ class CombinationEditor(BaseWidget):
         cancel_pb.setProperty("class", "SettingEntryClose")
         cancel_pb.clicked.connect(removed_set_func)
         
-        title_widget = BaseWidget(QHBoxLayout)
-        title_widget.addWidget(QLabel("Subjects"))
-        title_widget.addStretch()
-        title_widget.addWidget(QLabel("Classes"))
-        
         main_set_widget = BaseWidget(QHBoxLayout)
+        main_set_widget.setFixedHeight(200)
         main_set_widget.setProperty("class", "BG_Color")
         main_set_widget.setStyleSheet("QWidget.BG_Color {background-color: #999}")
         main_set_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        main_set_widget.addWidget((subjects_widget := BaseWidget()), stretch=5) ; subjects_widget.addStretch()
-        main_set_widget.addWidget((classes_widget := BaseWidget()), stretch=5) ; classes_widget.addStretch()
+        main_set_widget.addWidget((subjects_widget := BaseScrollWidget()), stretch=5) ; subjects_widget.addStretch()
+        main_set_widget.addWidget((classes_widget := BaseScrollWidget()), stretch=5) ; classes_widget.addStretch()
         
         buttons_area_widget = BaseWidget(QHBoxLayout)
         add_subject_pb = QPushButton("Add Subject")
@@ -352,12 +537,15 @@ class CombinationEditor(BaseWidget):
         buttons_area_widget.addWidget(add_class_pb)
         
         combination_set_widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
-        combination_set_widget.addSpacing(5)
-        combination_set_widget.addWidget(title_widget)
         combination_set_widget.addWidget(main_set_widget)
         combination_set_widget.addWidget(buttons_area_widget)
         
         self.sets_widget.insertWidget(len(self.sets_widget.getChildren(BaseWidget)), combination_set_widget)
+        
+        self.add_new_buttons.append((add_subject_pb, add_class_pb))
+        
+        if not self.__init:
+            self.editor.window().saved_state_changed.emit(True)
 
 
 class ExtraSubjectDraggableLabel(QLabel):
@@ -924,7 +1112,9 @@ class ClassTimetable(QTableWidget):
     def removeRemainder(self, remainder: ExtraSubjectDraggableLabel):
         self.remainder_labels.remove(remainder)
         self.remainder_widget.removeWidget(remainder)
-        self.cls.timetable.table_remains.remove(remainder.subject)
+        
+        if (subj := next((s for s in self.cls.timetable.table_remains if s.id == remainder.subject.id), None)):
+            self.cls.timetable.table_remains.remove(subj)
         
         remainder.deleteLater()
         
@@ -1045,13 +1235,11 @@ class ClassTimetable(QTableWidget):
                 item: TimetableItem = self.item(row, col)
                 
                 if item and subject_id == item.subject.id:
-                    timetable_amt += 1
+                    timetable_subject_amt += 1
         
         timetable_subject_amt += sum(subject_id == rl.subject.id for rl in self.remainder_labels)
         
         diff = amount - timetable_subject_amt
-        
-        print(subject.name.full(), timetable_subject_amt, diff, amount)
         
         if diff > 0:
             for _ in range(diff):
@@ -1140,7 +1328,7 @@ class SchoolTimetableEditor(BaseWidget):
     
     def make_class_level_settings(self, cls_level: ClassLevel):
         widget = BaseScrollWidget()
-        widget.setFixedSize(450, 450)
+        widget.setFixedSize(550, 450)
         
         def _generate():
             for cls in cls_level.classes.values():
@@ -1349,7 +1537,7 @@ class SchoolTimetableEditor(BaseWidget):
             else:
                 new_day_added(name, content)
         
-        combination_editor = CombinationEditor()
+        combination_editor = CombinationEditor(self, cls_level)
         
         widget.addWidget(LabeledWidget("Period Amount", period_amt_edit))
         widget.addWidget(LabeledWidget("Break Period", breakperiod_edit))

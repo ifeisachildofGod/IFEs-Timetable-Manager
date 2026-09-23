@@ -91,36 +91,37 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
             periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}
             
             for subject in self.staff.subjects.values():
-                s_periods = []
+                subject_periods = []
                 
                 for cls in subject.classes.values():
-                    if cls.timetable.table_remains.count(subject) < cls.level.subjects_occurence[subject.id].week_max:
-                        for day, w_periods in cls.timetable.table.items():
-                            if subject in w_periods:
-                                for i, s in enumerate(w_periods):
-                                    if subject.id == s.id:
-                                        s_periods.append((day, i + 1))
+                    for day, periods in cls.timetable.table.items():
+                        for i, s in enumerate(periods):
+                            if isinstance(s, Subject):
+                                if self.staff.id == s.teacher.id and day not in subject_periods:
+                                    subject_periods.append((cls.id, day, i + 1))
+                            elif isinstance(s, CombinedSubject):
+                                if next((True for s_s in s.subjects if s_s.id == subject.id and s_s.teacher is not None and s_s.teacher.id == self.staff.id), False):
+                                    subject_periods.append((cls.id, day, i + 1))
                 
-                for day_name, period in subject.get_periods():
+                for cls_id, day_name, period in subject_periods:
                     if self.data.period.day == day_name:
-                        key = subject.id
-                        sub_key = subject.cls.id
-                        
-                        if periods_data.get(key) is None:
-                            periods_data[key] = {}
-                        if periods_data[key].get(sub_key) is None:
-                            periods_data[key][sub_key] = []
-                        periods_data[key][sub_key].append(period)
-            
-            for (_, subject_name), subject_data in periods_data.items():
+                        if periods_data.get(subject.id) is None:
+                            periods_data[subject.id] = {}
+                        if periods_data[subject.id].get(cls_id) is None:
+                            periods_data[subject.id][cls_id] = []
+                        periods_data[subject.id][cls_id].append(period)
+        
+            for subject_id, subject_data in periods_data.items():
                 widget_2_2_2_1, layout_2_2_2_1 = create_widget(None, QGridLayout)
                 
-                for index, ((_, cls_name), periods) in enumerate(subject_data.items()):
+                for index, (cls_id, periods) in enumerate(subject_data.items()):
+                    cls = SCHOOL.class_levels[cls_id.class_level_id].classes[cls_id]
+                    
                     widget_2_2_2_1_1, layout_2_2_2_1_1 = create_widget(None, QVBoxLayout)
                     for period in periods:
                         layout_2_2_2_1_1.addWidget(QLabel(f"{positionify(str(period))} period"), alignment=Qt.AlignmentFlag.AlignTop)
-                    layout_2_2_2_1.addWidget(LabeledField(cls_name, widget_2_2_2_1_1), int(index / 3), index % 3)
-                widget_2_2_2.addWidget(LabeledField(subject_name, widget_2_2_2_1))
+                    layout_2_2_2_1.addWidget(LabeledField(f"{cls.level.name.full()} {cls.name}", widget_2_2_2_1_1), int(index / 3), index % 3)
+                widget_2_2_2.addWidget(LabeledField(SCHOOL.subjects[subject_id].name.full(), widget_2_2_2_1))
 
 class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
     def __init__(self, data: AttendanceEntry):
