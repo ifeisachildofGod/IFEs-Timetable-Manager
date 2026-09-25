@@ -112,9 +112,15 @@ class Period:
         return self.to_str()
     
     def in_seconds(self):
-        prev_months = list(MONTHS_OF_THE_YEAR.values())[:list(MONTHS_OF_THE_YEAR).index(self.month)] + [0]
+        months = list(MONTHS_OF_THE_YEAR)
         
-        days = sum(prev_months) + self.date - 1
+        index = months.index(self.month)
+        prev_months = list(MONTHS_OF_THE_YEAR.values())[:index] + [0]
+        
+        if "February" in months[:index] and self.year % 4 == 0:
+            prev_months[months.index("February")] += 1
+        
+        days = sum(prev_months) + self.date - 1 + self.year * 365 + (self.year - 1) // 4
         
         return self.time.in_seconds() + days * 24 * 60 * 60
     
@@ -191,7 +197,7 @@ class Period:
 DAYS_OF_THE_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 MONTHS_OF_THE_YEAR = {
     "January": 31,
-    "February": 29,
+    "February": 28,
     "March": 31,
     "April": 30,
     "May": 31,
@@ -217,13 +223,6 @@ def positionify(number: int | str, default: str | None = ...):
             raise Exception(f"Text: ({number}) is not numeric")
         
     return number + suffix
-
-S_DAY = Time(24, 0, 0).in_seconds()
-S_WEEK = S_DAY * 7
-def S_MONTH(month: str):
-    return S_DAY * MONTHS_OF_THE_YEAR[month]
-S_YEAR = S_DAY * 365
-
 
 @dataclass
 class Margins:

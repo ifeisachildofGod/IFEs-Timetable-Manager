@@ -4,13 +4,103 @@ from io import StringIO
 
 from utils import *
 from imports import *
+from AttendanceApp.extra_widgets import TabViewWidget
 
 from .base import *
 from .user_interface import *
 
 from PIL import Image as PIL_Image, ImageDraw, ImageFont
 from pathlib import Path
+import time
 
+
+class GeneralPeriodEditor(BaseWidget):
+    def __init__(self, window: QMainWindow, period: Optional[Period] = None):
+        super().__init__()
+        
+        self.__init = True
+        
+        self.setContentsMargins(5, 5, 5, 5)
+        self.setProperty("class", "Bordered BorderRadiused")
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        self._window = window
+        
+        self.period = period
+        if self.period is None:
+            self.period = Period.str_to_period(time.ctime())
+            self.period.time = Time(0, 0, 0)
+        
+        self._prev_day_amt = self.period.in_days()
+        
+        self.day_label = QLabel(self.period.day)
+        self.day_label.setStyleSheet("QLabel{padding: 5px}")
+        self.day_label.setProperty("class", "Bordered BorderRadiused")
+        
+        self.date_sb = QSpinBox()
+        self.month_cb = QComboBox()
+        self.year_sb = QSpinBox()
+        
+        self.date_sb.setMinimum(1)
+        self.month_cb.addItems(list(MONTHS_OF_THE_YEAR))
+        self.year_sb.setRange(1982, Period.str_to_period(time.ctime()).year + 100)
+        
+        self.date_sb.setValue(self.period.date)
+        self.month_cb.setCurrentText(self.period.month)
+        self.year_sb.setValue(self.period.year)
+        
+        self.date_sb.valueChanged.connect(self._date_value_changed)
+        self.month_cb.currentTextChanged.connect(self._month_text_changed)
+        self.year_sb.valueChanged.connect(self._year_value_changed)
+        
+        self._year_value_changed(self.year_sb.value())
+        self._month_text_changed(self.month_cb.currentText())
+        self._date_value_changed(self.date_sb.value())
+        
+        self.addWidget(top_widget := BaseWidget(QHBoxLayout))
+        self.addWidget(bottom_widget := BaseWidget(QHBoxLayout))
+        
+        top_widget.addWidget(self.date_sb)
+        top_widget.addWidget(self.day_label)
+        
+        bottom_widget.addWidget(self.month_cb)
+        bottom_widget.addWidget(self.year_sb)
+        
+        self.__init = False
+    
+    def _date_value_changed(self, date: int):
+        self.period.date = date
+        
+        dodw_index = DAYS_OF_THE_WEEK.index(self.period.day)
+        day_diff = int(self.period.in_days() - self._prev_day_amt)
+        
+        self.period.day = DAYS_OF_THE_WEEK[(dodw_index + day_diff) % len(DAYS_OF_THE_WEEK)]
+        
+        self.day_label.setText(self.period.day)
+        
+        self.date_sb.setSuffix(positionify(self.period.date)[-2:])
+        
+        self._prev_day_amt = self.period.in_days()
+        
+        if not self.__init:
+            self._window.saved_state_changed.emit(True)
+    
+    def _month_text_changed(self, month: str):
+        self.period.month = month
+        
+        self.date_sb.setMaximum(MONTHS_OF_THE_YEAR[month] - (1 if month == "February" else 0))
+        
+        self._date_value_changed(self.date_sb.value())
+    
+    def _year_value_changed(self, year: int):
+        self.period.year = year
+        
+        self._month_text_changed(self.month_cb.currentText())
+        
+        if self.period.year % 4 == 0 and self.month_cb.currentText() == "February":
+            self.date_sb.setMaximum(MONTHS_OF_THE_YEAR[self.month_cb.currentText()] - 1)
+        
+        self._date_value_changed(self.date_sb.value())
 
 class TextThemeEditor(IconToolBarOption):
     def __init__(self, window: QMainWindow, text_theme: Optional[TextTheme] = None, cast_labels: Optional[list[QLabel]] = None):
@@ -489,20 +579,25 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             QLabel("Physics")
         ]
         
-        central_widget = BaseWidget(QHBoxLayout)
+        central_widget = TabViewWidget()
         
-        central_widget.addWidget(self._initSideBarWidget(), stretch=3)
-        central_widget.addWidget(self._initTimetableSection(), stretch=7)
+        timetable_widget = BaseWidget(QHBoxLayout)
+        timetable_widget.addWidget(self._initSideBarWidget(), stretch=3)
+        timetable_widget.addWidget(self._initTimetableSection(), stretch=7)
+        
+        attendance_widget = self._initAttendanceSection()
+        
+        bottom_widget = self._initBottomWidget()
+        
+        central_widget.add("Timetable", timetable_widget, lambda _: self.preview_button.setVisible(True))
+        central_widget.add("Attendance", attendance_widget, lambda _: self.preview_button.setVisible(False))
         
         self.addWidget(central_widget)
-        self.addWidget(self._initBottomWidget())
+        self.addWidget(bottom_widget)
         
         for lvl_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
             for cls_id in cls_ids:
-                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(True)
-                self.select_cb_dict[lvl_id][1][cls_id].setChecked(True)
-                self.select_cb_dict[lvl_id][1][cls_id].blockSignals(False)
-                
+                self.select_cb_dict[lvl_id][1][cls_id].click()
                 self.export_button.setDisabled(False)
         
         self.__init = False
@@ -544,14 +639,14 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
         
-        self.select_all_cb = QCheckBox("All")
+        self.select_all_cb = QCheckBox()
         self.select_all_cb.clicked.connect(self._select_sch)
         
         self.sch_subject_selection_widget = BaseScrollWidget()
         self.sch_subject_selection_widget.setFixedHeight(300)
         self.sch_subject_selection_widget.addStretch()
         
-        sch_subject_selection_widget_dp = WidgetDropdown("Select Classes", self.sch_subject_selection_widget)
+        sch_subject_selection_widget_dp = WidgetDropdown("All Classes", self.sch_subject_selection_widget)
         sch_subject_selection_widget_dp.header.addWidget(self.select_all_cb)
         
         for cls_level in SCHOOL.class_levels.values():
@@ -657,6 +752,60 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         return main_widget
     
+    def _initAttendanceSection(self):
+        main_widget = BaseScrollWidget()
+        main_widget.setProperty("class", "ExportEditorOptionsBG")
+        
+        # --------------------------------------------------------------------------------------------------------------------------------
+        pb_widget = BaseWidget(QHBoxLayout)
+        
+        start_period_widget = BaseWidget()
+        start_point_enabled_cb = QCheckBox("Enabled")
+        start_gpe_widget = GeneralPeriodEditor(self._window)
+        start_period_widget.addWidget(start_gpe_widget)
+        start_period_widget.addWidget(start_point_enabled_cb)
+        start_period_widget.setProperty("class", "DarkendBG")
+        
+        end_period_widget = BaseWidget()
+        end_point_enabled_cb = QCheckBox("Enabled")
+        end_gpe_widget = GeneralPeriodEditor(self._window)
+        end_period_widget.addWidget(end_gpe_widget)
+        end_period_widget.addWidget(end_point_enabled_cb)
+        end_period_widget.setProperty("class", "DarkendBG")
+        
+        pb_widget.addWidget(wsp := LabeledWidget("Window Start Period", start_period_widget))
+        pb_widget.addWidget(wep := LabeledWidget("Window End Period", end_period_widget))
+        
+        wsp.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        wep.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        # --------------------------------------------------------------------------------------------------------------------------------
+        ep_widget = BaseWidget()
+        
+        self.attendance_eft_cb = QComboBox() ; self.attendance_eft_cb.addItems(["MSIX", "PDF", "XLSX", "CSV"])
+        
+        ei_widget = BaseFlowGridWidget(3)
+        ei_widget.setVerticalSpacing(4)
+        ei_widget.addWidget(ei_id_cb := QCheckBox("Include ID"))
+        ei_widget.addWidget(ei_sn_cb := QCheckBox("Use Abbreviation"))
+        ei_widget.addWidget(ei_di_cb := QCheckBox("Duty Information"))
+        ei_widget.addWidget(ei_ps_cb := QCheckBox("Punctuality Score"))
+        ei_widget.addWidget(ei_aa_cb := QCheckBox("Attendance Amount"))
+        ei_widget.addWidget(ei_as_cb := QCheckBox("Attendance Score"))
+        
+        ep_widget.addWidget(eft := LabeledWidget("Export File Type", self.attendance_eft_cb)) ; eft.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        ep_widget.addWidget(SeparatorLabel("Include Export Information"))
+        ep_widget.addWidget(ei_widget)
+        # --------------------------------------------------------------------------------------------------------------------------------
+        
+        main_widget.addWidget(SeparatorLabel("Period Border"))
+        main_widget.addWidget(pb_widget)
+        main_widget.addWidget(SeparatorLabel("Export Preferences"))
+        main_widget.addWidget(ep_widget)
+        
+        main_widget.addStretch()
+        
+        return main_widget
+    
     def _unsaved(self):
         if not self.__init:
             self._window.saved_state_changed.emit(True)
@@ -706,7 +855,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                     if not lvl_cb.isChecked():
                         lvl_cb.click()
                 
-                SCHOOL.settings.EXPORT_selected_classes[level_id].insert(list(self.select_cb_dict[level_id][1]).index(cls_id), cls_id)
+                if cls_id not in SCHOOL.settings.EXPORT_selected_classes[level_id]:
+                    SCHOOL.settings.EXPORT_selected_classes[level_id].insert(list(self.select_cb_dict[level_id][1]).index(cls_id), cls_id)
             else:
                 if lvl_cb.isChecked():
                     lvl_cb.blockSignals(True)
@@ -718,7 +868,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                     self.select_all_cb.click()
                     self.select_all_cb.blockSignals(False)
                 
-                SCHOOL.settings.EXPORT_selected_classes[level_id].remove(cls_id)
+                if cls_id in SCHOOL.settings.EXPORT_selected_classes[level_id]:
+                    SCHOOL.settings.EXPORT_selected_classes[level_id].remove(cls_id)
             
             self.export_button.setDisabled(next((False for cls_ids in SCHOOL.settings.EXPORT_selected_classes.values() if cls_ids), True))
         
@@ -758,7 +909,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             SCHOOL.settings.EXPORT_timetable_export_theme.export_mode = 2
     
     def get_level_widget(self, cls_level: ClassLevel, index: Optional[int] = None):
-        lvl_cb = QCheckBox("All")
+        lvl_cb = QCheckBox()
         lvl_cb.clicked.connect(self._make_lvl_cb_func(cls_level.id))
         
         if index is None:

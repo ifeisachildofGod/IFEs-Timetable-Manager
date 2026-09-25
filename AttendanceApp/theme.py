@@ -234,7 +234,7 @@ STYLESHEET = '''
         selection-background-color: {highlight};
     }}
     
-    QPushButton.VerticalTab {{
+    QPushButton.TabViewVerticalTab {{
         width: 100%;
         height: 50px;
         border-radius: 0px;
@@ -244,21 +244,21 @@ STYLESHEET = '''
         margin: 0px;
     }}
     
-    QPushButton.VerticalTab:hover {{
+    QPushButton.TabViewVerticalTab:hover {{
         border-right-color: {hover2};
         background-color: {hover2};
     }}
     
-    QPushButton.VerticalTab:checked {{
+    QPushButton.TabViewVerticalTab:checked {{
         border-right-color: {primary};
         background-color: {secondary};
     }}
     
-    QPushButton.VerticalTab:checked:hover {{
+    QPushButton.TabViewVerticalTab:checked:hover {{
         background-color: {hover3};
     }}
     
-    QPushButton.HorizontalTab {{
+    QPushButton.TabViewHorizontalTab {{
         width: 100%;
         height: 30px;
         border-top: 3px solid {bg2};
@@ -268,17 +268,17 @@ STYLESHEET = '''
         margin: 0px;
     }}
     
-    QPushButton.HorizontalTab:hover {{
+    QPushButton.TabViewHorizontalTab:hover {{
         border-top-color: {hover2};
         background-color: {hover2};
     }}
     
-    QPushButton.HorizontalTab:checked {{
+    QPushButton.TabViewHorizontalTab:checked {{
         border-top-color: {primary};
         background-color: {secondary};
     }}
     
-    QPushButton.HorizontalTab:checked:hover {{
+    QPushButton.TabViewHorizontalTab:checked:hover {{
         background-color: {hover3};
     }}
     

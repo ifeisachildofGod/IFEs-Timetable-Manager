@@ -1262,8 +1262,9 @@ class ClassOptionsMaker(BaseSettingDialog):
         self.max_cols = 4  # Maximum number of columns before wrapping
         
         self.main_area = BaseFlowGridWidget(self.max_cols)
-        self.main_area.setSpacing(4)
-        self.main_area.getLayout().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.main_area.setVerticalSpacing(4)
+        self.main_area.setContentsMargins(0, 0, 0, 0)
+        self.main_area.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         
         self.add_button = QPushButton("Add Option")
         self.add_button.clicked.connect(lambda: self.add_option())
@@ -1364,7 +1365,7 @@ class ClassOptionsMaker(BaseSettingDialog):
         option.deleted.connect(remove_option)
         
         # Add to grid and wrap to next row if needed
-        self.main_area.addWidget(option)
+        self.main_area.addWidget(option, alignment=Qt.AlignmentFlag.AlignCenter)
         
         if is_new:
             option.start_editing()

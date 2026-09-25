@@ -169,6 +169,10 @@ STYLESHEET = '''
         border-radius: 9px;
     }}
     
+    QWidget.DarkendBG {{
+        background-color: {hover__bg1}
+    }}
+    
     QMainWindow {{
         background-color: {bg1};
     }}
@@ -371,6 +375,56 @@ STYLESHEET = '''
         color: {disabled__text};
         background-color: {disabled__fg1};
     }}
+    
+    
+    QPushButton.TabViewVerticalTab {{
+        width: 100%;
+        height: 50px;
+        border-radius: 0px;
+        border-right: 3px solid {bg1};
+        background-color: {bg1};
+        color: {text};
+        margin: 0px;
+    }}
+    
+    QPushButton.TabViewVerticalTab:hover {{
+        border-right-color: {hover__bg1};
+        background-color: {hover__bg1};
+    }}
+    
+    QPushButton.TabViewVerticalTab:checked {{
+        border-right-color: {fg4};
+        background-color: {hover__bg2};
+    }}
+    
+    QPushButton.TabViewVerticalTab:checked:hover {{
+        background-color: {pressed__bg2};
+    }}
+    
+    QPushButton.TabViewHorizontalTab {{
+        width: 100%;
+        height: 30px;
+        border-top: 3px solid {bg1};
+        background-color: {bg1};
+        color: {text};
+        border-radius: 0px;
+        margin: 0px;
+    }}
+    
+    QPushButton.TabViewHorizontalTab:hover {{
+        border-top-color: {hover__bg1};
+        background-color: {hover__bg1};
+    }}
+    
+    QPushButton.TabViewHorizontalTab:checked {{
+        border-top-color: {fg4};
+        background-color: {hover__bg2};
+    }}
+    
+    QPushButton.TabViewHorizontalTab:checked:hover {{
+        background-color: {pressed__bg2};
+    }}
+    
     
     
     QComboBox {{

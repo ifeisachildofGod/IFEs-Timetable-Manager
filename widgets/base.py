@@ -286,6 +286,9 @@ class BaseScrollWidget(BaseWidget):
         
         layout.addWidget(self.scroll_widget)
     
+    def setAlignment(self, alignment: Qt.AlignmentFlag):
+        self.getLayout().setAlignment(alignment)
+    
     def setFixedWidth(self, width):
         self.getScrollWidget().setFixedWidth(width)
     
@@ -366,20 +369,36 @@ class BaseFlowGridWidget(BaseScrollWidget):
         self.widgets: list[BaseWidget] = []
         self.widget_count = 0
     
+    def setAlignment(self, alignment):
+        for widget in self.widgets:
+            widget.setAlignment(alignment)
+        
+        return super().setAlignment(alignment)
+    
+    def setHorizontalSpacing(self, spacing: int):
+        for widget in self.widgets:
+            widget.setSpacing(spacing)
+    
+    def setVerticalSpacing(self, spacing: int):
+        self.setSpacing(spacing)
+    
+    def addSpacing(self, a0: int):
+        self.widgets[-1].addSpacing(a0)
+    
+    def addStretch(self, stretch: Optional[int] = None):
+        self.widgets[-1].addStretch(stretch)
+    
     def addWidget(self, widget, stretch = None, alignment = None):
         if self.widget_count % self.row_max == 0:
             bg_widget = BaseWidget(QHBoxLayout)
-            bg_widget.setSpacing(2)
             bg_widget.setContentsMargins(0, 0, 0, 0)
-            bg_widget.addStretch()
             
             super().addWidget(bg_widget)
             
             self.widgets.append(bg_widget)
         
+        self.widgets[-1].insertWidget(self.widget_count % self.row_max, widget, stretch, alignment)
         self.widget_count += 1
-        
-        self.widgets[-1].insertWidget((self.widget_count - 1) % self.row_max, widget, stretch, alignment)
     
     def insertWidget(self, row: int, col: int, widget: QWidget, stretch: int = None, alignment: Qt.AlignmentFlag = None):
         self.widgets[col].insertWidget(row, widget, stretch, alignment)

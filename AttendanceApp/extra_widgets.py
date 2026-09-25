@@ -39,7 +39,7 @@ class TabViewWidget(BaseWidget):
         
         tab_button.setCheckable(True)
         tab_button.clicked.connect(self._make_tab_clicked_func(len(self.tab_buttons) - 1, func))
-        tab_button.setProperty("class", "HorizontalTab" if self.orientation == Qt.Orientation.Horizontal else "VerticalTab")
+        tab_button.setProperty("class", "TabViewHorizontalTab" if self.orientation == Qt.Orientation.Horizontal else "TabViewVerticalTab")
         tab_button.setContentsMargins(0, 0, 0, 0)
         
         self.tab_widget.insertWidget(len(self.tab_buttons) - 1, tab_button)
