@@ -187,7 +187,7 @@ class Window(QMainWindow):
             current_display_widget = self.stack.currentWidget()
             
             if isinstance(current_display_widget, BaseSettingWidget):
-                current_display_widget.scroll_widget.getScrollWidget().verticalScrollBar().setValue(sw.y())
+                current_display_widget.scroll_widget.scroll_to(sw, 100)
                 sw.focusInput()
     
     def _get_search_scope(self):

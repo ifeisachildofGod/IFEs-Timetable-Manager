@@ -161,6 +161,10 @@ STYLESHEET = '''
         margin: 0px;
     }}
     
+    *:disabled {{
+        background-color: {disabled};
+    }}
+    
     QWidget.Bordered {{
         border: 1px solid {bg6-border2};
     }}
@@ -170,7 +174,7 @@ STYLESHEET = '''
     }}
     
     QWidget.DarkendBG {{
-        background-color: {hover__bg1};
+        background-color: {hover__bg5};
     }}
     
     QWidget.DarkenedBG1 {{
@@ -287,17 +291,17 @@ STYLESHEET = '''
         border-radius: 8px;
     }}
     QWidget.LabeledContainer:disabled {{
-        border: 1px solid {disabled};
+        border: 1px solid {hover__disabled};
     }}
     
     QLabel.LabeledContainerTitle {{
-        color: {bg3};
+        color: red;
         font-size: 11px;
         font-weight: 500;
         padding: 0 4px;
     }}
     QLabel.LabeledContainerTitle:disabled {{
-        color: {disabled};
+        color: {pressed__disabled};
     }}
     
     
@@ -306,6 +310,7 @@ STYLESHEET = '''
     }}
     QLabel:disabled {{
         color: {disabled__text};
+        background: none;
     }}
     QLabel.Link {{
         color: {fg1};
@@ -528,10 +533,10 @@ STYLESHEET = '''
     QMenuBar::item:selected {{
         background-color: {hover__mute-bg};
     }}
-    QMenu {{
+    QMenu, QMenu:disabled {{
         color: {text};
         padding: 5px;
-        background-color: {bg2};
+        background-color: {bg3};
         border: 1px solid {bg6-border2};
         border-radius: 5px;
     }}
@@ -869,10 +874,6 @@ STYLESHEET = '''
     
     QColorDialog, QDialog, QWidget.ExportEditorSection {{
         background-color: {bg6-border2}
-    }}
-    
-    QWidget.ExportEditorSideBar {{
-        background: none;
     }}
 '''
 

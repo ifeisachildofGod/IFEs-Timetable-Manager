@@ -286,6 +286,53 @@ class BaseScrollWidget(BaseWidget):
         
         layout.addWidget(self.scroll_widget)
     
+        self._scroll_delay = 0
+        self._target_y = 0
+        self._scroll_start = None
+        self._focus_widget = None
+        self._scroll_delta = None
+        
+        self.scroll_delay = 10
+        
+        self.scroll_timer = QTimer(self)
+        self.scroll_timer.timeout.connect(self._scrolling)
+    
+    def _scrolling(self):
+        self._scroll_start += self._scroll_delta
+        self.scroll_widget.verticalScrollBar().setValue(int(self._scroll_start))
+        
+        self.update()
+        
+        self._scroll_delay += 1
+        if (self._target_y <= self._scroll_start - 100 and self._scroll_delta > 0) or (self._target_y >= self._scroll_start - 150 and self._scroll_delta < 0) or self._scroll_start - 50 <= self._target_y <= self._scroll_start + 50:
+            self._scroll_delay = 0
+            self.scroll_delay = 10
+            self.scroll_timer.stop()
+            
+            self._focus_widget = None
+            self._scroll_delta = None    
+    
+    def _scroll_to(self, widget: QWidget, is_first: bool):
+        widget.ensurePolished()
+        
+        self._focus_widget = widget
+        self._scroll_start = self.scroll_widget.verticalScrollBar().value()
+        self._target_y = widget.y()
+        
+        if is_first:
+            self.scroll_delay = 1
+        
+        self._scroll_delta = (widget.y() - self.scroll_widget.verticalScrollBar().value()) / self.scroll_delay
+        
+        self.scroll_timer.stop()
+        self.scroll_timer.start(1)
+    
+    def scroll_to(self, widget: QWidget, msec: Optional[int] = None):
+        QTimer.singleShot(
+            msec or 0,
+            lambda: self._scroll_to(widget, self.indexOf(widget) == 0)
+        )
+    
     def setAlignment(self, alignment: Qt.AlignmentFlag):
         self.getLayout().setAlignment(alignment)
     
@@ -316,6 +363,10 @@ class BaseDialogWidget(QDialog):
         
         self.setWindowTitle(title)
         self.setContentsMargins(0, 0, 0, 0)
+    
+    def scroll_to(self, widget: QWidget | BaseWidget, msec: int):
+        if isinstance(self.widget, BaseScrollWidget):
+            self.widget.scroll_to(widget, msec)
     
     def setSpacing(self, spacing: int):
         self.widget.setSpacing(spacing)

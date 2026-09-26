@@ -47,7 +47,7 @@ STYLESHEET = '''
     }}
     
     
-    QPushButton, .QPushButton {{
+    QPushButton {{
         background-color: {primary};
         color: {primary_text};
         border: none;
@@ -56,15 +56,15 @@ STYLESHEET = '''
         font-size: 15px;
     }}
     
-    QPushButton:hover, .QPushButton:hover {{
+    QPushButton:hover {{
         background-color: {primary_hover};
     }}
 
-    QPushButton:pressed, .QPushButton:pressed {{
+    QPushButton:pressed {{
         background-color: {primary_pressed};
     }}
     
-    QPushButton:disabled, .QPushButton:disabled {{
+    QPushButton:disabled {{
         background-color: {disabled};
     }}
     
@@ -230,25 +230,6 @@ STYLESHEET = '''
         font-weight: bold;
     }}
     
-    .option-menu {{
-        background-color: {input_bg};
-        color: {primary_text};
-        border: 1px solid {border};
-        padding: 0px
-    }}
-    
-    .option-menu QPushButton, .option-menu .QPushButton {{
-        border-radius: 0px;
-        margin: 0px;
-        border: none;
-        background-color: {input_bg};
-    }}
-    
-    .option-menu QPushButton:hover, .option-menu .QPushButton:hover {{
-        color: {primary_text};
-        background-color: {primary};
-    }}
-
     QTableView {{
         background-color: {bg};
         color: {text};
@@ -329,48 +310,20 @@ STYLESHEET = '''
     QCheckBox::indicator:hover {{
         border-color: {primary_hover};
     }}
-
-    .labeled-container {{
-        border: 2px solid {border};
-        border-radius: 8px;
-        /*background-color: #1e1e1e;*/
-    }}
-    .labeled-container:disabled {{
-        border: 1px solid {disabled};
-    }}
     
-    .labeled-title {{
+    QLabel.LabeledContainerTitle {{
+        color: red;
         font-size: 11px;
         font-weight: 500;
         padding: 0 4px;
     }}
-    .labeled-title:disabled {{
+    QLabel.LabeledContainerTitle:disabled {{
         color: {disabled};
     }}
     
     .labeled-widget {{
         border-radius: 6px;
         border: 1px solid {border};
-    }}
-    
-    .options-button {{
-        font-size: 20px;
-    }}
-    
-    QWidget.AttendanceTeacherEntryWidget * .labeled-container, QWidget.StaffListTeacherEntryWidget * .labeled-container {{
-        border: 1px solid {border_teacher};
-    }}
-    
-    QWidget.AttendancePrefectEntryWidget * .labeled-container, QWidget.StaffListPrefectEntryWidget * .labeled-container {{
-        border: 1px solid {border_prefect};
-    }}
-    
-    QWidget.AttendanceTeacherEntryWidget * .labeled-title, QWidget.StaffListTeacherEntryWidget * .labeled-title {{
-        color: {text_teacher};
-    }}
-    
-    QWidget.AttendancePrefectEntryWidget * .labeled-title, QWidget.StaffListPrefectEntryWidget * .labeled-title {{
-        color: {text_prefect};
     }}
     
     QWidget.AttendanceTeacherEntryWidget *, QWidget.StaffListTeacherEntryWidget * {{
@@ -406,39 +359,6 @@ STYLESHEET = '''
         font-weight: bold;
     }}
     
-    QWidget.StaffListTeacherEntryWidget * .labeled-title,
-    QWidget.StaffListTeacherEntryWidget * .options-button,
-    QWidget.AttendanceTeacherEntryWidget * .labeled-title,
-    QWidget.AttendanceTeacherEntryWidget * .options-button
-    {{
-        color: {title_text_teacher};
-    }}
-    
-    QWidget.StaffListPrefectEntryWidget * .labeled-title,
-    QWidget.StaffListPrefectEntryWidget * .options-button,
-    QWidget.AttendancePrefectEntryWidget * .labeled-title,
-    QWidget.AttendancePrefectEntryWidget * .options-button
-    {{
-        color: {title_text_prefect};
-    }}
-    
-    QWidget.AttendanceTeacherEntryWidget * .labeled-widget,
-    QWidget.StaffListTeacherEntryWidget * .labeled-widget
-    {{
-        border: 1px solid {title_text_teacher};
-    }}
-    
-    QWidget.AttendancePrefectEntryWidget * .labeled-widget,
-    QWidget.StaffListPrefectEntryWidget * .labeled-widget
-    {{
-        border: 1px solid {title_text_prefect};
-    }}
-    
-    .labeled-title {{
-        font-size: 11px;
-        padding: 0 4px;
-        padding-bottom: 0px;
-    }}
 '''
 
 PALETTES = {

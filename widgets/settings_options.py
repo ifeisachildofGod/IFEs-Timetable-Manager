@@ -64,7 +64,7 @@ class BaseSelectionList(BaseSettingDialog):
     
     def go_to(self, widget: "_SL_SelectedWidget"):
         def func():
-            self.getScrollWidget().verticalScrollBar().setValue(widget.y())
+            self.scroll_to(widget, 100)
             
             widget.setFocus()
         
@@ -1141,7 +1141,7 @@ class OccuranceEditor(BaseSettingDialog):
         for subject_id, widget in self.subject_widgets.items():
             if subject_id == _id:
                 def func():
-                    self.getScrollWidget().verticalScrollBar().setValue(widget.y())
+                    self.scroll_to(widget, 100)
                     widget.setFocus()
                 
                 QTimer.singleShot(200, func)
@@ -1285,7 +1285,7 @@ class ClassOptionsMaker(BaseSettingDialog):
     
     def go_to(self, widget: QWidget):
         def func():
-            self.getScrollWidget().verticalScrollBar().setValue(widget.y())
+            self.scroll_to(widget, 100)
             widget.setFocus()
         
         QTimer.singleShot(200, func)

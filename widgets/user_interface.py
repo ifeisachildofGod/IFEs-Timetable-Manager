@@ -1211,8 +1211,11 @@ class GeneralPeriodEditor(BaseWidget):
         min_year = 1982
         max_year = Period.str_to_period(time.ctime()).year + 200
         
-        self.min_period = min_period or Period(Time(0, 0, 1), "Monday", 1, "January", min_year - 1)
-        self.max_period = max_period or Period(Time(23, 59, 59), "Monday", 1, "January", max_year + 1)
+        self._default_min_period = Period(Time(0, 0, 1), "Monday", 1, "January", min_year - 1)
+        self._default_max_period = Period(Time(23, 59, 59), "Monday", 1, "January", max_year + 1)
+        
+        self.min_period = min_period or self._default_min_period.copy()
+        self.max_period = max_period or self._default_max_period.copy()
         
         self.period = period
         if self.period is None:
@@ -1258,6 +1261,11 @@ class GeneralPeriodEditor(BaseWidget):
         bottom_widget.addWidget(self.year_sb)
         
         self.__init = False
+    
+    def update_inputs(self):
+        self.year_sb.setValue(self.year_sb.value())
+        self.month_cb.setCurrentText(self.month_cb.currentText())
+        self.date_sb.setValue(self.date_sb.value())
     
     def _date_value_changed(self, date: int):
         prev_date = self.period.date

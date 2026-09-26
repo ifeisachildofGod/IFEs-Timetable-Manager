@@ -470,6 +470,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self.file_manager = file_manager
         
+        self.setSpacing(0)
         self._initGeometry()
         
         self.t_labels = [
@@ -492,6 +493,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         ]
         
         central_widget = TabViewWidget()
+        central_widget.setContentsMargins(0, 0, 0, 0)
         
         timetable_widget = BaseWidget(QHBoxLayout)
         timetable_widget.addWidget(self._initSideBarWidget(), stretch=25)
@@ -516,6 +518,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initBottomWidget(self):
         base_widget = BaseWidget(QHBoxLayout)
+        base_widget.setProperty("class", "DarkenedBG1")
         
         export_dialog = ExportPreviewDialog(
             *(self.t_labels + self.p_labels + self.c_labels),
@@ -547,7 +550,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initSideBarWidget(self):
         side_bar_widget = BaseWidget()
-        side_bar_widget.setProperty("class", "ExportEditorSideBar")
+        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar")
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
         
@@ -571,6 +574,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initTimetableSection(self):
         main_widget = BaseScrollWidget()
+        main_widget.setSpacing(10)
         main_widget.setProperty("class", "ExportEditorOptionsBG")
         
         self.s_rb = QRadioButton("School")
@@ -670,10 +674,16 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         def sp_en_func(state: bool):
             start_gpe_widget.setDisabled(not state)
             SCHOOL.settings.EXPORT_attendance_settings.start_limit_period = start_gpe_widget.period if state else None
+            
+            end_gpe_widget.min_period = start_gpe_widget.period or end_gpe_widget._default_min_period.copy()
+            end_gpe_widget.update_inputs()
         
         def ep_en_func(state: bool):
             end_gpe_widget.setDisabled(not state)
             SCHOOL.settings.EXPORT_attendance_settings.end_limit_period = end_gpe_widget.period if state else None
+            
+            start_gpe_widget.max_period = end_gpe_widget.period or start_gpe_widget._default_max_period.copy()
+            start_gpe_widget.update_inputs()
         
         def attendance_eft_func(file_type: str):
             SCHOOL.settings.EXPORT_attendance_settings.export_file_type = file_type
@@ -685,6 +695,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             return func
         
         main_widget = BaseScrollWidget()
+        main_widget.setSpacing(10)
         main_widget.setProperty("class", "ExportEditorOptionsBG")
         
         # --------------------------------------------------------------------------------------------------------------------------------
@@ -692,21 +703,23 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         start_period_widget = BaseWidget()
         start_point_enabled_cb = QCheckBox("Enabled") ; start_point_enabled_cb.clicked.connect(sp_en_func)
-        start_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.start_limit_period)
+        start_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.start_limit_period, max_period=SCHOOL.settings.EXPORT_attendance_settings.end_limit_period)
         start_period_widget.addWidget(start_gpe_widget)
         start_period_widget.addWidget(start_point_enabled_cb)
         start_period_widget.setProperty("class", "DarkendBG")
+        
+        end_period_widget = BaseWidget()
+        end_point_enabled_cb = QCheckBox("Enabled") ; end_point_enabled_cb.clicked.connect(ep_en_func)
+        end_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.end_limit_period, min_period=SCHOOL.settings.EXPORT_attendance_settings.start_limit_period)
+        end_period_widget.addWidget(end_gpe_widget)
+        end_period_widget.addWidget(end_point_enabled_cb)
+        end_period_widget.setProperty("class", "DarkendBG")
+        
         if SCHOOL.settings.EXPORT_attendance_settings.start_limit_period:
             start_point_enabled_cb.click()
         else:
             sp_en_func(False)
         
-        end_period_widget = BaseWidget()
-        end_point_enabled_cb = QCheckBox("Enabled") ; end_point_enabled_cb.clicked.connect(ep_en_func)
-        end_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.end_limit_period)
-        end_period_widget.addWidget(end_gpe_widget)
-        end_period_widget.addWidget(end_point_enabled_cb)
-        end_period_widget.setProperty("class", "DarkendBG")
         if SCHOOL.settings.EXPORT_attendance_settings.end_limit_period:
             end_point_enabled_cb.click()
         else:
@@ -726,6 +739,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.attendance_eft_cb.currentTextChanged.connect(attendance_eft_func)
         
         ei_widget = BaseFlowGridWidget(3)
+        ei_widget.setMinimumHeight(130)
         ei_widget.setVerticalSpacing(4)
         ei_widget.addWidget(ei_id_cb := QCheckBox("Include ID"))
         ei_widget.addWidget(ei_sn_cb := QCheckBox("Use Abbreviation"))
@@ -740,7 +754,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             cb.setChecked(SCHOOL.settings.EXPORT_attendance_settings.special_booleans[i])
             cb.clicked.connect(make_extra_info_func(i))
         
-        ep_widget.addWidget(eft := LabeledWidget("Export File Type", self.attendance_eft_cb)) ; eft.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        ep_widget.addWidget(LabeledWidget("Export File Type", self.attendance_eft_cb), alignment=Qt.AlignmentFlag.AlignCenter)
         ep_widget.addWidget(SeparatorLabel("Include Export Information"))
         ep_widget.addWidget(ei_widget)
         # --------------------------------------------------------------------------------------------------------------------------------

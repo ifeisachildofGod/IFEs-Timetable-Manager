@@ -147,7 +147,7 @@ class _StaffTimingSettings(BaseDialogWidget):
         widget.addWidget(central_widget)
         
         self.timeline_widget.insertWidget(len(self.timeline_widget.getChildren()), widget)
-        QTimer.singleShot(100, lambda: self.timeline_widget.getScrollWidget().verticalScrollBar().setValue(int(widget.y() + widget.height() / 2 + self.timeline_widget.rect().height() / 2)))
+        self.scroll_to(widget, 100)
         
         self._parent.window().saved_state_changed.emit(False)
 

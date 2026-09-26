@@ -86,35 +86,6 @@ class TabViewWidget(BaseWidget):
         
         return func
 
-class OptionsMenu(QFrame):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.Popup)
-        self.setFrameShape(QFrame.Shape.Box)
-        
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(2, 2, 2, 2)
-    
-    def set_options(self, options: dict[str, Callable]):
-        clear_layout(self.main_layout)
-        
-        self.add_options(options)
-    
-    def add_options(self, options: dict[str, Callable]):
-        for option_name, option_func in options.items():
-            btn = QLabel(option_name)
-            btn.setProperty("class", "QPushButton")
-            btn.mousePressEvent = self._option_selected(option_func)
-            
-            self.main_layout.addWidget(btn)
-    
-    def _option_selected(self, option_func: Callable):
-        def func(a0):
-            option_func()
-            self.hide()
-        
-        return func
-
 class Image(QLabel):
     def __init__(self, path: str, parent=None, width: int | None = None, height: int | None = None):
         super().__init__(parent)

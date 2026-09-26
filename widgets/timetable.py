@@ -171,7 +171,7 @@ class ClashDisplayDialog(BaseDialogWidget):
             ttbl = self.editor.timetable_widgets[cls.level.id][cls.id]
             ttbl_wrapper_widget = self.editor.classes_widget[cls.level.id][1][cls.id]
             
-            self.editor.scroll_widget.getScrollWidget().verticalScrollBar().setValue(ttbl_wrapper_widget.y())
+            self.editor.scroll_widget.scroll_to(ttbl_wrapper_widget, 100)
             
             item = ttbl.item(row, cls.level.weekdays.index(day))
             
@@ -259,6 +259,7 @@ class CombinationEditor(BaseWidget):
         self.add_new_buttons: list[tuple[QPushButton, QPushButton]] = []
         
         self.sets_widget = BaseScrollWidget()
+        self.sets_widget.setSpacing(15)
         self.sets_widget.addStretch()
         
         add_set_pb = QPushButton("Add Set")
@@ -513,20 +514,23 @@ class CombinationEditor(BaseWidget):
         combined_stuff.append(([], []))
         
         combination_set_widget = BaseWidget()
+        combination_set_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
         
         cancel_pb = QPushButton("×")
         cancel_pb.setProperty("class", "SettingEntryClose")
         cancel_pb.clicked.connect(removed_set_func)
         
         main_set_widget = BaseWidget(QHBoxLayout)
+        main_set_widget.setProperty("class", "NoBG")
+        
         main_set_widget.setFixedHeight(200)
-        main_set_widget.setProperty("class", "BG_Color")
-        main_set_widget.setStyleSheet("QWidget.BG_Color {background-color: #999}")
         main_set_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        main_set_widget.addWidget((subjects_widget := BaseScrollWidget()), stretch=5) ; subjects_widget.addStretch()
-        main_set_widget.addWidget((classes_widget := BaseScrollWidget()), stretch=5) ; classes_widget.addStretch()
+        main_set_widget.addWidget((subjects_widget := BaseScrollWidget()), stretch=5) ; subjects_widget.setProperty("class", "BorderRadiused") ; subjects_widget.addStretch()
+        main_set_widget.addWidget((classes_widget := BaseScrollWidget()), stretch=5) ; classes_widget.setProperty("class", "BorderRadiused") ; classes_widget.addStretch()
         
         buttons_area_widget = BaseWidget(QHBoxLayout)
+        buttons_area_widget.setProperty("class", "NoBG")
+        
         add_subject_pb = QPushButton("Add Subject")
         add_subject_pb.setDisabled(True)
         add_subject_pb.clicked.connect(add_subject_func)
@@ -541,6 +545,7 @@ class CombinationEditor(BaseWidget):
         combination_set_widget.addWidget(buttons_area_widget)
         
         self.sets_widget.insertWidget(len(self.sets_widget.getChildren(BaseWidget)), combination_set_widget)
+        self.sets_widget.scroll_to(combination_set_widget, 100)
         
         self.add_new_buttons.append((add_subject_pb, add_class_pb))
         
@@ -644,6 +649,8 @@ class TimetableTimeEditor(BaseWidget):
         
         self.__init = True
         
+        self.setProperty("class", "NoBG")
+        
         self._parent = parent
         self.t_time = t_time
         
@@ -658,10 +665,10 @@ class TimetableTimeEditor(BaseWidget):
         self.interval_sb.setValue(self.t_time.interval)
         self.break_time_duration_sb.setValue(self.t_time.break_time_duration)
         
-        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Start Time</span>", self.start_time_edit))
-        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Interval</span>", self.interval_sb))
+        self.addWidget(st_lw := LabeledWidget("Start Time", self.start_time_edit)) ; st_lw.setProperty("class", "NoBG")
+        self.addWidget(i_lw := LabeledWidget("Interval", self.interval_sb)) ; i_lw.setProperty("class", "NoBG")
         self.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 0, None, 1))
-        self.addWidget(LabeledWidget("<span style='font-weight: 100'>Break Time Duration</span>", self.break_time_duration_sb))
+        self.addWidget(btd_lw := LabeledWidget("Break Time Duration", self.break_time_duration_sb)) ; btd_lw.setProperty("class", "NoBG")
         
         self.start_time_edit.timeChanged.connect(self.start_time_changed)
         self.interval_sb.valueChanged.connect(self.interval_changed)
@@ -1328,6 +1335,7 @@ class SchoolTimetableEditor(BaseWidget):
     
     def make_class_level_settings(self, cls_level: ClassLevel):
         widget = BaseScrollWidget()
+        widget.setProperty("class", "Borderless")
         widget.setFixedSize(550, 450)
         
         def _generate():
@@ -1397,7 +1405,8 @@ class SchoolTimetableEditor(BaseWidget):
                 self.window().saved_state_changed.emit(True)
         
         def _add_everyday(set_default: bool = True):
-            widg = BaseWidget() ; widg.setProperty("class", "Bordered")
+            widg = BaseWidget()
+            widg.setProperty("class", "DarkenedBG1 BorderRadiused")
             
             if set_default:
                 SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]["Everyday"] = SCHOOL.settings.DEFAULT_timetable_time_setting.copy()
@@ -1466,7 +1475,8 @@ class SchoolTimetableEditor(BaseWidget):
             if not def_day:
                 _remove_day(days[0])
             
-            day_time_widget = BaseWidget() ; day_time_widget.setProperty("class", "Bordered")
+            day_time_widget = BaseWidget()
+            day_time_widget.setProperty("class", "Bordered BorderRadiused")
             
             cancel_pb = QPushButton("×")
             cancel_pb.setProperty("class", "SettingEntryClose")
@@ -1480,7 +1490,7 @@ class SchoolTimetableEditor(BaseWidget):
             day_time_widget.addWidget(top_widget)
             day_time_widget.addWidget(TimetableTimeEditor(self, time_setting))
             
-            timing_widget.addWidget(day_time_widget)
+            timing_widget.insertWidget(len(timing_widget.getChildren(BaseWidget)), day_time_widget)
             
             if len(days) == 1 and self.everyday_widgets[cls_level.id] is not None:
                 timing_widget.removeWidget(self.everyday_widgets[cls_level.id])
@@ -1496,7 +1506,7 @@ class SchoolTimetableEditor(BaseWidget):
                 day_cb.setCurrentIndex(days.index(def_day))
                 day_cb.blockSignals(False)
             
-            QTimer.singleShot(100, lambda: timing_widget.getScrollWidget().verticalScrollBar().setValue(timing_widget.getScrollWidget().verticalScrollBar().maximum()))
+            timing_widget.scroll_to(day_time_widget, 100)
             
             if def_day is None:
                 self.window().saved_state_changed.emit(True)
@@ -1523,7 +1533,9 @@ class SchoolTimetableEditor(BaseWidget):
         timing_area_widget = BaseWidget()
         
         timing_widget = BaseScrollWidget()
+        timing_widget.setSpacing(20)
         timing_widget.setFixedHeight(200)
+        timing_widget.addStretch()
         
         add_new_day_pb = QPushButton("Add new")
         add_new_day_pb.clicked.connect(lambda: new_day_added(None, None))
@@ -1539,20 +1551,20 @@ class SchoolTimetableEditor(BaseWidget):
         
         combination_editor = CombinationEditor(self, cls_level)
         
-        widget.addWidget(LabeledWidget("Period Amount", period_amt_edit))
-        widget.addWidget(LabeledWidget("Break Period", breakperiod_edit))
+        widget.addWidget(LabeledWidget("Period Amount", period_amt_edit), alignment=Qt.AlignmentFlag.AlignLeft)
+        widget.addWidget(LabeledWidget("Break Period   ", breakperiod_edit), alignment=Qt.AlignmentFlag.AlignLeft)
         # widget.addSpacing(5)
         # widget.addWidget(dotw_button)
-        widget.addSpacing(10)
+        widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
         widget.addWidget(generate_button)
         widget.addWidget(clear_button)
-        widget.addSpacing(10)
+        widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
         widget.addWidget(randomize_button)
-        widget.addSpacing(10)
-        widget.addWidget(QLabel("Combined Subjects"))
+        widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
+        widget.addWidget(QLabel("<b>Combined Subjects</b>"))
         widget.addWidget(combination_editor)
-        widget.addSpacing(10)
-        widget.addWidget(QLabel("Period Timing"))
+        widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
+        widget.addWidget(QLabel("<b>Period Timing</b>"))
         widget.addWidget(timing_area_widget)
         
         self.level_randomize_cbs[cls_level.id] = randomize_button
