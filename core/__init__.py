@@ -13,23 +13,10 @@ from core.timing_and_timetable import *
 _T = TypeVar("_T")
 
 
-
 @dataclass
 class AppData:
-    prefect_cit: Time
-    prefect_cot: Time
-    
-    teacher_cit: Time
-    teacher_cot: Time
-    
-    teacher_cin_border_interval_minutes: float | int
-    teacher_cout_border_interval_minutes: float | int
-    
-    prefect_cin_border_interval_minutes: float | int
-    prefect_cout_border_interval_minutes: float | int
-    
-    teacher_timeline_dates: list[tuple[Period, Period]]
-    prefect_timeline_dates: list[tuple[Period, Period]]
+    prefect_attendance_time_settings: StaffAttendanceTimeSettings
+    teacher_attendance_time_settings: StaffAttendanceTimeSettings
     
     attendance_data: list[AttendanceEntry]
     
@@ -37,12 +24,12 @@ class AppData:
         self.__dict__ = kwds
         
         assert \
-            self.prefect_cit.in_minutes() + self.prefect_cin_border_interval_minutes < self.prefect_cot.in_minutes() - self.prefect_cout_border_interval_minutes,\
-            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.prefect_cit.in_minutes() + self.prefect_cin_border_interval_minutes}\nCheck-Out lower border: {self.prefect_cot.in_minutes() - self.prefect_cout_border_interval_minutes}"
+            self.prefect_attendance_time_settings.check_in_time.in_minutes() + self.prefect_attendance_time_settings.check_in_border_interval_minutes < self.prefect_attendance_time_settings.check_out_time.in_minutes() - self.prefect_attendance_time_settings.check_out_border_interval_minutes,\
+            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.prefect_attendance_time_settings.check_in_time.in_minutes() + self.prefect_attendance_time_settings.check_in_border_interval_minutes}\nCheck-Out lower border: {self.prefect_attendance_time_settings.check_out_time.in_minutes() - self.prefect_attendance_time_settings.check_out_border_interval_minutes}"
         
         assert \
-            self.teacher_cit.in_minutes() + self.teacher_cin_border_interval_minutes < self.teacher_cot.in_minutes() - self.teacher_cout_border_interval_minutes,\
-            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.teacher_cit.in_minutes() + self.teacher_cin_border_interval_minutes}\nCheck-Out lower border: {self.teacher_cot.in_minutes() - self.teacher_cout_border_interval_minutes}"
+            self.teacher_attendance_time_settings.check_in_time.in_minutes() + self.teacher_attendance_time_settings.check_in_border_interval_minutes < self.teacher_attendance_time_settings.check_out_time.in_minutes() - self.teacher_attendance_time_settings.check_out_border_interval_minutes,\
+            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.teacher_attendance_time_settings.check_in_time.in_minutes() + self.teacher_attendance_time_settings.check_in_border_interval_minutes}\nCheck-Out lower border: {self.teacher_attendance_time_settings.check_out_time.in_minutes() - self.teacher_attendance_time_settings.check_out_border_interval_minutes}"
 
 
 class Global(dict[ID, _T]):
@@ -112,6 +99,7 @@ class Settings:
     TIMETABLE_time_settings: dict[ID, dict[str, TimetableTime]]
     
     EXPORT_timetable_export_theme: TimetableExportTheme
+    EXPORT_attendance_settings: AttendanceExportSettings
     EXPORT_selected_classes: dict[ID, list[ID]]
     
     ID_index: int
@@ -137,45 +125,45 @@ class School:
                 1, 1,
                 0, "PNG"
             ),
+            AttendanceExportSettings(None, None, "CSV", [False, False, False, False, False, False]),
             {}, 0, False
         )
-        
         self.attendance = AppData(
-            prefect_cit = Time(7, 0, 0),
-            prefect_cot = Time(15, 0, 0),
-
-            teacher_cit = Time(7, 0, 0),
-            teacher_cot = Time(15, 0, 0),
-            
-            prefect_cin_border_interval_minutes = 60,
-            prefect_cout_border_interval_minutes = 60,
-
-            teacher_cin_border_interval_minutes = 60,
-            teacher_cout_border_interval_minutes = 60,
-
-            teacher_timeline_dates = [
-                (
-                    Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=0),
-                    Period(time=Time(0, 0, 0), day="Friday", date=31, month="December", year=0)
-                )
-            ],
-            prefect_timeline_dates = [
-                (
-                    Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=0),
-                    Period(time=Time(0, 0, 0), day="Friday", date=31, month="December", year=0)
-                )
-            ],
+            prefect_attendance_time_settings = StaffAttendanceTimeSettings(
+                check_in_time = Time(7, 0, 0),
+                check_out_time = Time(15, 0, 0),
+                check_in_border_interval_minutes = 60,
+                check_out_border_interval_minutes = 60,
+                timeline_dates = [
+                    (
+                        Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=2026),
+                        Period(time=Time(0, 0, 0), day="Thursday", date=31, month="December", year=2026)
+                    )
+                ]
+            ),
+            teacher_attendance_time_settings = StaffAttendanceTimeSettings(
+                check_in_time = Time(7, 0, 0),
+                check_out_time = Time(15, 0, 0),
+                check_in_border_interval_minutes = 60,
+                check_out_border_interval_minutes = 60,
+                timeline_dates = [
+                    (
+                        Period(time=Time(0, 0, 0), day="Thursday", date=1, month="January", year=2026),
+                        Period(time=Time(0, 0, 0), day="Thursday", date=31, month="December", year=2026)
+                    )
+                ]
+            ),
             
             attendance_data = [],
         )
         
         assert \
-            self.attendance.prefect_cit.in_minutes() + self.attendance.prefect_cin_border_interval_minutes < self.attendance.prefect_cot.in_minutes() - self.attendance.prefect_cout_border_interval_minutes,\
-            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.prefect_cit.in_minutes() + self.attendance.prefect_cin_border_interval_minutes}\nCheck-Out lower border: {self.attendance.prefect_cot.in_minutes() - self.attendance.prefect_cout_border_interval_minutes}"
+            self.attendance.prefect_attendance_time_settings.check_in_time.in_minutes() + self.attendance.prefect_attendance_time_settings.check_in_border_interval_minutes < self.attendance.prefect_attendance_time_settings.check_out_time.in_minutes() - self.attendance.prefect_attendance_time_settings.check_out_border_interval_minutes,\
+            f"\nPrefect Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.prefect_attendance_time_settings.check_in_time.in_minutes() + self.attendance.prefect_attendance_time_settings.check_in_border_interval_minutes}\nCheck-Out lower border: {self.attendance.prefect_attendance_time_settings.check_out_time.in_minutes() - self.attendance.prefect_attendance_time_settings.check_out_border_interval_minutes}"
         
         assert \
-            self.attendance.teacher_cit.in_minutes() + self.attendance.teacher_cin_border_interval_minutes < self.attendance.teacher_cot.in_minutes() - self.attendance.teacher_cout_border_interval_minutes,\
-            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.teacher_cit.in_minutes() + self.attendance.teacher_cin_border_interval_minutes}\nCheck-Out lower border: {self.attendance.teacher_cot.in_minutes() - self.attendance.teacher_cout_border_interval_minutes}"
+            self.attendance.teacher_attendance_time_settings.check_in_time.in_minutes() + self.attendance.teacher_attendance_time_settings.check_in_border_interval_minutes < self.attendance.teacher_attendance_time_settings.check_out_time.in_minutes() - self.attendance.teacher_attendance_time_settings.check_out_border_interval_minutes,\
+            f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.attendance.teacher_attendance_time_settings.check_in_time.in_minutes() + self.attendance.teacher_attendance_time_settings.check_in_border_interval_minutes}\nCheck-Out lower border: {self.attendance.teacher_attendance_time_settings.check_out_time.in_minutes() - self.attendance.teacher_attendance_time_settings.check_out_border_interval_minutes}"
         
         self._log_data = {}
     

@@ -45,16 +45,16 @@ class StaffDataWidget(BaseOptionsWidget):
     
     def get_staff_attendance_data(self, staff: Staff):
         if isinstance(staff, Teacher):
-            timeline_dates = SCHOOL.attendance.teacher_timeline_dates
+            timeline_dates = SCHOOL.attendance.teacher_attendance_time_settings.timeline_dates
         elif isinstance(staff, Prefect):
-            timeline_dates = SCHOOL.attendance.prefect_timeline_dates
+            timeline_dates = SCHOOL.attendance.prefect_attendance_time_settings.timeline_dates
         else:
             raise Exception()
         
         weeks_data = {}
         
         for attendance in staff.attendance:
-            if BaseDataDisplayWidget.is_entry_countable(attendance, self.staff_working_days[staff.id], timeline_dates) is not None:
+            if BaseDataDisplayWidget.is_entry_countable(attendance, self.staff_working_days[staff.id], timeline_dates):
                 curr_index = DAYS_OF_THE_WEEK.index(attendance.period.day)
                 
                 days = self.staff_working_days[staff.id]
@@ -86,19 +86,17 @@ class StaffDataWidget(BaseOptionsWidget):
     
     def get_staff_punctuality_data(self, staff: Staff):
         if isinstance(staff, Teacher):
-            timeline_dates = SCHOOL.attendance.teacher_timeline_dates
-            cit = SCHOOL.attendance.teacher_cit
+            attendance_time_settings = SCHOOL.attendance.teacher_attendance_time_settings
             working_days = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == staff.id] for s in staff.subjects.values()])))
         elif isinstance(staff, Prefect):
-            timeline_dates = SCHOOL.attendance.prefect_timeline_dates
-            cit = SCHOOL.attendance.prefect_cit
+            attendance_time_settings = SCHOOL.attendance.prefect_attendance_time_settings
             working_days = list(staff.duties)
         else:
             raise Exception()
         
         full_y_plot_points = []
         for index, day in enumerate(working_days):
-            y_plot_points = [cit.in_minutes() - attendance.period.time.in_minutes() for attendance in staff.attendance if BaseDataDisplayWidget.is_entry_countable(attendance, [day], timeline_dates) is not None]
+            y_plot_points = [attendance_time_settings.check_in_time.in_minutes() - attendance.period.time.in_minutes() for attendance in staff.attendance if BaseDataDisplayWidget.is_entry_countable(attendance, [day], attendance_time_settings.timeline_dates)]
             
             if y_plot_points:
                 full_y_plot_points.append([index, day, y_plot_points])

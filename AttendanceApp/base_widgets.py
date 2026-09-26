@@ -14,14 +14,14 @@ class BaseListWidget(QWidget):
         self.widgets: list[BaseAttendanceEntryWidget] = []
         self.scroll_area = scroll_area
         
-        self.container = QWidget(self)          # ✅ keep reference + parent
+        self.container = QWidget(self)
         self.main_layout = QVBoxLayout(self.container)
         self.container.setLayout(self.main_layout)
         
         self.main_layout.addStretch()
         
         self._layout = QVBoxLayout(self)
-        self._layout.addWidget(self.container)  # ✅ add to visible hierarchy
+        self._layout.addWidget(self.container)
         self.setLayout(self._layout)
     
     # Category name is here to avoid edge cases
@@ -36,7 +36,7 @@ class BaseListWidget(QWidget):
         
         self.widgets.append(widget)
     
-    def get_widgets(self):
+    def getWidgets(self):
         return self.widgets
 
 class BaseScrollListWidget(QWidget):
@@ -51,7 +51,7 @@ class BaseScrollListWidget(QWidget):
         widget = QWidget()
         self.scroll_widget.setWidget(widget)
         self.main_layout = QVBoxLayout(widget)
-        
+        self.main_layout.setSpacing(20)
         self.main_layout.addStretch()
         
         self._layout = QVBoxLayout(self)
@@ -115,7 +115,7 @@ class BaseScrollListWidget(QWidget):
         
         self.widgets.append(widget)
     
-    def get_widgets(self):
+    def getWidgets(self):
         return self.widgets
 
 class BaseFilterCategoriesWidget(BaseListWidget):
@@ -175,7 +175,7 @@ class BaseFilterCategoriesWidget(BaseListWidget):
             
             self.category_widgets_tracker[-1].append(widget)
     
-    def get_widgets(self):
+    def getWidgets(self):
         return self.category_widgets_tracker
 
 
@@ -241,14 +241,9 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
     
     @staticmethod
     def is_entry_countable(entry: AttendanceEntry, valid_days: list[str], timeline_dates: list[tuple[Period, Period]]):
-        time_line_index = next((i for i, t_d in enumerate(timeline_dates) if t_d[0].in_minutes() <= entry.period.in_minutes() <= t_d[1].in_minutes()), None)
+        is_in_timeline = next((True for i, t_d in enumerate(timeline_dates) if t_d[0].in_minutes() <= entry.period.in_minutes() <= t_d[1].in_minutes()), False)
         
-        if (
-            entry.is_check_in and
-            entry.period.day in valid_days and
-            time_line_index is not None
-            ):
-            return time_line_index
+        return is_in_timeline and entry.is_check_in and entry.period.day in valid_days
     
     def filter(self, index: int):
         for i, staff_widget in enumerate(self.widgets.values()):
@@ -308,12 +303,16 @@ class BaseStaffListEntryWidget(QWidget):
         
         main_info_layout.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignTop)
         
-        self.sub_info_widget = BaseWidget(QHBoxLayout) ; self.main_layout.addWidget(self.sub_info_widget)
+        self.sub_info_widget = BaseWidget(QHBoxLayout)
+        self.sub_info_widget.setSpacing(30)
+        self.sub_info_widget.setContentsMargins(30, 5, 30, 5)
+        self.main_layout.addWidget(self.sub_info_widget)
         
         self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "No IUD set")
         self.iud_label.setStyleSheet("font-weight: bold;")
         
-        self.sub_info_widget.addWidget(LabeledField("IUD", self.iud_label, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignLeft)
+        self.sub_info_widget.addWidget(iud_lf := LabeledField("IUD", self.iud_label, height_policy=QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignCenter)
+        iud_lf.setMinimumWidth(120)
     
     def update_name(self):
         self.name_label.setText(self.staff.name.full())

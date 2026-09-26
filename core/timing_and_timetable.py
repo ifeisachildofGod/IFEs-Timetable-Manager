@@ -232,6 +232,15 @@ class Margins:
     bottom: int
 
 @dataclass
+class AttendanceExportSettings:
+    start_limit_period: Optional[Period]
+    end_limit_period: Optional[Period]
+    
+    export_file_type: str
+    
+    special_booleans: tuple[bool, bool, bool, bool, bool, bool]
+
+@dataclass
 class TextTheme:
     family: str
     size: int
@@ -273,6 +282,16 @@ class TimetableTime:
     
     def copy(self):
         return TimetableTime(self.start_time, self.interval, self.break_time_duration)
+
+@dataclass
+class StaffAttendanceTimeSettings:
+    check_in_time: Time
+    check_out_time: Time
+    
+    check_in_border_interval_minutes: float | int
+    check_out_border_interval_minutes: float | int
+    
+    timeline_dates: list[tuple[Period, Period]]
 
 class TimetableGeneratorError(Exception):
     pass

@@ -2,6 +2,26 @@
 from imports import *
 
 STYLESHEET = '''
+    QWidget.Bordered {{
+        border: 1px solid {input_border};
+    }}
+    
+    QWidget.BorderRadiused {{
+        border-radius: 9px;
+    }}
+    
+    QWidget.DarkendBG {{
+        background-color: {bg};
+    }}
+    
+    QWidget.DarkenedBG1 {{
+        background-color: {tooltip_bg};
+    }}
+    
+    QWidget.NoBG {{
+        background: none;
+    }}
+    
     QWidget {{
         background-color: {bg};
         color: {text};
@@ -26,12 +46,14 @@ STYLESHEET = '''
         color: {primary};
     }}
     
+    
     QPushButton, .QPushButton {{
         background-color: {primary};
         color: {primary_text};
         border: none;
         border-radius: 4px;
         padding: 6px 12px;
+        font-size: 15px;
     }}
     
     QPushButton:hover, .QPushButton:hover {{
@@ -440,7 +462,7 @@ PALETTES = {
             "mute-bg": "#404040",
             "secondary": "#3a3a3d",
             "border": "#B6B6B6",
-            "input_bg": "#2d2d30",
+            "input_bg": "#2d2d2d",
             "input_border": "#555",
             "scrollbar": "#555",
             "tooltip_bg": "#333",
@@ -526,9 +548,9 @@ PALETTES = {
     "accent-palette": {
         "blue": {
             "primary_text": "#ffffff",
-            "primary": "#32a6ff",
-            "primary_hover": "#5db5fd",
-            "primary_pressed": "#1a9cff",
+            "primary": "#0770c0",
+            "primary_hover": "#0d63aa",
+            "primary_pressed": "#0a548d",
             "highlight": "#a3d6ff",
             
             "teacher": "#002358",

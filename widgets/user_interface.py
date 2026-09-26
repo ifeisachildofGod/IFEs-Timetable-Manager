@@ -1,6 +1,7 @@
 
 import csv
 from io import StringIO
+import time
 
 from utils import *
 from imports import *
@@ -1194,5 +1195,114 @@ class IconToolBarOption(BaseWidget):
                     raise
         
         return menu
+
+class GeneralPeriodEditor(BaseWidget):
+    def __init__(self, window: QMainWindow, period: Optional[Period] = None, min_period: Optional[Period] = None, max_period: Optional[Period] = None):
+        super().__init__()
+        
+        self.__init = True
+        
+        self.setContentsMargins(5, 5, 5, 5)
+        self.setProperty("class", "Bordered BorderRadiused DarkenedBG1")
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        self._window = window
+        
+        min_year = 1982
+        max_year = Period.str_to_period(time.ctime()).year + 200
+        
+        self.min_period = min_period or Period(Time(0, 0, 1), "Monday", 1, "January", min_year - 1)
+        self.max_period = max_period or Period(Time(23, 59, 59), "Monday", 1, "January", max_year + 1)
+        
+        self.period = period
+        if self.period is None:
+            self.period = Period.str_to_period(time.ctime())
+            self.period.time = Time(0, 0, 0)
+        
+        self._prev_day_amt = self.period.in_days()
+        
+        self.day_label = QLabel(self.period.day)
+        self.day_label.setStyleSheet("QLabel {padding: 6px}")
+        self.day_label.setProperty("class", "Bordered BorderRadiused")
+        
+        self.date_sb = QSpinBox()
+        self.month_cb = QComboBox()
+        self.year_sb = QSpinBox()
+        
+        self.date_sb.setMinimum(1)
+        self.month_cb.addItems(list(MONTHS_OF_THE_YEAR))
+        self.year_sb.setRange(min_year, max_year)
+        
+        self.date_sb.setValue(self.period.date)
+        self.month_cb.setCurrentText(self.period.month)
+        self.year_sb.setValue(self.period.year)
+        
+        self.date_sb.valueChanged.connect(self._date_value_changed)
+        self.month_cb.currentTextChanged.connect(self._month_text_changed)
+        self.year_sb.valueChanged.connect(self._year_value_changed)
+        
+        self._year_value_changed(self.year_sb.value())
+        self._month_text_changed(self.month_cb.currentText())
+        self._date_value_changed(self.date_sb.value())
+        
+        self.addWidget(top_widget := BaseWidget(QHBoxLayout))
+        self.addWidget(bottom_widget := BaseWidget(QHBoxLayout))
+        
+        top_widget.setProperty("class", "NoBG")
+        bottom_widget.setProperty("class", "NoBG")
+        
+        top_widget.addWidget(self.date_sb)
+        top_widget.addWidget(self.day_label)
+        
+        bottom_widget.addWidget(self.month_cb)
+        bottom_widget.addWidget(self.year_sb)
+        
+        self.__init = False
+    
+    def _date_value_changed(self, date: int):
+        prev_date = self.period.date
+        self.period.date = date
+        
+        if not (self.min_period.in_seconds() <= self.period.in_seconds() <= self.max_period.in_seconds()):
+            self.date_sb.setValue(prev_date)
+        
+        dodw_index = DAYS_OF_THE_WEEK.index(self.period.day)
+        day_diff = int(self.period.in_days() - self._prev_day_amt)
+        
+        self.period.day = DAYS_OF_THE_WEEK[(dodw_index + day_diff) % len(DAYS_OF_THE_WEEK)]
+        
+        self.day_label.setText(self.period.day)
+        
+        self.date_sb.setSuffix(positionify(self.period.date)[-2:])
+        
+        self._prev_day_amt = self.period.in_days()
+        
+        if not self.__init:
+            self._window.saved_state_changed.emit(True)
+    
+    def _month_text_changed(self, month: str):
+        prev_month = self.period.month
+        self.period.month = month
+        
+        if not (self.min_period.in_seconds() <= self.period.in_seconds() <= self.max_period.in_seconds()):
+            self.month_cb.setCurrentText(prev_month)
+        
+        self.date_sb.setMaximum(MONTHS_OF_THE_YEAR[month] + (1 if month == "February" else 0))
+        
+        self._date_value_changed(self.date_sb.value())
+    
+    def _year_value_changed(self, year: int):
+        prev_year = self.period.year
+        self.period.year = year
+        
+        if not (self.min_period.in_seconds() <= self.period.in_seconds() <= self.max_period.in_seconds()):
+            self.year_sb.setValue(prev_year)
+        
+        self._month_text_changed(self.month_cb.currentText())
+        
+        if self.period.year % 4 == 0 and self.month_cb.currentText() == "February":
+            self.date_sb.setMaximum(MONTHS_OF_THE_YEAR[self.month_cb.currentText()] + 1)
+        
+        self._date_value_changed(self.date_sb.value())
 
 

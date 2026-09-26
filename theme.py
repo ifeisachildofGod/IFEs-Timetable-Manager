@@ -170,7 +170,15 @@ STYLESHEET = '''
     }}
     
     QWidget.DarkendBG {{
-        background-color: {hover__bg1}
+        background-color: {hover__bg1};
+    }}
+    
+    QWidget.DarkenedBG1 {{
+        background-color: {hover__bg2};
+    }}
+    
+    QWidget.NoBG {{
+        background: none;
     }}
     
     QMainWindow {{
@@ -864,7 +872,7 @@ STYLESHEET = '''
     }}
     
     QWidget.ExportEditorSideBar {{
-        background-color: {bg5};
+        background: none;
     }}
 '''
 

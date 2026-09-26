@@ -41,7 +41,6 @@ class _CharacterNameWidget(QWidget):
         
         self.main_layout.addWidget(LabeledField("Names", widget_2_1, height_policy=QSizePolicy.Policy.Maximum))
 
-    
 
 class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
     def __init__(self, data: AttendanceEntry):
@@ -82,11 +81,8 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
         layout_2.addWidget(name_widget)
         
         if data.is_check_in:
-            _, layout_2_2 = create_widget(layout_2, QVBoxLayout)
-            
-            widget_2_2_2 = BaseScrollWidget()
-            
-            layout_2_2.addWidget(LabeledField("Subjects", widget_2_2_2, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            layout_2.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            widget_2_2_2.setFixedHeight(180)
             
             periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}
             
@@ -117,15 +113,16 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
                 for index, (cls_id, periods) in enumerate(subject_data.items()):
                     cls = SCHOOL.class_levels[cls_id.class_level_id].classes[cls_id]
                     
-                    widget_2_2_2_1_1, layout_2_2_2_1_1 = create_widget(None, QVBoxLayout)
-                    for period in periods:
-                        layout_2_2_2_1_1.addWidget(QLabel(f"{positionify(str(period))} period"), alignment=Qt.AlignmentFlag.AlignTop)
+                    widget_2_2_2_1_1, layout_2_2_2_1_1 = create_widget(None, QVBoxLayout) ; layout_2_2_2_1_1.addStretch()
+                    for i, period in enumerate(periods):
+                        layout_2_2_2_1_1.insertWidget(i, QLabel(f"{positionify(str(period))} period"))
                     layout_2_2_2_1.addWidget(LabeledField(f"{cls.level.name.full()} {cls.name}", widget_2_2_2_1_1), int(index / 3), index % 3)
                 widget_2_2_2.addWidget(LabeledField(SCHOOL.subjects[subject_id].name.full(), widget_2_2_2_1))
 
 class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
     def __init__(self, data: AttendanceEntry):
         super().__init__("Prefect", data)
+        self.staff: Prefect = self.staff
         
         self.labeled_container.setProperty("class", "AttendancePrefectEntryWidget")
         
@@ -179,7 +176,6 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
 
 
-
 class StaffListPrefectEntryWidget(BaseStaffListEntryWidget):
     def __init__(self, parent_widget: TabViewWidget, prefect: Prefect, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
         super().__init__(parent_widget, prefect, comm_device, card_scanner_index, staff_data_index)
@@ -207,12 +203,12 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
         
         self.subj_data_widget = BaseScrollWidget()
         self.subj_data_widget.setMinimumHeight(110)
-        self.subj_data_widget.setMinimumHeight(110)
         
         for subject in self.staff.subjects.values():
             self.add_subject(subject)
         
-        self.sub_info_widget.addWidget(LabeledField("Subjects", self.subj_data_widget))
+        self.sub_info_widget.addWidget(s_lf := LabeledField("Subjects", self.subj_data_widget), alignment=Qt.AlignmentFlag.AlignCenter)
+        s_lf.setFixedWidth(440)
     
     def add_subject(self, subject: Subject):
         self.subject_cls_widgets[subject.id] = BaseWidget()

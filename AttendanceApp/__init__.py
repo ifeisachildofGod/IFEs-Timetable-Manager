@@ -38,7 +38,11 @@ class AttendanceManager(TabViewWidget):
         self.attendance_widget = AttendanceWidget(self, self.attendance_chart_widget, self.punctuality_graph_widget, self.target_connector, card_scan_widget)
         self.staff_list_widget = StaffListWidget(self, self.target_connector, card_scan_widget, staff_data_widget, self.attendance_widget)
         
-        self.add("Attendance", self.attendance_widget, lambda _: self._set_search_state("Attendance Data"))
+        def _changed_to_staff_list_widget_func(_):
+            self._set_search_state("Attendance Data")
+            self.attendance_widget.update_tooltip()
+        
+        self.add("Attendance", self.attendance_widget, _changed_to_staff_list_widget_func)
         self.add("Staff", self.staff_list_widget, lambda _: self._set_search_state("Staff"))
         self.add("Attendance Chart", self.attendance_chart_widget, lambda _: self._set_search_state(""))
         self.add("Punctuality Graph", self.punctuality_graph_widget, lambda _: self._set_search_state(""))
