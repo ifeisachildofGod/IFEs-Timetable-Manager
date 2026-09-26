@@ -669,8 +669,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         return main_widget
     
     def _initAttendanceSection(self):
-        SCHOOL.settings.EXPORT_attendance_settings = AttendanceExportSettings(None, None, "CSV", [False, False, False, False, False, False])
-        
         def sp_en_func(state: bool):
             start_gpe_widget.setDisabled(not state)
             SCHOOL.settings.EXPORT_attendance_settings.start_limit_period = start_gpe_widget.period if state else None
