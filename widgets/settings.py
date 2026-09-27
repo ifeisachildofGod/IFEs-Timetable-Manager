@@ -76,6 +76,41 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             case 1:
                 self.entry.name.abbrev = text
         
+        for c_s_id, c_s in SCHOOL.subjects.items():
+            if isinstance(c_s, CombinedSubject) and self.entry.id in c_s.classes and c_s_id in self.i_parent.widgets:
+                widg = self.i_parent.widgets[c_s_id]
+                widg.simple_name_changed(widg.simple_line_edit.text(), None)
+        
+        cls_lvl_ids = []
+        
+        for cls in self.entry.classes.values():
+            if cls.level.id not in cls_lvl_ids:
+                cls_lvl_ids.append(cls.level.id)
+            else:
+                continue
+            
+            for combo_dict in self.timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
+                for cb in combo_dict["subjects"]:
+                    cb.blockSignals(True)
+                    
+                    subjects = []
+                    if self.entry.id in cls.level.subjects_occurence:
+                        subjects = [self.entry]
+                    subjects += [c_subj for c_subj_id in cls.level.subjects_occurence if isinstance((c_subj := SCHOOL.subjects[c_subj_id]), CombinedSubject) and self.entry.id in c_subj.classes]
+                    
+                    for subj in subjects:
+                        curr_index = cb.currentIndex()
+                        index = next((i for i in range(cb.count()) if cb.itemData(i) == subj.id), None)
+                        
+                        if index is not None:
+                            cb.removeItem(index)
+                            cb.addItem(subj.name.full(), userData=subj.id)
+                            
+                            if index == curr_index:
+                                cb.setCurrentIndex(cb.count() - 1)
+                    
+                    cb.blockSignals(False)
+        
         for teacher in SCHOOL.teachers.values():
             if self.entry.id in teacher.subjects:
                 for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
@@ -138,7 +173,33 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         else:
             self.entry.name.full_name = None
             self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
-            
+        
+        cls_lvl_ids = []
+        
+        for subj_clses in self.entry.classes.values():
+            for cls in subj_clses.values():
+                if cls.level.id not in cls_lvl_ids:
+                    cls_lvl_ids.append(cls.level.id)
+                else:
+                    continue
+                
+                for combo_dict in self.timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
+                    for cb in combo_dict["subjects"]:
+                        cb.blockSignals(True)
+                        
+                        curr_index = cb.currentIndex()
+                        index = next((i for i in range(cb.count()) if cb.itemData(i) == self.entry.id), None)
+                        
+                        if index is not None:
+                            cb.removeItem(index)
+                            cb.addItem(self.entry.name.full(), userData=self.entry.id)
+                            
+                            if index == curr_index:
+                                cb.setCurrentIndex(cb.count() - 1)
+                        
+                        cb.blockSignals(False)
+        
+        if not text:
             if self.entry.name.abbrev:
                 default = f"Default: {self.entry.name.abbrev}"
                 self.status_widget.removeLinient("EmptyNameWarning")
@@ -307,12 +368,35 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         self.entry.name = ClassLevelName(text)
         self.timetable_editor.set_label_text(self.entry.id, text)
         
+        for combo_dict in self.timetable_editor.combination_widgets[self.entry.id].combo_box_widgets:
+            for cb in combo_dict["classes"]:
+                cb.blockSignals(True)
+                
+                curr_c_id = cb.itemData(cb.currentIndex())
+                
+                for _ in range(cb.count()):
+                    c_id = cb.itemData(0)
+                    cls = self.entry.classes[c_id]
+                    
+                    cb.removeItem(0)
+                    cb.addItem(f"{self.entry.name.full()} {cls.name}", userData=c_id)
+                
+                cb.setCurrentIndex(next(i for i in range(cb.count()) if curr_c_id == cb.itemData(i)))
+                
+                cb.blockSignals(False)
+        
         for cls in self.entry.classes.values():
             for subject in cls.subjects.values():
-                if subject.teacher:
-                    for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                        if subject.teacher.id in teacher_filtered_dict:
-                            teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
+                if isinstance(subject, Subject):
+                    subjects = [subject]
+                elif isinstance(subject, CombinedSubject):
+                    subjects = subject.subjects
+                
+                for subj in subjects:
+                    if subj.teacher:
+                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+                            if subj.teacher.id in teacher_filtered_dict:
+                                teacher_filtered_dict[subj.teacher.id].update_class_name(cls)
 
 
 

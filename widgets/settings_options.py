@@ -1323,6 +1323,22 @@ class ClassOptionsMaker(BaseSettingDialog):
                             if subject.teacher.id in teacher_filtered_dict:
                                 teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
             
+            for combo_dict in self.timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
+                for cb in combo_dict["classes"]:
+                    cb.blockSignals(True)
+                    
+                    curr_index = cb.currentIndex()
+                    index = next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)
+                    
+                    if index is not None:
+                        cb.removeItem(index)
+                        cb.addItem(f"{cls.level.name.full()} {cls.name}", userData=cls.id)
+                        
+                        if index == curr_index:
+                            cb.setCurrentIndex(cb.count() - 1)
+                    
+                    cb.blockSignals(False)
+            
             self._parent.window().saved_state_changed.emit(True)
         
         update_option()

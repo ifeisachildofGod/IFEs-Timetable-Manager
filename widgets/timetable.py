@@ -1281,7 +1281,7 @@ class SchoolTimetableEditor(BaseWidget):
         super().__init__()
         
         self.remainder_source_ref: Optional[TimetableItem] = None
-        
+        self.combination_widgets: dict[ID, CombinationEditor] = {}
         self.class_generator_threads: dict[ID, Thread] = {}
         
         # Create scroll area for timetables
@@ -1303,6 +1303,9 @@ class SchoolTimetableEditor(BaseWidget):
         self.classes_widget: dict[ID, tuple[WidgetDropdown, dict[ID, BaseWidget]]] = {}
         self.everyday_widgets: dict[ID, Optional[BaseWidget]] = {}
         self.ttbl_day_trackers: dict[ID, dict[QComboBox, list[str, list[str]]]] = {}
+        
+        for cls_level in SCHOOL.class_levels.values():
+            self.combination_widgets[cls_level.id] = CombinationEditor(self, cls_level)
         
         # Create settings for timetables
         self.settings_widget = TimetableSettings(self)
@@ -1549,8 +1552,6 @@ class SchoolTimetableEditor(BaseWidget):
             else:
                 new_day_added(name, content)
         
-        combination_editor = CombinationEditor(self, cls_level)
-        
         widget.addWidget(LabeledWidget("Period Amount", period_amt_edit), alignment=Qt.AlignmentFlag.AlignLeft)
         widget.addWidget(LabeledWidget("Break Period   ", breakperiod_edit), alignment=Qt.AlignmentFlag.AlignLeft)
         # widget.addSpacing(5)
@@ -1562,7 +1563,7 @@ class SchoolTimetableEditor(BaseWidget):
         widget.addWidget(randomize_button)
         widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
         widget.addWidget(QLabel("<b>Combined Subjects</b>"))
-        widget.addWidget(combination_editor)
+        widget.addWidget(self.combination_widgets[cls_level.id])
         widget.addWidget(SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1))
         widget.addWidget(QLabel("<b>Period Timing</b>"))
         widget.addWidget(timing_area_widget)
@@ -1690,7 +1691,7 @@ class SchoolTimetableEditor(BaseWidget):
         self.cls_randomize_cbs.pop(cls.id)
     
     def set_label_text(self, id: ID, name: str | ClassLevelName):
-        self.label_data[id].setText(name if isinstance(name, str) else f"<span style='font-size: 60px'>{name.full()}</span>")
+        self.label_data[id].setText(f"<span style='font-size: 60px'>{name.full()}</span>" if isinstance(name, ClassLevelName) else name)
 
 
 

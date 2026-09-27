@@ -812,7 +812,7 @@ class BaseSettingWidget(BaseWidget):
     def __init__(self, names: list[str]):
         super().__init__()
         
-        self.widgets = {}
+        self.widgets: dict[ID, BaseSettingEntry[Subject | CombinedSubject]] = {}
         
         self.scroll_widget = BaseScrollWidget()
         self.scroll_widget.setSpacing(20)
