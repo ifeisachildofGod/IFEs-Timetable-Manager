@@ -1600,6 +1600,10 @@ class SchoolTimetableEditor(BaseWidget):
             if def_day is None:
                 self.window().saved_state_changed.emit(True)
         
+        if cls_level.id not in self.combination_widgets:
+            SCHOOL.gen_data.combined_subjects[cls_level.id] = []
+            self.combination_widgets[cls_level.id] = CombinationEditor(self, cls_level)
+        
         _init = True
         
         period_amt_edit = NumberLineEdit(cls_level.period_amount, 1, 25)
@@ -1832,6 +1836,8 @@ class SchoolTimetableEditor(BaseWidget):
         self.classes_widget.pop(cls_level_id)
         self.everyday_widgets.pop(cls_level_id)
         ttbl_content = self.timetable_widgets.pop(cls_level_id)
+        
+        self.combination_widgets.pop(cls_level_id)
         self.level_randomize_cbs.pop(cls_level_id)
         
         for cls_id in ttbl_content:

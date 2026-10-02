@@ -9,11 +9,11 @@ from AttendanceApp import AttendanceManager
 
 
 class BaseSelectionList(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, attendance_manager: AttendanceManager, timetable_editor: Optional[SchoolTimetableEditor] = None):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
-        self.attendance_manager = attendance_manager
         self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
         
         self.id = id
         self._parent = parent
@@ -73,14 +73,14 @@ class BaseSelectionList(BaseSettingDialog):
 
 
 class SubjectSelectionList(BaseSelectionList):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.subject: Subject = SCHOOL.subjects[id]
         
-        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and next((True for s_s in s.subjects if s_s.id == id), False)]
+        self.combined_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and id in s.classes]
         
         selected, scope = self._get_list_data(id)
         
-        super().__init__(parent, id, title, selected.items(), scope, attendance_manager)
+        super().__init__(parent, id, title, selected.items(), scope, timetable_editor, attendance_manager)
     
     def _get_list_data(self, id: ID):
         selected = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
@@ -122,39 +122,45 @@ class SubjectSelectionList(BaseSelectionList):
         return selected, scope
     
     def item_selected(self, id: ID):
-        SCHOOL.teachers[id].subjects[self.id] = self.subject
+        assign_teacher(SCHOOL.teachers[id], self.id, self.attendance_manager)
         
-        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-            if id in staff_widget_dict:
-                staff_widget_dict[id].add_subject(self.subject)
+        # SCHOOL.teachers[id].subjects[self.id] = self.subject
+        
+        # for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+        #     if id in staff_widget_dict:
+        #         staff_widget_dict[id].add_subject(self.subject)
     
     def item_removed(self, id: ID):
-        SCHOOL.teachers[id].subjects.pop(self.id)
+        c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and self.id in s.classes]
         
-        for cls in self.subject.classes.values():
-            if self.id in cls.subjects:
-                if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
-                    cls.subjects[self.id].teacher = None
-            else:
-                for s in self.combined_subjects:
-                    if s.id not in cls.subjects:
-                        continue
+        deassign_teacher(SCHOOL.teachers[id], self.id, self.timetable_editor, self.attendance_manager, c_subjects)
+        
+        # SCHOOL.teachers[id].subjects.pop(self.id)
+        
+        # for cls in self.subject.classes.values():
+        #     if self.id in cls.subjects:
+        #         if cls.subjects[self.id].teacher is not None and cls.subjects[self.id].teacher.id == id:
+        #             cls.subjects[self.id].teacher = None
+        #     else:
+        #         for s in self.combined_subjects:
+        #             if s.id not in cls.subjects:
+        #                 continue
                     
-                    for s_s in cls.subjects[s.id].subjects:
-                        if s_s.id == self.id and s_s.teacher is not None and s_s.teacher.id == id:
-                            s_s.teacher = None
+        #             for s_s in cls.subjects[s.id].subjects:
+        #                 if s_s.id == self.id and s_s.teacher is not None and s_s.teacher.id == id:
+        #                     s_s.teacher = None
         
         _, scope = self._get_list_data(self.id)
-        selected_ids = [item_id for item_id, item_widget in self.widgets if isinstance(item_widget, _SL_SelectedWidget)]
+        selected_ids = [item_id for item_id, item_widget in self.widgets.items() if isinstance(item_widget, _SL_SelectedWidget)]
         
         for item_id, item in scope.items():
             if item_id not in selected_ids and item_id not in self.widgets:
                 widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window())
                 self.addWidget(widget)
         
-        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-            if id in staff_widget_dict:
-                staff_widget_dict[id].remove_subject(self.subject)
+        # for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+        #     if id in staff_widget_dict:
+        #         staff_widget_dict[id].remove_subject(self.subject)
 
 class CombinedSubjectSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -163,72 +169,75 @@ class CombinedSubjectSelectionList(BaseSelectionList):
         self.selected_items = {s.id: s for s in self.c_subject.subjects}
         self.full_scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if self._scope_check(s)}
         
-        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope, attendance_manager, timetable_editor)
+        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope, timetable_editor, attendance_manager)
     
     def _scope_check(self, subject: Subject | CombinedSubject):
         return isinstance(subject, Subject) and subject.classes
     
     def item_selected(self, id: ID):
         subject = SCHOOL.subjects[id]
+        assign_combined_subject_sub_subject(self.c_subject, subject, self._parent)
         
-        self.c_subject.classes[id] = {}
-        self.c_subject.subjects.append(subject)
+        # self.c_subject.classes[id] = {}
+        # self.c_subject.subjects.append(subject)
         
-        self.selected_items[subject.id] = subject
+        # self.selected_items[subject.id] = subject
         
         for s_id, s in SCHOOL.subjects.items():
             if not self._scope_check(s) and s_id in self.full_scope:
                 self.full_scope.pop(s_id)
                 self.removeWidget(self.widgets[s_id])
         
-        if not self._parent.simple_line_edit.text():
-            self._parent.simple_name_changed(self._parent.simple_line_edit.text(), None)
+        # if not self._parent.simple_line_edit.text():
+        #     self._parent.simple_name_changed(self._parent.simple_line_edit.text(), None)
     
     def item_removed(self, id):
-        subject = SCHOOL.subjects[id]
+        deassign_combined_subject_sub_subject(self.c_subject, id, self.timetable_editor, self.attendance_manager, self._parent)
         
-        cls_lvl_ids = []
+        # subject = SCHOOL.subjects[id]
         
-        for cls in self.c_subject.classes[subject.id].values():
-            if self.c_subject.id in cls.level.subjects_occurence and next((False for s_id, s_clses in self.c_subject.classes.items() if s_id != subject.id and next((True for c in s_clses.values() if c.level.id == cls.level.id), False)), True):
-                if next((False for s_clses in self.c_subject.classes.values() if next((True for c in s_clses.values() if c.level.id == cls.level.id), False)), True):
-                    if cls.level.id not in cls_lvl_ids:
-                        cls_lvl_ids.append(cls.level.id)
-                    else:
-                        continue
+        # cls_lvl_ids = []
+        
+        # for cls in self.c_subject.classes[subject.id].values():
+        #     if self.c_subject.id in cls.level.subjects_occurence and next((False for s_id, s_clses in self.c_subject.classes.items() if s_id != subject.id and next((True for c in s_clses.values() if c.level.id == cls.level.id), False)), True):
+        #         if next((False for s_clses in self.c_subject.classes.values() if next((True for c in s_clses.values() if c.level.id == cls.level.id), False)), True):
+        #             if cls.level.id not in cls_lvl_ids:
+        #                 cls_lvl_ids.append(cls.level.id)
+        #             else:
+        #                 continue
                     
-                    combination_widget = self.timetable_editor.combination_widgets[cls.level.id]
+        #             combination_widget = self.timetable_editor.combination_widgets[cls.level.id]
                     
-                    for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
-                        for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
-                            curr_index = cb.currentIndex()
+        #             for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
+        #                 for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
+        #                     curr_index = cb.currentIndex()
                             
-                            if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.c_subject.id), None)) is not None:
-                                if index == curr_index:
-                                    combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
-                                else:
-                                    cb.removeItem(index)
+        #                     if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.c_subject.id), None)) is not None:
+        #                         if index == curr_index:
+        #                             combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
+        #                         else:
+        #                             cb.removeItem(index)
         
-        self.c_subject.remove_subject(subject)
+        # self.c_subject.remove_subject(subject)
         
-        self.selected_items.pop(subject.id)
+        # self.selected_items.pop(subject.id)
         
         for s_id, s in SCHOOL.subjects.items():
             if self._scope_check(s) and s_id not in self.full_scope and s_id not in self.selected_items:
                 self.full_scope[s_id] = s
                 self.insertWidget(len(self.full_scope) - 1, _SL_UnSelectedWidget(self, s_id, s.name.full(), self.getLayout(), self.item_selected, self.item_removed, self._parent.window()))
         
-        if not self._parent.simple_line_edit.text():
-            self._parent.simple_name_changed(self._parent.simple_line_edit.text(), None)
+        # if not self._parent.simple_line_edit.text():
+        #     self._parent.simple_name_changed(self._parent.simple_line_edit.text(), None)
     
 class TeacherSelectionList(BaseSelectionList):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.teacher = SCHOOL.teachers[id]
         
         self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
         scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(id, s)}
         
-        super().__init__(parent, id, title, self.teacher.subjects.items(), scope, attendance_manager)
+        super().__init__(parent, id, title, self.teacher.subjects.items(), scope, timetable_editor, attendance_manager)
     
     def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
         if not isinstance(subject, Subject):
@@ -253,33 +262,37 @@ class TeacherSelectionList(BaseSelectionList):
         return True
     
     def item_selected(self, id: ID):
-        subject = SCHOOL.teachers[self.id].subjects[id] = SCHOOL.subjects[id]
+        assign_teacher(self.teacher, id, self.attendance_manager)
         
-        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-            if self.id in staff_widget_dict:
-                staff_widget_dict[self.id].add_subject(subject)
+        # subject = SCHOOL.teachers[self.id].subjects[id] = SCHOOL.subjects[id]
+        
+        # for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+        #     if self.id in staff_widget_dict:
+        #         staff_widget_dict[self.id].add_subject(subject)
     
     def item_removed(self, id: ID):
-        subject = self.teacher.subjects.pop(id)
+        c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and id in s.classes]
         
-        for cls in subject.classes.values():
-            if id in cls.subjects:
-                if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
-                    cls.subjects[id].teacher = None
-            else:
-                for subj in SCHOOL.subjects.values():
-                    if (
-                            isinstance(subj, CombinedSubject) and
-                            (u_subj := next((cls.subjects[subj.id].subjects[i] for i, s in enumerate(subj.subjects) if s.id == subject.id), False)) and
-                            u_subj.teacher is not None and
-                            u_subj.teacher.id == self.id
-                        ):
-                        u_subj.teacher = None
-                        break
+        deassign_teacher(self.teacher, id, self.timetable_editor, self.attendance_manager, c_subjects)
         
-        for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-            if self.id in staff_widget_dict:
-                staff_widget_dict[self.id].remove_subject(subject)
+        # for cls in subject.classes.values():
+        #     if id in cls.subjects:
+        #         if cls.subjects[id].teacher is not None and cls.subjects[id].teacher.id == self.id:
+        #             cls.subjects[id].teacher = None
+        #     else:
+        #         for subj in SCHOOL.subjects.values():
+        #             if (
+        #                     isinstance(subj, CombinedSubject) and
+        #                     (u_subj := next((cls.subjects[subj.id].subjects[i] for i, s in enumerate(subj.subjects) if s.id == subject.id), False)) and
+        #                     u_subj.teacher is not None and
+        #                     u_subj.teacher.id == self.id
+        #                 ):
+        #                 u_subj.teacher = None
+        #                 break
+        
+        # for staff_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+        #     if self.id in staff_widget_dict:
+        #         staff_widget_dict[self.id].remove_subject(subject)
 
 class SubjectDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -438,79 +451,83 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         cls = lvl.classes[cls_id]
         
         if on:
-            if self.c_subjects:
-                for c_subject in self.c_subjects:
-                    if c_subject.id not in cls.subjects:
-                        cls.subjects[c_subject.id] = c_subject.passCopy()
+            assign_subject_class(self.subject, cls, self.timetable_editor)
             
-            self.subject.classes[cls_id] = cls
-            cls.subjects[self.id] = self.subject.passCopy()
+            # if self.c_subjects:
+            #     for c_subject in self.c_subjects:
+            #         if c_subject.id not in cls.subjects:
+            #             cls.subjects[c_subject.id] = c_subject.passCopy()
             
-            if self.id not in lvl.subjects_occurence:
-                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
-                min_rem = self.class_check_box_tracker["min_rem"][lvl_id]
+            # self.subject.classes[cls_id] = cls
+            # cls.subjects[self.id] = self.subject.passCopy()
+            
+            # if self.id not in lvl.subjects_occurence:
+            #     per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+            #     min_rem = self.class_check_box_tracker["min_rem"][lvl_id]
                 
-                lvl.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+            #     lvl.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
             
-            for combo_dict in self.timetable_editor.combination_widgets[lvl_id].combo_box_widgets:
-                for cb in combo_dict["subjects"]:
-                    if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.id), None)) is not None:
-                        cb.addItem(self.subject.name.full(), userData=self.id)
-        else:    
-            combination_widget = self.timetable_editor.combination_widgets[lvl.id]
+            # for combo_dict in self.timetable_editor.combination_widgets[lvl_id].combo_box_widgets:
+            #     for cb in combo_dict["subjects"]:
+            #         if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.id), None)) is not None:
+            #             cb.addItem(self.subject.name.full(), userData=self.id)
+        else:
+            deassign_subject_class(self.id, cls, self.timetable_editor, self.attendance_manager, self.c_subjects)
             
-            self.subject.classes.pop(cls_id)
+            # combination_widget = self.timetable_editor.combination_widgets[lvl.id]
             
-            if self.id in cls.subjects:
-                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(self.id, lvl.subjects_occurence[self.id].week_max)
-                cls.subjects.pop(self.id)
+            # self.subject.classes.pop(cls_id)
             
-            for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                for teacher_attendance_entry_widget in teacher_widget_dict.values():
-                    if cls_id in teacher_attendance_entry_widget.class_labels:
-                        for s_id, _ in teacher_attendance_entry_widget.class_labels[cls_id]:
-                            if s_id == self.id:
-                                teacher_attendance_entry_widget.remove_class(self.id, cls_id)
+            # if self.id in cls.subjects:
+            #     self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(self.id, lvl.subjects_occurence[self.id].week_max)
+            #     cls.subjects.pop(self.id)
             
-            if self.id in lvl.subjects_occurence:
-                if next((False for cls in lvl.classes.values() if self.id in cls.subjects), True):
-                    for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
-                        for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
-                            curr_index = cb.currentIndex()
+            # for teacher_widget_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #     for teacher_attendance_entry_widget in teacher_widget_dict.values():
+            #         if cls_id in teacher_attendance_entry_widget.class_labels:
+            #             for s_id, _ in teacher_attendance_entry_widget.class_labels[cls_id]:
+            #                 if s_id == self.id:
+            #                     teacher_attendance_entry_widget.remove_class(self.id, cls_id)
+            
+            # if self.id in lvl.subjects_occurence:
+            #     if next((False for cls in lvl.classes.values() if self.id in cls.subjects), True):
+            #         for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
+            #             for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
+            #                 curr_index = cb.currentIndex()
                             
-                            if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.id), None)) is not None:
-                                if index == curr_index:
-                                    combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
-                                else:
-                                    cb.removeItem(index)
+            #                 if (index := next((i for i in range(cb.count()) if cb.itemData(i) == self.id), None)) is not None:
+            #                     if index == curr_index:
+            #                         combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
+            #                     else:
+            #                         cb.removeItem(index)
                     
-                    lvl.subjects_occurence.pop(self.id)
+            #         lvl.subjects_occurence.pop(self.id)
             
-            for c_subject in self.c_subjects:
-                c_subject_cls = c_subject.classes[self.id].pop(cls_id)
+            # for c_subject in self.c_subjects:
+            #     c_subject_cls = c_subject.classes[self.id].pop(cls_id)
                 
-                if (c_cls_subj := next(s for s in c_subject_cls.subjects[self.id].subjects if s.id == self.id)).teacher is not None:
-                    c_cls_subj.teacher = None
+            #     if (c_cls_subj := next(s for s in c_subject_cls.subjects[self.id].subjects if s.id == self.id)).teacher is not None:
+            #         c_cls_subj.teacher = None
                 
-                if next((False for s in c_subject.subjects if next((True for c in s.classes.values() if c.level.id == lvl_id), False)), True):
-                    if c_subject.id in lvl.subjects_occurence:
-                        lvl.subjects_occurence.pop(c_subject.id)
+            #     if next((False for s in c_subject.subjects if next((True for c in s.classes.values() if c.level.id == lvl_id), False)), True):
+            #         if c_subject.id in lvl.subjects_occurence:
+            #             lvl.subjects_occurence.pop(c_subject.id)
                     
-                    for set_index, combo_dict in enumerate(self.timetable_editor.combination_widgets[lvl_id].combo_box_widgets):
-                        for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
-                            curr_index = cb.currentIndex()
+            #         for set_index, combo_dict in enumerate(self.timetable_editor.combination_widgets[lvl_id].combo_box_widgets):
+            #             for cb_index, cb in enumerate(combo_dict["subjects"].copy()):
+            #                 curr_index = cb.currentIndex()
                             
-                            if (index := next((i for i in range(cb.count()) if cb.itemData(i) == c_subject.id), None)) is not None:
-                                if index == curr_index:
-                                    combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
-                                else:
-                                    cb.removeItem(index)
+            #                 if (index := next((i for i in range(cb.count()) if cb.itemData(i) == c_subject.id), None)) is not None:
+            #                     if index == curr_index:
+            #                         combination_widget.subject_cancel_button_widgets[set_index]["subjects"][cb_index].click()
+            #                     else:
+            #                         cb.removeItem(index)
                 
-                if next((False for s in c_subject.subjects if s.id != self.id and s.teacher is not None), True):
-                    self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(c_subject.id, 0)
+            #     if next((False for s in c_subject.subjects if s.id != self.id and s.teacher is not None), True):
+            #         self.timetable_editor.timetable_widgets[cls.level.id][cls.id].change_subject_amount(c_subject.id, 0)
                     
-                    if next((False for s in c_subject.subjects if s.id != self.id and cls_id in s.classes), True):
-                        cls.subjects.pop(c_subject.id)
+            #         if next((False for s in c_subject.subjects if s.id != self.id and cls_id in s.classes), True):
+            #             cls.subjects.pop(c_subject.id)
 
 class CombinedSubjectDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -670,48 +687,53 @@ class CombinedSubjectDropdownCheckBoxes(BaseSettingDialog):
         cls = SCHOOL.class_levels[lvl_id].classes[cls_id]
         
         if on:
-            self.combined_subject.classes[subject.id][cls_id] = cls
+            assign_combined_subject_sub_subject_class(self.combined_subject, subject.id, cls, self.timetable_editor, self.attendance_manager)
             
-            if subject.id in cls.subjects:
-                if cls.subjects[subject.id].teacher is not None:
-                    self.timetable_editor.timetable_widgets[lvl_id][cls.id].change_subject_amount(self.id, 0)
+            # self.combined_subject.classes[subject.id][cls_id] = cls
+            
+            # if subject.id in cls.subjects:
+            #     if cls.subjects[subject.id].teacher is not None:
+            #         self.timetable_editor.timetable_widgets[lvl_id][cls.id].change_subject_amount(self.id, 0)
                 
-                cls.subjects.pop(subject.id)
+            #     cls.subjects.pop(subject.id)
             
-            if self.id not in cls.subjects:
-                cls.subjects[self.id] = self.combined_subject.passCopy()
+            # if self.id not in cls.subjects:
+            #     cls.subjects[self.id] = self.combined_subject.passCopy()
             
-            if next((False for c in cls.level.classes.values() if subject.id in c.subjects), True):
-                cls.level.subjects_occurence.pop(subject.id)
+            # if next((False for c in cls.level.classes.values() if subject.id in c.subjects), True):
+            #     cls.level.subjects_occurence.pop(subject.id)
             
-            if self.id not in cls.level.subjects_occurence:
-                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+            # if self.id not in cls.level.subjects_occurence:
+            #     per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
                 
-                week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
-                min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+            #     week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
+            #     min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
                 
-                cls.level.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+            #     cls.level.subjects_occurence[self.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+        
         else:
-            self.combined_subject.classes[subject.id].pop(cls_id)
+            deassign_combined_subject_sub_subject_class(self.combined_subject, subject.id, cls, self.timetable_editor, self.attendance_manager)
             
-            if subject.id not in cls.subjects:
-                cls.subjects[subject.id] = subject.passCopy()
+            # self.combined_subject.classes[subject.id].pop(cls_id)
             
-            if self.id in cls.subjects and next((False for s_c_dict in self.combined_subject.classes.values() if cls_id in s_c_dict), True):
-                self.timetable_editor.timetable_widgets[lvl_id][cls.id].change_subject_amount(self.id, 0)
+            # if subject.id not in cls.subjects:
+            #     cls.subjects[subject.id] = subject.passCopy()
+            
+            # if self.id in cls.subjects and next((False for s_c_dict in self.combined_subject.classes.values() if cls_id in s_c_dict), True):
+            #     self.timetable_editor.timetable_widgets[lvl_id][cls.id].change_subject_amount(self.id, 0)
                 
-                cls.subjects.pop(self.id)
+            #     cls.subjects.pop(self.id)
             
-            if next((False for c_id in flatten(set(subj_classes) for subj_classes in self.combined_subject.classes.values()) if c_id.class_level_id == lvl_id), True):
-                cls.level.subjects_occurence.pop(self.id)
+            # if next((False for c_id in flatten(set(subj_classes) for subj_classes in self.combined_subject.classes.values()) if c_id.class_level_id == lvl_id), True):
+            #     cls.level.subjects_occurence.pop(self.id)
             
-            if subject.id not in cls.level.subjects_occurence:
-                per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
+            # if subject.id not in cls.level.subjects_occurence:
+            #     per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
                 
-                week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
-                min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+            #     week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
+            #     min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
                 
-                cls.level.subjects_occurence[subject.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
+            #     cls.level.subjects_occurence[subject.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
 
 class TeacherDropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -957,19 +979,23 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         cls = cls_level.classes[cls_id]
         
         if on:
-            cls.subjects[subject.id].teacher = self.teacher
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
+            assign_subject_class_teacher(self.teacher, subject.id, cls, self.timetable_editor, self.attendance_manager)
             
-            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                if self.id in teacher_filtered_dict:
-                    teacher_filtered_dict[self.id].add_class(subject.id, cls)
+            # cls.subjects[subject.id].teacher = self.teacher
+            # self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, cls_level.subjects_occurence[subject.id].week_max)
+            
+            # for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #     if self.id in teacher_filtered_dict:
+            #         teacher_filtered_dict[self.id].add_class(subject.id, cls)
         else:
-            cls.subjects[subject.id].teacher = None
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, 0)
+            deassign_subject_class_teacher(subject.id, cls, self.timetable_editor, self.attendance_manager)
             
-            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                if self.id in teacher_filtered_dict:
-                    teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
+            # cls.subjects[subject.id].teacher = None
+            # self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(subject.id, 0)
+            
+            # for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #     if self.id in teacher_filtered_dict:
+            #         teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
     
     def make_link_func(self, s_id: ID, lvl_id: ID, cls_id: CLASS_ID, teacher: Teacher, c_s_id: Optional[ID] = None):
         def func(e):
@@ -1138,22 +1164,26 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         u_subject = next(s for s in c_subject.subjects if s.id == subject.id)
         
         if on:
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
-            u_subject.teacher = self.teacher
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
+            assign_combined_subject_class_teacher(c_subject.id, u_subject.id, self.teacher, cls, self.timetable_editor, self.attendance_manager)
             
-            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                if self.id in teacher_filtered_dict:
-                    teacher_filtered_dict[self.id].add_class(subject.id, cls)
+            # self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
+            # u_subject.teacher = self.teacher
+            # self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
+            
+            # for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #     if self.id in teacher_filtered_dict:
+            #         teacher_filtered_dict[self.id].add_class(subject.id, cls)
         else:
-            self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
-            u_subject.teacher = None
-            if next((True for s in c_subject.subjects if s.teacher is not None), False):
-                self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
+            deassign_combined_subject_class_teacher(c_subject.id, u_subject.id, cls, self.timetable_editor, self.attendance_manager)
             
-            for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                if self.id in teacher_filtered_dict:
-                    teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
+            # self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, 0)
+            # u_subject.teacher = None
+            # if next((True for s in c_subject.subjects if s.teacher is not None), False):
+            #     self.timetable_editor.timetable_widgets[lvl_id][cls_id].change_subject_amount(c_subject_id, cls_level.subjects_occurence[c_subject_id].week_max)
+            
+            # for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #     if self.id in teacher_filtered_dict:
+            #         teacher_filtered_dict[self.id].remove_class(subject.id, cls_id)
 
 class OccuranceEditor(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -1372,36 +1402,36 @@ class ClassOptionsMaker(BaseSettingDialog):
         def update_option():
             u_text = option.get_text()
             
-            self.timetable_editor.set_label_text(id, u_text)
+            # self.timetable_editor.set_label_text(id, u_text)
             cls.name = u_text
-            
-            for subject in cls.subjects.values():
-                if isinstance(subject, Subject):
-                    subjects = [subject]
-                elif isinstance(subject, CombinedSubject):
-                    subjects = subject.subjects
+            class_name_update(cls.id, self.timetable_editor, self.attendance_manager)
+            # for subject in cls.subjects.values():
+            #     if isinstance(subject, Subject):
+            #         subjects = [subject]
+            #     elif isinstance(subject, CombinedSubject):
+            #         subjects = subject.subjects
                 
-                for subject in subjects:
-                    if subject.teacher:
-                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                            if subject.teacher.id in teacher_filtered_dict:
-                                teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
+            #     for subject in subjects:
+            #         if subject.teacher:
+            #             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #                 if subject.teacher.id in teacher_filtered_dict:
+            #                     teacher_filtered_dict[subject.teacher.id].update_class_name(cls)
             
-            for combo_dict in self.timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
-                for cb in combo_dict["classes"]:
-                    curr_index = cb.currentIndex()
-                    index = next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)
+            # for combo_dict in self.timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
+            #     for cb in combo_dict["classes"]:
+            #         curr_index = cb.currentIndex()
+            #         index = next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)
                     
-                    if index is not None:
-                        cb.blockSignals(True)
+            #         if index is not None:
+            #             cb.blockSignals(True)
                         
-                        cb.removeItem(index)
-                        cb.addItem(f"{cls.level.name.full()} {cls.name}", userData=cls.id)
+            #             cb.removeItem(index)
+            #             cb.addItem(f"{cls.level.name.full()} {cls.name}", userData=cls.id)
                         
-                        if index == curr_index:
-                            cb.setCurrentIndex(cb.count() - 1)
+            #             if index == curr_index:
+            #                 cb.setCurrentIndex(cb.count() - 1)
                         
-                        cb.blockSignals(False)
+            #             cb.blockSignals(False)
             
             self._parent.window().saved_state_changed.emit(True)
         
@@ -1410,46 +1440,46 @@ class ClassOptionsMaker(BaseSettingDialog):
         option.finished_editing_signal.connect(update_option)
         
         def remove_option():
-            combination_widget = self.timetable_editor.combination_widgets[cls.level.id]
+            delete_class(id, self.timetable_editor, self.attendance_manager)
+            # combination_widget = self.timetable_editor.combination_widgets[cls.level.id]
             
-            for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
-                for cb_index, cb in enumerate(combo_dict["classes"].copy()):
-                    curr_index = cb.currentIndex()
+            # for set_index, combo_dict in enumerate(combination_widget.combo_box_widgets):
+            #     for cb_index, cb in enumerate(combo_dict["classes"].copy()):
+            #         curr_index = cb.currentIndex()
                     
-                    if (index := next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)) is not None:
-                        if index == curr_index:
-                            combination_widget.subject_cancel_button_widgets[set_index]["classes"][cb_index].click()
-                        else:
-                            cb.removeItem(index)
+            #         if (index := next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)) is not None:
+            #             if index == curr_index:
+            #                 combination_widget.subject_cancel_button_widgets[set_index]["classes"][cb_index].click()
+            #             else:
+            #                 cb.removeItem(index)
             
-            for subject in self.class_level.classes[id].subjects.values():
-                if isinstance(subject, Subject):
-                    subjects = [subject]
-                elif isinstance(subject, CombinedSubject):
-                    subjects = subject.subjects.copy()
+            # for subject in self.class_level.classes[id].subjects.values():
+            #     if isinstance(subject, Subject):
+            #         subjects = [subject]
+            #     elif isinstance(subject, CombinedSubject):
+            #         subjects = subject.subjects.copy()
                     
-                    for subj_classes in subject.classes.values():
-                        if id in subj_classes:
-                            subj_classes.pop(id)
+            #         for subj_classes in subject.classes.values():
+            #             if id in subj_classes:
+            #                 subj_classes.pop(id)
                     
-                    subjects_with_this_class = []
+            #         subjects_with_this_class = []
                     
-                    for subj in subject.subjects.copy():
-                        if id in subj.classes:
-                            subj.classes.pop(id)
-                            subjects_with_this_class.append(subj)
+            #         for subj in subject.subjects.copy():
+            #             if id in subj.classes:
+            #                 subj.classes.pop(id)
+            #                 subjects_with_this_class.append(subj)
                 
-                for subject in subjects:
-                    if subject.teacher:
-                        for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
-                            if subject.teacher.id in teacher_filtered_dict:
-                                teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, id)
+            #     for subject in subjects:
+            #         if subject.teacher:
+            #             for teacher_filtered_dict in self.attendance_manager.staff_list_widget.all_staff_widgets.values():
+            #                 if subject.teacher.id in teacher_filtered_dict:
+            #                     teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, id)
             
-            self.timetable_editor.delete_timetable_class(self.class_level.classes[id])
-            SCHOOL.class_levels.remove_class(self.id, id)
+            # self.timetable_editor.delete_timetable_class(self.class_level.classes[id])
+            # SCHOOL.class_levels.remove_class(self.id, id)
             
             self.main_area.removeWidget(option)
-            
             option.deleteLater()
             
             self._parent.window().saved_state_changed.emit(True)
@@ -1566,9 +1596,11 @@ def deassign_subject_class(subjectID: ID, cls: Class, timetable_editor: SchoolTi
                 else:
                     cb.removeItem(index)
 
-def deassign_teacher(subject: Subject, teacher: Teacher, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, c_subjects: Optional[list[CombinedSubject]] = None):
-    if subject.id not in teacher.subjects:
+def deassign_teacher(teacher: Teacher, subjectID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, c_subjects: Optional[list[CombinedSubject]] = None):
+    if subjectID not in teacher.subjects:
         return
+    
+    subject = teacher.subjects.pop(subjectID)
     
     for cls in subject.classes.values():
         if subject.id not in cls.subjects:
@@ -1587,8 +1619,6 @@ def deassign_teacher(subject: Subject, teacher: Teacher, timetable_editor: Schoo
     for staff_widget_dict in attendance_manager.staff_list_widget.all_staff_widgets.values():
         if teacher.id in staff_widget_dict:
             staff_widget_dict[teacher.id].remove_subject(subject)
-    
-    teacher.subjects.pop(subject.id)
 
 def deassign_combined_subject_class_teacher(combinedSubjectID: ID, subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     if combinedSubjectID not in cls.subjects:
@@ -1739,7 +1769,7 @@ def delete_subject(subjectID: ID, timetable_editor: SchoolTimetableEditor, atten
     
     for teacher in SCHOOL.teachers.values():
         if subjectID in teacher.subjects:
-            deassign_teacher(subject, teacher, timetable_editor, attendance_manager, c_subjects)
+            deassign_teacher(teacher, subjectID, timetable_editor, attendance_manager, c_subjects)
 
 def delete_combined_subject(combinedSubjectID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     c_subject: CombinedSubject = SCHOOL.subjects[combinedSubjectID]
@@ -1783,12 +1813,22 @@ def delete_class(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor, att
     for subjectID, subject in cls.subjects.copy().items():
         if isinstance(subject, Subject):
             deassign_subject_class(subjectID, cls, timetable_editor, attendance_manager)
+    
+    timetable_editor.delete_timetable_class(cls)
+    SCHOOL.class_levels.remove_class(cls.level.id, classID)
 
 def delete_class_level(classLevelID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     class_level: ClassLevel = SCHOOL.class_levels[classLevelID]
     
     for cls in class_level.classes.values():
         delete_class(cls, timetable_editor, attendance_manager)
+    
+    timetable_editor.delete_timetable_level(classLevelID)
+    
+    SCHOOL.gen_data.combined_subjects.pop(classLevelID)
+    SCHOOL.settings.TEACHER_rsma_mapping.pop(classLevelID)
+    SCHOOL.settings.EXPORT_selected_classes.pop(classLevelID)
+    SCHOOL.settings.TIMETABLE_time_settings.pop(classLevelID)
 
 # Names Update
 def subject_name_update(subjectID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, subjects_setting_widget: BaseSettingWidget):
@@ -1889,6 +1929,22 @@ def class_name_update(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor
                 for teacher_filtered_dict in attendance_manager.staff_list_widget.all_staff_widgets.values():
                     if subj.teacher.id in teacher_filtered_dict:
                         teacher_filtered_dict[subj.teacher.id].update_class_name(cls)
+    
+    for combo_dict in timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
+        for cb in combo_dict["classes"]:
+            curr_index = cb.currentIndex()
+            index = next((i for i in range(cb.count()) if cb.itemData(i) == cls.id), None)
+            
+            if index is not None:
+                cb.blockSignals(True)
+                
+                cb.removeItem(index)
+                cb.addItem(f"{cls.level.name.full()} {cls.name}", userData=cls.id)
+                
+                if index == curr_index:
+                    cb.setCurrentIndex(cb.count() - 1)
+                
+                cb.blockSignals(False)
 
 def class_level_name_update(classLevelID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     class_level = SCHOOL.class_levels[classLevelID]
@@ -1911,7 +1967,4 @@ def class_level_name_update(classLevelID: ID, timetable_editor: SchoolTimetableE
             cb.setCurrentIndex(next(i for i in range(cb.count()) if curr_c_id == cb.itemData(i)))
             
             cb.blockSignals(False)
-    
-    for classID in class_level.classes:
-        class_name_update(classID, timetable_editor, attendance_manager)
 
