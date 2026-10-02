@@ -76,7 +76,7 @@ class SubjectSelectionList(BaseSelectionList):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.subject: Subject = SCHOOL.subjects[id]
         
-        self.combined_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and id in s.classes]
+        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
         
         selected, scope = self._get_list_data(id)
         
@@ -125,7 +125,7 @@ class SubjectSelectionList(BaseSelectionList):
         assign_teacher(SCHOOL.teachers[id], self.id, self.attendance_manager)
     
     def item_removed(self, id: ID):
-        c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and self.id in s.classes]
+        c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and self.id in s.classes]
         
         deassign_teacher(SCHOOL.teachers[id], self.id, self.timetable_editor, self.attendance_manager, c_subjects)
         
@@ -201,7 +201,7 @@ class TeacherSelectionList(BaseSelectionList):
         assign_teacher(self.teacher, id, self.attendance_manager)
     
     def item_removed(self, id: ID):
-        c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and id in s.classes]
+        c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
         
         deassign_teacher(self.teacher, id, self.timetable_editor, self.attendance_manager, c_subjects)
 
@@ -1479,7 +1479,7 @@ def delete_teacher(teacherID: ID, timetable_editor: SchoolTimetableEditor, atten
     teacher = SCHOOL.teachers[teacherID]
     
     for subjectID, subject in teacher.subjects.items():
-        c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and subjectID in s.classes]
+        c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and subjectID in s.classes]
         
         for cls in subject.classes.values():
             if subjectID in cls.subjects:
@@ -1553,17 +1553,19 @@ def subject_name_update(subjectID: ID, timetable_editor: SchoolTimetableEditor, 
                         
                         cb.blockSignals(False)
     
-    c_subjects = [s for s in SCHOOL.subjects if isinstance(s, CombinedSubject) and subjectID in s.classes and s.name.full_name is None]
-    
-    for c_subject in c_subjects:
-        if c_subject.id in subjects_setting_widget.widgets:
-            combined_subject_name_update(c_subject.id, timetable_editor, attendance_manager, subjects_setting_widget.widgets[c_subject.id])
+    c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and subjectID in s.classes and s.name.full_name is None]
     
     for teacher in SCHOOL.teachers.values():
         if subjectID in teacher.subjects:
             for teacher_widget_dict in attendance_manager.staff_list_widget.all_staff_widgets.values():
                 if teacher.id in teacher_widget_dict:
                     teacher_widget_dict[teacher.id].update_subject_name(subject)
+    
+    timetable_editor.update_subject_name(subject)
+    
+    for c_subject in c_subjects:
+        if c_subject.id in subjects_setting_widget.widgets:
+            combined_subject_name_update(c_subject.id, timetable_editor, attendance_manager, subjects_setting_widget.widgets[c_subject.id])
 
 def combined_subject_name_update(combinedSubjectID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, parent: BaseSettingEntry):
     c_subject = SCHOOL.subjects[combinedSubjectID]
@@ -1602,6 +1604,8 @@ def combined_subject_name_update(combinedSubjectID: ID, timetable_editor: School
             parent.simple_name_empty("")
         
         parent.simple_line_edit.setPlaceholderText(f"{parent.simple_placeholder}; {default}")
+    
+    timetable_editor.update_subject_name(c_subject)
 
 def teacher_name_update(teacherID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     for staff_widget_dict in attendance_manager.staff_list_widget.all_staff_widgets.values():

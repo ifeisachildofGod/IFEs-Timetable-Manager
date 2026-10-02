@@ -599,6 +599,7 @@ class BaseSettingEntry[_T](BaseWidget):
         self.setProperty("class", "SettingEntry")
         
         self.entry = entry or self.new()
+        self.id = self.entry.id
         self.i_parent = i_parent
         self.option_dialogs = option_dialogs
         self.general_entry_name = general_entry_name
@@ -808,11 +809,11 @@ class BaseSettingEntry[_T](BaseWidget):
     def extended_name_empty(self, index: int, text: str):
         raise NotImplementedError()
 
-class BaseSettingWidget(BaseWidget):
+class BaseSettingWidget[_T](BaseWidget):
     def __init__(self, names: list[str]):
         super().__init__()
         
-        self.widgets: dict[ID, BaseSettingEntry[Subject | CombinedSubject]] = {}
+        self.widgets: dict[ID, BaseSettingEntry[_T]] = {}
         
         self.scroll_widget = BaseScrollWidget()
         self.scroll_widget.setSpacing(20)
@@ -845,11 +846,11 @@ class BaseSettingWidget(BaseWidget):
     def get_global(self) -> Global:
         raise NotImplementedError()
     
-    def get_widget_type(self, *args) -> type[BaseSettingEntry]:  # It's variable is *args because in implementation it has a variable amount of arguments (one or None)
+    def get_widget_type(self, *args) -> type[BaseSettingEntry[_T]]:  # It's variable is *args because in implementation it has a variable amount of arguments (one or None)
         raise NotImplementedError()
     
-    def go_to(self, widget_entry: Entry):
-        widget: BaseSettingEntry = next(w for w in self.scroll_widget.getChildren() if w.entry.id == widget_entry.id)
+    def go_to(self, widget_entry: _T):
+        widget: BaseSettingEntry[_T] = next(w for w in self.scroll_widget.getChildren() if w.entry.id == widget_entry.id)
         
         self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())
         widget.setFocus()
@@ -860,7 +861,7 @@ class BaseSettingWidget(BaseWidget):
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None)
     
-    def add(self, entry: Optional[Entry] = None, index: Optional[int] = None, focus: Optional[bool] = None, button_index: Optional[int] = None):
+    def add(self, entry: Optional[_T] = None, index: Optional[int] = None, focus: Optional[bool] = None, button_index: Optional[int] = None):
         if button_index is not None:
             widget_data = self.get_widget_type(button_index)
         else:
@@ -897,7 +898,7 @@ class BaseSettingWidget(BaseWidget):
         
         return widget.entry
     
-    def remove(self, widget: BaseSettingEntry):
+    def remove(self, widget: BaseSettingEntry[_T]):
         self.scroll_widget.removeWidget(widget)
         widget.deleteLater()
         

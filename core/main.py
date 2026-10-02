@@ -144,9 +144,13 @@ class CombinedSubject(Entry):
     default_occurance_data: tuple[int, int]
     
     def cls_name(self):
-        name_list = [s.name.short() for s in self.subjects if s.teacher is not None]
+        long_name_list = [s.name.full() for s in self.subjects if s.teacher is not None]
+        short_name_list = [s.name.short() for s in self.subjects if s.teacher is not None]
         
-        return self.name.full() if self.name.full_name is not None or not name_list else "/".join(name_list) + ("/" if name_list == 1 else "")
+        long_no_name = "/".join(long_name_list) + ("/" if long_name_list == 1 else "")
+        short_no_name = "/".join(short_name_list) + ("/" if short_name_list == 1 else "")
+        
+        return (self.name.full() if len(self.name.full()) <= 16 else self.name.short()) if self.name.full_name is not None or not short_name_list else (long_no_name if len(long_no_name) <= 16 else short_no_name)
     
     def remove_subject(self, subject: Subject):
         self.subjects.remove(subject)

@@ -26,7 +26,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         return Subject(NEW_ID(), SubjectName("", ""), None, {})
     
     def remove(self):
-        delete_subject(self.entry.id, self.timetable_editor, self.attendance_manager)
+        delete_subject(self.id, self.timetable_editor, self.attendance_manager)
         
         return super().remove()
     
@@ -49,7 +49,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             case 1:
                 self.entry.name.abbrev = text
         
-        subject_name_update(self.entry.id, self.timetable_editor, self.attendance_manager, self.i_parent)
+        subject_name_update(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
     
     def extended_name_empty(self, index, text):
         key = f"E{index}EmptyNameWarning"
@@ -84,7 +84,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         return CombinedSubject(NEW_ID(), None, CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
     
     def remove(self):
-        delete_combined_subject(self.entry.id, self.timetable_editor, self.attendance_manager)
+        delete_combined_subject(self.id, self.timetable_editor, self.attendance_manager)
         
         return super().remove()
     
@@ -99,7 +99,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             self.entry.name.full_name = None
             self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
         
-        combined_subject_name_update(self.entry.id, self.timetable_editor, self.attendance_manager, self)
+        combined_subject_name_update(self.id, self.timetable_editor, self.attendance_manager, self)
     
     def simple_name_empty(self, text):
         if not self.entry.subjects:
@@ -125,7 +125,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         return Teacher(NEW_ID(), None, StaffName("", "", "", ""), "AttendanceApp/src/profile-images/t_id1.png", [], {})
     
     def remove(self):
-        delete_teacher(self.entry.id, self.timetable_editor, self.attendance_manager)
+        delete_teacher(self.id, self.timetable_editor, self.attendance_manager)
         
         return super().remove()
     
@@ -156,7 +156,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
             case 3:
                 self.entry.name.abbrev = text
         
-        teacher_name_update(self.entry.id, self.timetable_editor, self.attendance_manager)
+        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
         
         if self.extended_edits_widget.isVisible():
             simple_line_edit.blockSignals(True)
@@ -203,9 +203,9 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
     
     def remove(self):
-        delete_class_level(self.entry.id, self.timetable_editor, self.attendance_manager)
+        delete_class_level(self.id, self.timetable_editor, self.attendance_manager)
         
-        # for cancel_pb_dict in self.timetable_editor.combination_widgets[self.entry.id].subject_cancel_button_widgets:
+        # for cancel_pb_dict in self.timetable_editor.combination_widgets[self.id].subject_cancel_button_widgets:
         #     for pb in cancel_pb_dict["classes"].copy():
         #         pb.click()
         
@@ -222,14 +222,14 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         #                     if subject.teacher.id in teacher_filtered_dict:
         #                         teacher_filtered_dict[subject.teacher.id].remove_class(subject.id, cls.id)
         
-        # self.timetable_editor.delete_timetable_level(self.entry.id)
+        # self.timetable_editor.delete_timetable_level(self.id)
         
         # for cls_id in self.entry.classes.copy():
-        #     SCHOOL.class_levels.remove_class(self.entry.id, cls_id)
+        #     SCHOOL.class_levels.remove_class(self.id, cls_id)
         
-        # SCHOOL.settings.TEACHER_rsma_mapping.pop(self.entry.id)
-        # SCHOOL.settings.EXPORT_selected_classes.pop(self.entry.id)
-        # SCHOOL.settings.TIMETABLE_time_settings.pop(self.entry.id)
+        # SCHOOL.settings.TEACHER_rsma_mapping.pop(self.id)
+        # SCHOOL.settings.EXPORT_selected_classes.pop(self.id)
+        # SCHOOL.settings.TIMETABLE_time_settings.pop(self.id)
         
         return super().remove()
     
@@ -239,10 +239,10 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
     def simple_name_changed(self, text, _):
         self.entry.name = ClassLevelName(text)
         
-        class_level_name_update(self.entry.id, self.timetable_editor, self.attendance_manager)
+        class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
 
 
-class SubjectsMainWidget(BaseSettingWidget):
+class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
@@ -292,7 +292,7 @@ class SubjectsMainWidget(BaseSettingWidget):
         
         return widget_type, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, entry: Subject | CombinedSubject = None, index = None, focus = None, button_index = None):
+    def add(self, entry = None, index = None, focus = None, button_index = None):
         final_entry = super().add(entry, index, focus, button_index)
         
         if entry is None:
@@ -301,7 +301,7 @@ class SubjectsMainWidget(BaseSettingWidget):
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
 
-class TeachersMainWidget(BaseSettingWidget):
+class TeachersMainWidget(BaseSettingWidget[Teacher]):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
@@ -314,7 +314,7 @@ class TeachersMainWidget(BaseSettingWidget):
     def get_widget_type(self):
        return TeachersSettingEntry, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, entry: Teacher = None, index = None, focus = None, button_index = None):
+    def add(self, entry = None, index = None, focus = None, button_index = None):
         final_entry = super().add(entry, index, focus)
         
         if entry is None:
@@ -325,7 +325,7 @@ class TeachersMainWidget(BaseSettingWidget):
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
 
-class ClassLevelsMainWidget(BaseSettingWidget):
+class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
@@ -338,8 +338,8 @@ class ClassLevelsMainWidget(BaseSettingWidget):
     def get_widget_type(self):
         return ClassLevelsSettingEntry, (self.timetable_editor, self.attendance_manager)
     
-    def add(self, entry: ClassLevel = None, index = None, focus = None, button_index = None):
-        final_entry: ClassLevel = super().add(entry, index, focus)
+    def add(self, entry = None, index = None, focus = None, button_index = None):
+        final_entry = super().add(entry, index, focus)
         
         if entry is None:
             SCHOOL.class_levels.add(final_entry, index)

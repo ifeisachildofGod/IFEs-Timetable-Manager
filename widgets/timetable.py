@@ -584,7 +584,7 @@ class ExtraSubjectDraggableLabel(QLabel):
     
     def update_info(self):
         if isinstance(self.subject, Subject):
-            name = self.subject.name.full()
+            name = self.subject.name.full() if len(self.subject.name.full()) <= 16 else self.subject.name.short()
             
             self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}")
         elif isinstance(self.subject, CombinedSubject):
@@ -625,7 +625,7 @@ class TimetableItem(QTableWidgetItem):
     
     def update(self):
         if isinstance(self.subject, Subject):
-            name = self.subject.name.full()
+            name = self.subject.name.full() if len(self.subject.name.full()) <= 15 else self.subject.name.short()
             
             self.setToolTip(f"ID: {self.subject.id}\nSubject: {name}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
         elif isinstance(self.subject, CombinedSubject):
@@ -1314,6 +1314,18 @@ class ClassTimetable(QTableWidget):
                     
                     if not ttbl_rem_amt:
                         break
+    
+    def update_subject_name(self, subject: Subject | CombinedSubject):
+        for col, periods in enumerate(self.cls.timetable.table.values()):
+            for row, subj in enumerate(periods):
+                if subj.id == subject.id:
+                    item: TimetableItem = self.item(row, col)
+                    
+                    if item is not None:
+                        item.update()
+        
+        for label in self.remainder_labels:
+            label.update_info()
 
 class SchoolTimetableEditor(BaseWidget):
     def __init__(self):
@@ -1338,7 +1350,7 @@ class SchoolTimetableEditor(BaseWidget):
         self.level_randomize_cbs: dict[ID, QCheckBox] = {}
         self.cls_randomize_cbs: dict[ID, QCheckBox] = {}
         self.label_data: dict[ID, QLabel] = {}
-        self.timetable_widgets: dict[ID, dict[ID, ClassTimetable]] = {}
+        self.timetable_widgets: dict[ID, dict[CLASS_ID, ClassTimetable]] = {}
         self.classes_widget: dict[ID, tuple[WidgetDropdown, dict[ID, BaseWidget]]] = {}
         self.everyday_widgets: dict[ID, Optional[BaseWidget]] = {}
         self.ttbl_day_trackers: dict[ID, dict[QComboBox, list[str, list[str]]]] = {}
@@ -1854,5 +1866,17 @@ class SchoolTimetableEditor(BaseWidget):
     def set_label_text(self, id: ID, name: str | ClassLevelName):
         self.label_data[id].setText(f"<span style='font-size: 60px'>{name.full()}</span>" if isinstance(name, ClassLevelName) else name)
 
+    def update_subject_name(self, subject: Subject | CombinedSubject):
+        for lvl_id, lvl_ttbl_widgets in self.timetable_widgets.items():
+            class_level = SCHOOL.class_levels[lvl_id]
+            
+            if subject.id not in class_level.subjects_occurence:
+                continue
+            
+            for ttbl in lvl_ttbl_widgets.values():
+                if subject.id not in ttbl.cls.subjects:
+                    continue
+                
+                ttbl.update_subject_name(subject)
 
 
