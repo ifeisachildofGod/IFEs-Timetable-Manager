@@ -96,6 +96,9 @@ class Subject(Entry):
     teacher: Optional["Teacher"]
     classes: dict[ID, "Class"]
     
+    def cls_name(self):
+        return self.name.full() if len(self.name.full()) <= 15 else self.name.short()
+    
     def get_periods(self, teacher: Optional[Teacher] = None):
         s_periods = []
         

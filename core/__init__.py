@@ -200,7 +200,7 @@ class School:
                             if isinstance(subj, CombinedSubject):
                                 subjs = [s for s in subj.subjects if s.teacher is not None]
                             elif isinstance(subj, Subject):
-                                if subj.teacher is not None:
+                                if subj.teacher is None:
                                     continue
                                 
                                 subjs = [subj]
@@ -209,7 +209,7 @@ class School:
                                 days_uid_tracker[day][i] = []
                             
                             for s in subjs:
-                                days_uid_tracker[day][i].append(((s.id, s.teacher.id, i), s.classes[c_id]))
+                                days_uid_tracker[day][i].append(((s.id, s.teacher.id), s.classes[c_id]))
                         
                         continue
                     
@@ -235,7 +235,7 @@ class School:
                                 clash_data = next(((j, uid, c) for j, (uid, c) in enumerate(days_uid_tracker[day][i]) if (s_uid == uid) and c.id != cls.id), None)
                                 
                                 if clash_data is not None:
-                                    clash_subject_index, (o_s_id, _, _), o_cls = clash_data
+                                    clash_subject_index, (o_s_id, _), o_cls = clash_data
                                     
                                     is_combined = next(
                                         (
@@ -259,7 +259,7 @@ class School:
                                         clashes[key].append(cls)
                                 else:
                                     days_uid_tracker[day][i].append((s_uid, cls))
-        print(days_uid_tracker)
+        
         return clashes
     
     def detect_islands(self):
