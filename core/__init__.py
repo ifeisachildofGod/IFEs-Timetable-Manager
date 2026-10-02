@@ -113,7 +113,7 @@ class School:
         self.prefects = {}
         self.class_levels = GlobalClassLevels(self)
         
-        self.gen_data = GeneratingData({}, {}, {}, [])
+        self.gen_data = GeneratingData({}, {}, {}, {})
         self.settings = Settings(
             "dark-blue",
             10, 7, 3, (1, 1), TimetableTime(Time(8, 10, 0), 35, 35),

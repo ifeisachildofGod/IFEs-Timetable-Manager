@@ -1,5 +1,6 @@
 import math
 import random
+import importlib
 from typing import Any
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
@@ -160,6 +161,9 @@ class CombinedSubject(Entry):
             if subject.id not in cls.level.subjects_occurence:
                 per_day, per_week = self.default_occurance_data
                 cls.level.subjects_occurence[subject.id] = SubjectOccurrance(per_day, per_week)
+            
+            if self.id in cls.level.subjects_occurence and next((False for s_id, s_clses in self.classes.items() if s_id != subject.id and next((True for c in s_clses.values() if c.level.id == cls.level.id), False)), True):
+                cls.level.subjects_occurence.pop(self.id)
         
         self.classes.pop(subject.id)
     
@@ -225,34 +229,37 @@ class Class:
         id: CLASS_ID,
         name: str,
         level: "ClassLevel",
-        subjects: dict[ID, "Subject | CombinedSubject"],
-        school: Any
+        subjects: dict[ID, "Subject | CombinedSubject"]
     ):
+        self.SCHOOL = importlib.import_module("core").SCHOOL
+        
         self.id = id
         self.name = name
         self.level = level
         self.subjects = subjects
-        self.school = school
         
-        self.locked_subjects = {}
-        self.timetable = Timetable(self, self.school.class_levels, self.school.gen_data)
+        self.locked_subjects: dict[tuple[str, int], ID] = {}
+        self.timetable = Timetable(self, self.SCHOOL.class_levels, self.SCHOOL.gen_data)
         
         for subject in self.subjects.values():
             subject.classes[self.id] = self
     
     def delete_subject(self, id: ID):
         self.subjects.pop(id)
-        self.school.subjects[id].classes.pop(self.id)
+        self.SCHOOL.subjects[id].classes.pop(self.id)
         
-        for v, s_id in self.locked_subjects.copy().items():
+        for key, s_id in self.locked_subjects.copy().items():
             if s_id == id:
-                self.locked_subjects.pop(v)
+                self.locked_subjects.pop(key)
     
     def delete(self):
         self.level.classes.pop(self.id)
         
-        for s_id in self.subjects.copy():
-            self.school.subjects[s_id].classes.pop(self.id)
+        for s_id, s in self.subjects.copy().items():
+            classes = self.SCHOOL.subjects[s_id].classes
+            if self.id in classes:
+                classes.pop(self.id)
+            
             self.subjects.pop(s_id)
 class ClassLevelName(str):
     def __init__(self, *args):
@@ -291,8 +298,8 @@ class GeneratingData:
     #                          ClassID  SubjectID    Day  Weight
     subject_clumping_weights: dict[ID, dict[ID, dict[str, float]]]
     
-    #                            SubjectID  ClassIDs
-    combined_subjects: list[tuple[list[ID], list[ID]]]
+    #                    LevelID             SubjectID    ClassIDs
+    combined_subjects: dict[ID, list[tuple[list[ID], list[CLASS_ID]]]]
 
 
 class Timetable:
@@ -374,7 +381,7 @@ class Timetable:
         
         score = default_score
         
-        for s_cls_lvl in self.class_levels.values():
+        for s_cls_lvl_id, s_cls_lvl in self.class_levels.items():
             for s_cls in s_cls_lvl.classes.values():
                 s_subject = s_cls.timetable.table[day][p_index]
                 
@@ -383,11 +390,11 @@ class Timetable:
                     
                     assert s_teacher, f"{s_cls.level.name.full()} {s_cls.name} does not have a {s_subject.name.full()} teacher"
                     
-                    is_combined = next(
+                    is_combined = self.cls.level.id == s_cls_lvl_id and next(
                         (
                             True
                             for s_list, c_list in
-                            self.gen_data.combined_subjects
+                            self.gen_data.combined_subjects[self.cls.level.id]
                             if (s_id in s_list and s_subject.id in s_list) and (self.cls.id in c_list and s_cls.id in c_list)
                         ),
                         False
@@ -539,7 +546,7 @@ class Timetable:
                     
                     selected_period = day, score.index(max_score)
             
-            if not selected_period:
+            if selected_period is None:
                 raise TimetableGeneratorError(
                     f"Error Generating the {self.cls.level.name.full()} {self.cls.name} Timetable\n"
                     "\n"
@@ -560,5 +567,21 @@ class Timetable:
             
             self.table[day][index] = self.cls.subjects[subject.id]
             self.table_remains.remove(subject)
+
+    def scramble(self):
+        timetable_points_days = list(flatten([[day for s in periods if s.id != BreakPeriod.id] for day, periods in self.table.items()]))
+        timetable_points_indexes = list(flatten([[i for i, s in enumerate(periods) if s.id != BreakPeriod.id] for periods in self.table.values()]))
+        
+        timetable_points = list(zip(timetable_points_days, timetable_points_indexes))
+        
+        random.shuffle(self.table_remains)
+        random.shuffle(timetable_points)
+        
+        for day, i in timetable_points:
+            if not self.table_remains:
+                break
+            
+            subj = self.table_remains.pop(0)
+            self.table[day][i] = self.cls.subjects[subj.id]
 
 
