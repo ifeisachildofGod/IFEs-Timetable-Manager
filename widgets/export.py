@@ -493,6 +493,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         ]
         
         central_widget = TabViewWidget()
+        central_widget.setSpacing(0)
         central_widget.setContentsMargins(0, 0, 0, 0)
         
         timetable_widget = BaseWidget(QHBoxLayout)
@@ -518,7 +519,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initBottomWidget(self):
         base_widget = BaseWidget(QHBoxLayout)
-        base_widget.setProperty("class", "DarkenedBG1")
+        base_widget.setProperty("class", "DarkenedBG1 BorderedTop")
         
         export_dialog = ExportPreviewDialog(
             *(self.t_labels + self.p_labels + self.c_labels),
@@ -550,7 +551,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initSideBarWidget(self):
         side_bar_widget = BaseWidget()
-        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar")
+        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar BorderedRight")
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
         
@@ -1177,10 +1178,10 @@ def write_export_csv(writer, cls: Class):
         b_pst = i > bp_index
         n_b_pst = i + 1 > bp_index
         
-        brk = timing.break_time_duration * (i != 0 and b_pst)
-        n_brk = timing.break_time_duration * n_b_pst
+        brk = timing.break_time_duration * (i != 0 and b_pst) * 60
+        n_brk = timing.break_time_duration * n_b_pst * 60
         
-        evd_timing_strings.append(f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}")
+        evd_timing_strings.append(f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}")
     
     writer.writerow(evd_timing_strings)
     
@@ -1196,14 +1197,14 @@ def write_export_csv(writer, cls: Class):
                 b_pst |= timetable[day][i - 1].id == BreakPeriod.id
                 n_b_pst |= subject.id == BreakPeriod.id
                 
-                brk = timing.break_time_duration * (i != 0 and b_pst)
-                n_brk = timing.break_time_duration * n_b_pst
+                brk = timing.break_time_duration * (i != 0 and b_pst) * 60
+                n_brk = timing.break_time_duration * n_b_pst * 60
                 
-                evd_timing_strings.append(f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}")
+                evd_timing_strings.append(f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}")
             
             writer.writerow(evd_timing_strings)
         
-        writer.writerow([day] + [subject.name.full() for subject in periods])
+        writer.writerow([day] + [(subject.name.full() if subject.id != FreePeriod.id else "") for subject in periods])
 
 HTML_EXPORT_STYLE = """
     body {{
@@ -1274,6 +1275,7 @@ HTML_TEXT = f"""
 
 FONTS: dict[int, ImageFont.FreeTypeFont] = {}
 TTBL_X_MARGIN, TTBL_Y_MARGIN, TTBL_EXPORT_CELL_X_MARGIN, TTBL_EXPORT_CELL_Y_MARGIN = 100, 200, 10, 5
+
 
 class _Rect:
     __slots__ = ("x", "y", "width", "height")
@@ -1529,7 +1531,7 @@ def get_export_surface(cls: Class):
     timetable = cls.timetable.table
     export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
     
-    _time_width = _get_text(export_theme.ttbl_heading_text_theme, "mmmmmmmmmmmmm").get_width()
+    _time_width = _get_text(export_theme.ttbl_heading_text_theme, "24:58 - 24:59").get_width()
     _cell_content_width = max(_get_text(export_theme.ttbl_content_text_theme, s.cls_name()).get_width() for s in SCHOOL.subjects.values())
     
     width = max(_cell_content_width, _time_width) + TTBL_EXPORT_CELL_X_MARGIN * 2
@@ -1581,9 +1583,9 @@ def get_export_surface(cls: Class):
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval) * 60
                     
-                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, f"{start_time} - {end_time}")
+                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, f"{str(start_time)[:-3]} - {str(end_time)[:-3]}")
                     ttbl_time_rect = _Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
                     
                     ttbl_t_t_y = ttbl_time_rect.centery - ttbl_time_surf.get_height() / 2
@@ -1624,7 +1626,7 @@ def get_export_surface(cls: Class):
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval)
+                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval) * 60
                     
                     ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, f"{start_time.hour}:{start_time.minute} - {end_time.hour}:{end_time.minute}")
                     ttbl_time_rect = _Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
@@ -1733,10 +1735,10 @@ def get_export_html_text(cls: Class):
         b_pst = i > bp_index
         n_b_pst = i + 1 > bp_index
         
-        brk = timing.break_time_duration * (i != 0 and b_pst)
-        n_brk = timing.break_time_duration * n_b_pst
+        brk = timing.break_time_duration * (i != 0 and b_pst) * 60
+        n_brk = timing.break_time_duration * n_b_pst * 60
         
-        time_str = f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}"
+        time_str = f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}"
         ttbl_text += f'<div class="timing" style="border-top: {{border_horizontal_width}}px solid {{border_color}};"><h3>{time_str}</h3></div>'
     
     ttbl_text += "\n\t\t\t"
@@ -1756,10 +1758,10 @@ def get_export_html_text(cls: Class):
                 b_pst |= timetable[day][i - 1].id == BreakPeriod.id
                 n_b_pst |= subject.id == BreakPeriod.id
                 
-                brk = timing.break_time_duration * (i != 0 and b_pst)
-                n_brk = timing.break_time_duration * n_b_pst
+                brk = timing.break_time_duration * (i != 0 and b_pst) * 60
+                n_brk = timing.break_time_duration * n_b_pst * 60
                 
-                time_str = f"{timing.start_time + brk + timing.interval * (i - b_pst)} - {timing.start_time + n_brk + timing.interval * ((i + 1) - n_b_pst)}"
+                time_str = f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}"
                 ttbl_text += f'<div class="timing"{' style="border-top: {border_horizontal_width}px solid {border_color};"' if subject.id == BreakPeriod.id else ''}><h3>{time_str}</h3></div>'
             
             ttbl_text += "\n\t\t\t"

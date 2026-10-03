@@ -10,8 +10,8 @@ PALETTES = {
         "dark": {
             "bg1": "#1e1e1e",
             "bg2": "#2a2a2a",
-            "bg3": "#4b4b4b",
-            "bg4": "#2c2c2c",
+            "bg3": "#222222",
+            "bg4": "#2E2E2E",
             "bg5": "#313131",
             "mute-bg": "#404040",
             "border1": "#505050",
@@ -21,7 +21,7 @@ PALETTES = {
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777",
+            "disabled": "#7f7f7f",
             
             "maximum": "#000000",
             "minimum": "#ffffff",
@@ -65,7 +65,7 @@ PALETTES = {
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777",
+            "disabled": "#7f7f7f",
             
             "maximum": "#ff0000",
             "minimum": "#ffffff",
@@ -87,7 +87,7 @@ PALETTES = {
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777",
+            "disabled": "#7f7f7f",
             
             "maximum": "#00ff00",
             "minimum": "#ffffff",
@@ -109,7 +109,7 @@ PALETTES = {
             "scrollbar": "#505050",
             "tooltip_bg": "#303030",
             "tooltip_text": "#e0e0e0",
-            "disabled": "#777777",
+            "disabled": "#7f7f7f",
             
             "maximum": "#110033",
             "minimum": "#ffffff",
@@ -161,12 +161,20 @@ STYLESHEET = '''
         margin: 0px;
     }}
     
-    *:disabled {{
+    QSpinBox:disabled, QComboBox:disabled {{
         background-color: {disabled};
     }}
     
     QWidget.Bordered {{
         border: 1px solid {bg6-border2};
+    }}
+    
+    QWidget.BorderedTop {{
+        border-top: 1px solid {bg6-border2};
+    }}
+    
+    QWidget.BorderedRight {{
+        border-right: 1px solid {bg6-border2};
     }}
     
     QWidget.BorderRadiused {{
@@ -295,7 +303,7 @@ STYLESHEET = '''
     }}
     
     QLabel.LabeledContainerTitle {{
-        color: red;
+        color: {hover__primary_text};
         font-size: 11px;
         font-weight: 500;
         padding: 0 4px;
@@ -540,18 +548,15 @@ STYLESHEET = '''
         border: 1px solid {bg6-border2};
         border-radius: 5px;
     }}
-    QMenu::item {{
+    QMenu::item, QMenu::item:disabled {{
         border-radius: 4px;
         padding: 5px 20px;
         margin: 1px 3px;
+        background-color: transparent;
     }}
     QMenu::item:selected {{
         color: {primary_text};
         background-color: {fg2};
-    }}
-    QMenu::item:disabled {{
-        color: #888;
-        background-color: transparent;
     }}
     
     

@@ -934,22 +934,31 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
         self.prefect_info_widget = BarWidget("Cummulative School Prefect Attendance", "School Prefects", "Yearly Attendance (%)")
         self.prefect_info_widget.bar_canvas.axes.set_ylim(top=100)
         
-        dtd_widget, dtd_layout = create_widget(None, QVBoxLayout)
-        self.teacher_dep_widgets = {}
-        
-        for teacher in SCHOOL.teachers.values():
-            for subject in teacher.subjects.values():
-                if subject.id not in self.teacher_dep_widgets:
-                    self.teacher_dep_widgets[subject.id] = BarWidget(f"Cummulative {subject.name.full()} Department Attendance", f"{subject.name.full()} Department Teachers", "Yearly Attendance (%)")
-                    self.teacher_dep_widgets[subject.id].bar_canvas.axes.set_ylim(top=100)
-                    
-                    dtd_layout.addWidget(self.teacher_dep_widgets[subject.id])
+        self.dtd_widget = BaseWidget()
+        self.teacher_dep_widgets: dict[ID, BarWidget] = {}
         
         return {
             "All": ("Prefects", "Teachers"),
             "Prefects": LabeledField("Prefect Attendance", self.prefect_info_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum),
-            "Teachers": LabeledField("Departmental Attendance", dtd_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+            "Teachers": LabeledField("Departmental Attendance", self.dtd_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         }
+    
+    def add_subject(self, subjectID: ID):
+        subject = SCHOOL.subjects[subjectID]
+        
+        bar_widget = self.teacher_dep_widgets[subjectID] = BarWidget(f"Cummulative {subject.name.full()} Department Attendance", f"{subject.name.full()} Department Teachers", "Yearly Attendance (%)")
+        bar_widget.bar_canvas.axes.set_ylim(top=100)
+        
+        self.dtd_widget.addWidget(bar_widget)
+    
+    def delete_subject(self, subjectID: ID):
+        if subjectID not in self.teacher_dep_widgets:
+            return
+        
+        widget = self.teacher_dep_widgets.pop(subjectID)
+        
+        self.dtd_widget.removeWidget(widget)
+        widget.deleteLater()
     
     def prefect_data_changed(self):
         self.prefect_info_widget.clear()
@@ -984,7 +993,6 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
             index = 0
             
             for subj_id, total_teacher_data in teacher_data.items():
-                
                 widget = self.teacher_dep_widgets[subj_id]
                 widget.clear()
                 
@@ -1006,21 +1014,30 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
     
     def _get_filter_widgets(self):
         self.prefect_info_widget = GraphWidget("Prefects Punctuality Graph", "Time Interval (Weeks)", "Punctuality (Hours)")
-        dtd_widget, dtd_layout = create_widget(None, QVBoxLayout)
+        self.dtd_widget = BaseWidget()
         
-        self.teacher_info_widgets = {}
-        for teacher in SCHOOL.teachers.values():
-            for subject in teacher.subjects.values():
-                if subject.id not in self.teacher_info_widgets:
-                    self.teacher_info_widgets[subject.id] = GraphWidget(f"{subject.name.full()} Teachers Punctuality Graph", "Time Interval (Weeks)", "Punctuality (Hours)")
-                    
-                    dtd_layout.addWidget(self.teacher_info_widgets[subject.id])
+        self.teacher_info_widgets: dict[ID, GraphWidget] = {}
         
         return {
             "All": ("Prefects", "Teachers"),
             "Prefects": LabeledField("Prefect Punctuality", self.prefect_info_widget),
-            "Teachers": LabeledField("Departmental Punctuality", dtd_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+            "Teachers": LabeledField("Departmental Punctuality", self.dtd_widget, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         }
+    
+    def add_subject(self, subjectID: ID):
+        subject = SCHOOL.subjects[subjectID]
+        
+        graph_widget = self.teacher_info_widgets[subjectID] = GraphWidget(f"{subject.name.full()} Teachers Punctuality Graph", "Time Interval (Weeks)", "Punctuality (Hours)")
+        self.dtd_widget.addWidget(graph_widget)
+    
+    def delete_subject(self, subjectID: ID):
+        if subjectID not in self.teacher_info_widgets:
+            return
+        
+        widget = self.teacher_info_widgets.pop(subjectID)
+        
+        self.dtd_widget.removeWidget(widget)
+        widget.deleteLater()
     
     def prefect_data_changed(self):
         prefects_data = []

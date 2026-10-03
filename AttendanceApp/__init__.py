@@ -42,10 +42,24 @@ class AttendanceManager(TabViewWidget):
             self._set_search_state("Attendance Data")
             self.attendance_widget.update_tooltip()
         
+        def _changed_to_attendance_graph_widget(_, from_main_page: bool = False):
+            self._set_search_state("")
+            
+            if from_main_page:
+                self.attendance_chart_widget.prefect_data_changed()
+                self.attendance_chart_widget.teacher_data_changed()
+        
+        def _changed_to_punctuality_chart_widget(_, from_main_page: bool = False):
+            self._set_search_state("")
+            
+            if from_main_page:
+                self.punctuality_graph_widget.prefect_data_changed()
+                self.punctuality_graph_widget.teacher_data_changed()
+        
         self.add("Attendance", self.attendance_widget, _changed_to_staff_list_widget_func)
         self.add("Staff", self.staff_list_widget, lambda _: self._set_search_state("Staff"))
-        self.add("Attendance Chart", self.attendance_chart_widget, lambda _: self._set_search_state(""))
-        self.add("Punctuality Graph", self.punctuality_graph_widget, lambda _: self._set_search_state(""))
+        self.add("Attendance Chart", self.attendance_chart_widget, _changed_to_attendance_graph_widget)
+        self.add("Punctuality Graph", self.punctuality_graph_widget, _changed_to_punctuality_chart_widget)
         self.stack.addWidget(card_scan_widget)
         self.stack.addWidget(staff_data_widget)
         
@@ -58,6 +72,31 @@ class AttendanceManager(TabViewWidget):
         self.connection_set_up_screen.disconnect_button.clicked.connect(self.disconnect_connection)
         self.target_connector.device.connection_changed.connect(conn_changed)
         self.target_connector.device.connection_changed.emit(False)
+    
+    def update_staff_list_staff_name(self, staffID: ID):
+        for staff_widget_dict in self.staff_list_widget.all_staff_widgets.values():
+            if staffID in staff_widget_dict:
+                staff_widget_dict[staffID].update_name()
+    
+    def update_staff_list_subject_name(self, subject: Subject):
+        for teacher in SCHOOL.teachers.values():
+            if subject.id in teacher.subjects:
+                for teacher_widget_dict in self.staff_list_widget.all_staff_widgets.values():
+                    if teacher.id in teacher_widget_dict:
+                        teacher_widget_dict[teacher.id].update_subject_name(subject)
+    
+    def update_staff_list_class_name(self, cls: Class):
+        for subject in cls.subjects.values():
+            if isinstance(subject, Subject):
+                subjects = [subject]
+            elif isinstance(subject, CombinedSubject):
+                subjects = subject.subjects
+            
+            for subj in subjects:
+                if subj.teacher:
+                    for teacher_filtered_dict in self.staff_list_widget.all_staff_widgets.values():
+                        if subj.teacher.id in teacher_filtered_dict:
+                            teacher_filtered_dict[subj.teacher.id].update_class_name(cls)
     
     def disconnect_connection(self):
         self.target_connector.stop_connection()

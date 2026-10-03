@@ -229,7 +229,7 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
             if not i and isinstance(staff_widget, tuple):
                 for k in staff_widget:
                     self.widgets[k].setVisible(True)
-
+        
         filters = QComboBox()
         filters.addItems(list(self.widgets))
         filters.currentIndexChanged.connect(self.filter)
@@ -353,7 +353,7 @@ class BaseAttendanceEntryWidget(QWidget):
         self.main_layout = layout_type()
         self.container.setLayout(self.main_layout)
         
-        self.labeled_container = LabeledField(f"{name} - Check {"IN" if data.is_check_in else "OUT"}", self.container, height_policy=QSizePolicy.Policy.Maximum)
+        self.labeled_container = LabeledField(f"<span style='font-weight: bold;'>{name} - Check {"IN" if data.is_check_in else "OUT"}</span>", self.container, height_policy=QSizePolicy.Policy.Maximum)
         
         layout.addWidget(self.labeled_container)
 

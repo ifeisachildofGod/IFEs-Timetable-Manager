@@ -113,24 +113,47 @@ class Window(QMainWindow):
         attendance_btn = QPushButton("Attendance")
         timetable_btn = QPushButton("Timetable")
         
+        def reset(name: str):
+            self.title_bar.search_pb.setDisabled(False)
+            self.title_bar.search_pb.setText(f"Search {name}")
+        
+        def on_att_widget_func(name):
+            reset(name)
+            
+            if self.attendance_manager.current_tab and (func := self.attendance_manager.tab_src_changed_func_mapping[self.attendance_manager.current_tab]):
+                try:
+                    func(self.attendance_manager.tab_name_index_mapping[self.attendance_manager.current_tab], True)
+                except TypeError:
+                    func(self.attendance_manager.tab_name_index_mapping[self.attendance_manager.current_tab])
+        
+        def on_ttbl_widget_func(_):
+            self.title_bar.search_pb.setDisabled(True)
+            self.title_bar.search_pb.setText(None)
+        
         # Add widgets to stack
         self.is_option_sidebar_focused = True
         self.option_buttons: list[Optional[tuple[QPushButton, BaseSettingWidget | SchoolTimetableEditor | AttendanceManager]]] = [
-            (subjects_btn, self.subjects_widget),
-            (teachers_btn, self.teachers_widget),
-            (classes_btn, self.classes_widget),
+            (subjects_btn, (self.subjects_widget, reset)),
+            (teachers_btn, (self.teachers_widget, reset)),
+            (classes_btn, (self.classes_widget, reset)),
             None,
-            (attendance_btn, self.attendance_manager),
-            (timetable_btn, self.timetable_widget)
+            (attendance_btn, (self.attendance_manager, on_att_widget_func)),
+            (timetable_btn, (self.timetable_widget, on_ttbl_widget_func))
         ]
         
         # Connect buttons
         for index, op_info in enumerate(self.option_buttons):
             if op_info is not None:
-                button, widget = op_info
+                button, widget_info = op_info
+                
+                if isinstance(widget_info, tuple):
+                    widget, custom_func = widget_info
+                else:
+                    widget = widget_info
+                    custom_func = None
                 
                 button.setCheckable(True)
-                button.clicked.connect(self.make_option_button_func(button.text(), index))
+                button.clicked.connect(self.make_option_button_func(button.text(), index, custom_func))
                 
                 self.stack.addWidget(widget)
                 self.sub_sidebar_widget.addWidget(button)
@@ -454,7 +477,7 @@ class Window(QMainWindow):
         
         event.accept()
     
-    def make_option_button_func(self, name: str, index: int):
+    def make_option_button_func(self, name: str, index: int, custom_func: Optional[Callable[[str], None]]):
         def func():
             if self.display_index != index:
                 if self.is_option_sidebar_focused:
@@ -470,10 +493,15 @@ class Window(QMainWindow):
                     
                     self.view_tracker.append(self.option_buttons[index])
                 
-                self.title_bar.search_pb.setDisabled(index == 5)
-                self.title_bar.search_pb.setText(None if index == 5 else f"Search {name}")
+                custom_func(name)
+                widget_info = self.option_buttons[index][1]
                 
-                self.stack.setCurrentWidget(self.option_buttons[index][1])
+                if isinstance(widget_info, tuple):
+                    widget, _ = widget_info
+                else:
+                    widget = widget_info
+                
+                self.stack.setCurrentWidget(widget)
                 
                 self.display_index = index
             

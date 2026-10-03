@@ -22,8 +22,8 @@ class _CharacterNameWidget(QWidget):
         widget_2_1_1.setLayout(layout_2_1_1)
         layout_2_1.addWidget(widget_2_1_1)
         
-        name_1 = LabeledField("Surname", QLabel(self.name.start))
-        name_2 = LabeledField("First name", QLabel(self.name.first))
+        name_1 = LabeledField("Surname", QLabel(f"<span style='font-weight: bold'>{self.name.start}</span>"))
+        name_2 = LabeledField("First name", QLabel(f"<span style='font-weight: bold'>{self.name.first}</span>"))
         
         layout_2_1_1.addWidget(name_1)
         layout_2_1_1.addWidget(name_2)
@@ -33,8 +33,8 @@ class _CharacterNameWidget(QWidget):
         widget_2_1_2.setLayout(layout_2_1_2)
         layout_2_1.addWidget(widget_2_1_2)
         
-        name_4 = LabeledField("Other name", QLabel(self.name.other if self.name.other else "No other name"))
-        name_5 = LabeledField("Abbreviation", QLabel(self.name.abbrev if self.name.abbrev else "No abbreviatory name"))
+        name_4 = LabeledField("Other name", QLabel(f"<span style='font-weight: bold'>{self.name.other if self.name.other else "No other name"}</span>"))
+        name_5 = LabeledField("Abbreviation", QLabel(f"<span style='font-weight: bold'>{self.name.abbrev if self.name.abbrev else "No abbreviatory name"}</span>"))
         
         layout_2_1_2.addWidget(name_4)
         layout_2_1_2.addWidget(name_5, alignment=Qt.AlignmentFlag.AlignRight)
@@ -62,16 +62,16 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
         
         widget_1_2_1, layout_1_2_1 = create_widget(None, QHBoxLayout)
         
-        layout_1_2_1.addWidget(LabeledField("Day", QLabel(self.data.period.day)))
-        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}")))
+        layout_1_2_1.addWidget(LabeledField("Day", QLabel(f"<span style='font-weight: bold'>{self.data.period.day}</span")))
+        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"<span style='font-weight: bold'>{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}</span>")))
         
         layout_1_2.addWidget(LabeledField("Date Info", widget_1_2_1, height_policy=QSizePolicy.Policy.Maximum))
         
         widget_1_2_2, layout_1_2_2 = create_widget(None, QHBoxLayout)
         
-        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(("0" if self.data.period.time.hour < 10 else "") + str(self.data.period.time.hour))))
-        layout_1_2_2.addWidget(LabeledField("Min", QLabel(("0" if self.data.period.time.minute < 10 else "") + str(self.data.period.time.minute))))
-        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(("0" if self.data.period.time.second < 10 else "") + str(self.data.period.time.second))))
+        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.hour < 10 else "")}{str(self.data.period.time.hour)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Min", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.minute < 10 else "")}{str(self.data.period.time.minute)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.second < 10 else "")}{str(self.data.period.time.second)}</span>")))
         
         layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
         
@@ -139,16 +139,16 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         
         widget_1_2_1, layout_1_2_1 = create_widget(None, QHBoxLayout)
         
-        layout_1_2_1.addWidget(LabeledField("Day", QLabel(self.data.period.day)))
-        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}")))
+        layout_1_2_1.addWidget(LabeledField("Day", QLabel(f"<span style='font-weight: bold'>{self.data.period.day}</span")))
+        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"<span style='font-weight: bold'>{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}</span>")))
         
         layout_1_2.addWidget(LabeledField("Date Info", widget_1_2_1, height_policy=QSizePolicy.Policy.Maximum))
         
         widget_1_2_2, layout_1_2_2 = create_widget(None, QHBoxLayout)
         
-        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(("0" if self.data.period.time.hour < 10 else "") + str(self.data.period.time.hour))))
-        layout_1_2_2.addWidget(LabeledField("Min", QLabel(("0" if self.data.period.time.minute < 10 else "") + str(self.data.period.time.minute))))
-        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(("0" if self.data.period.time.second < 10 else "") + str(self.data.period.time.second))))
+        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.hour < 10 else "") + str(self.data.period.time.hour)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Min", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.minute < 10 else "") + str(self.data.period.time.minute)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.second < 10 else "") + str(self.data.period.time.second)}</span>")))
         
         layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
         
@@ -187,7 +187,7 @@ class StaffListPrefectEntryWidget(BaseStaffListEntryWidget):
         self.cls_label = cls_label
     
     def update_class_name(self, cls: Class):
-        self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
+        self.cls_label.setText(f"<b>●</b> <span style='font-weight: bold'>{cls.level.name.full()} {cls.name}</span>")
 
 class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
     def __init__(self, parent_widget: TabViewWidget, teacher: Teacher, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
@@ -263,10 +263,10 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
                 self.class_labels[cls_id].remove(cls_label_data)
     
     def update_subject_name(self, subject: Subject):
-        self.subject_fields[subject.id].setTitle(subject.name.full())
+        self.subject_fields[subject.id].setTitle(f"<span style='font-weight: bold'>{subject.name.full()}</span>")
     
     def update_class_name(self, cls: Class):
         for _, label in self.class_labels[cls.id]:
-            label.setText(f"<b>●</b> {cls.level.name.full()} {cls.name}")
+            label.setText(f"<b>●</b> <span style='font-weight: bold'>{cls.level.name.full()} {cls.name}</span>")
 
 

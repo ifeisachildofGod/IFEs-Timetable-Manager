@@ -1341,15 +1341,18 @@ class SchoolTimetableEditor(BaseWidget):
         
         # Create timetable for each class
         self.level_randomize_cbs: dict[ID, QCheckBox] = {}
-        self.cls_randomize_cbs: dict[ID, QCheckBox] = {}
-        self.label_data: dict[ID, QLabel] = {}
+        self.cls_randomize_cbs: dict[CLASS_ID, QCheckBox] = {}
+        self.label_data: dict[ID | CLASS_ID, QLabel] = {}
         self.timetable_widgets: dict[ID, dict[CLASS_ID, ClassTimetable]] = {}
-        self.classes_widget: dict[ID, tuple[WidgetDropdown, dict[ID, BaseWidget]]] = {}
-        self.everyday_widgets: dict[ID, Optional[BaseWidget]] = {}
+        self.classes_widget: dict[ID, tuple[WidgetDropdown, dict[CLASS_ID, BaseWidget]]] = {}
+        self.everyday_widgets: dict[CLASS_ID, Optional[BaseWidget]] = {}
         self.ttbl_day_trackers: dict[ID, dict[QComboBox, list[str, list[str]]]] = {}
         
         for cls_level in SCHOOL.class_levels.values():
-            self.combination_widgets[cls_level.id] = CombinationEditor(self, cls_level)
+            self.add_timetable_level(cls_level)
+            
+            for cls in cls_level.classes.values():
+                self.add_timetable_class(cls)
         
         # Create settings for timetables
         self.settings_widget = TimetableSettings(self)
@@ -1605,10 +1608,6 @@ class SchoolTimetableEditor(BaseWidget):
             if def_day is None:
                 self.window().saved_state_changed.emit(True)
         
-        if cls_level.id not in self.combination_widgets:
-            SCHOOL.gen_data.combined_subjects[cls_level.id] = []
-            self.combination_widgets[cls_level.id] = CombinationEditor(self, cls_level)
-        
         _init = True
         
         period_amt_edit = NumberLineEdit(cls_level.period_amount, 1, 25)
@@ -1674,11 +1673,15 @@ class SchoolTimetableEditor(BaseWidget):
         return widget
     
     def add_timetable_level(self, cls_level: ClassLevel):
+        if cls_level.id not in SCHOOL.gen_data.combined_subjects:
+            SCHOOL.gen_data.combined_subjects[cls_level.id] = []
+        self.combination_widgets[cls_level.id] = CombinationEditor(self, cls_level)
+        
         self.timetable_widgets[cls_level.id] = {}
         
         body_widget = BaseWidget()
         
-        level_widget = WidgetDropdown(f"<span style='font-size: 40px'>{cls_level.name.full()}</span>", body_widget)
+        level_widget = WidgetDropdown(None, body_widget)
         level_widget.toogle()
         
         self.ttbl_day_trackers[cls_level.id] = {}
@@ -1690,6 +1693,8 @@ class SchoolTimetableEditor(BaseWidget):
         level_widget.header.addWidget(IconToolBarOption(settings_menu_widget, title="☰"))
         
         self.central_widget.insertWidget(len(self.central_widget.getChildren()), level_widget)
+        
+        self.update_class_level_name(cls_level)
     
     def add_timetable_class(self, cls: Class):
         def randomize(state: bool):
@@ -1782,7 +1787,7 @@ class SchoolTimetableEditor(BaseWidget):
         class_header.setProperty("class", "NoBackground")
         class_header.setContentsMargins(0, 0, 0, 0)
         
-        class_name_label = QLabel(cls.name)
+        class_name_label = QLabel()
         class_name_label.setProperty("class", "Title")
         self.label_data[cls.id] = class_name_label
         
@@ -1833,6 +1838,8 @@ class SchoolTimetableEditor(BaseWidget):
         self.classes_widget[cls.level.id][0].widget.addWidget(widget)
         self.classes_widget[cls.level.id][1][cls.id] = widget
         self.cls_randomize_cbs[cls.id] = randomize_button
+        
+        self.update_class_name(cls)
     
     def delete_timetable_level(self, cls_level_id: ID):
         self.central_widget.removeWidget(self.classes_widget[cls_level_id][0])
@@ -1856,20 +1863,26 @@ class SchoolTimetableEditor(BaseWidget):
         self.classes_widget[cls.level.id][1].pop(cls.id)
         self.cls_randomize_cbs.pop(cls.id)
     
-    def set_label_text(self, id: ID, name: str | ClassLevelName):
-        self.label_data[id].setText(f"<span style='font-size: 60px'>{name.full()}</span>" if isinstance(name, ClassLevelName) else name)
+    def update_class_level_name(self, class_level: ClassLevel):
+        self.label_data[class_level.id].setText(f"<span style='font-size: 40px'>{class_level.name.full()}</span>")
+    
+    def update_class_name(self, cls: Class):
+        self.label_data[cls.id].setText(cls.name)
 
-    def update_subject_name(self, subject: Subject | CombinedSubject):
-        for lvl_id, lvl_ttbl_widgets in self.timetable_widgets.items():
-            class_level = SCHOOL.class_levels[lvl_id]
-            
-            if subject.id not in class_level.subjects_occurence:
-                continue
-            
-            for ttbl in lvl_ttbl_widgets.values():
-                if subject.id not in ttbl.cls.subjects:
+    def update_subject_name(self, subject: Subject | CombinedSubject, cls: Optional[Class] = None):
+        if cls is None:
+            for lvl_id, lvl_ttbl_widgets in self.timetable_widgets.items():
+                class_level = SCHOOL.class_levels[lvl_id]
+                
+                if subject.id not in class_level.subjects_occurence:
                     continue
                 
-                ttbl.update_subject_name(subject)
+                for ttbl in lvl_ttbl_widgets.values():
+                    if subject.id not in ttbl.cls.subjects:
+                        continue
+                    
+                    ttbl.update_subject_name(subject)
+        else:
+            self.timetable_widgets[cls.level.id][cls.id].update_subject_name(subject)
 
 

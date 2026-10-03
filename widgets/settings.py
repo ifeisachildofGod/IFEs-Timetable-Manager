@@ -26,7 +26,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         return Subject(NEW_ID(), SubjectName("", ""), None, {})
     
     def remove(self):
-        delete_subject(self.id, self.timetable_editor, self.attendance_manager)
+        delete_subject(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
         
         return super().remove()
     
@@ -298,6 +298,10 @@ class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
         if entry is None:
             SCHOOL.subjects.add(final_entry, index)
         
+        if isinstance(final_entry, Subject):
+            self.attendance_manager.attendance_chart_widget.add_subject(final_entry.id)
+            self.attendance_manager.punctuality_graph_widget.add_subject(final_entry.id)
+        
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
 
@@ -343,11 +347,11 @@ class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
         
         if entry is None:
             SCHOOL.class_levels.add(final_entry, index)
-        
-        self.timetable_editor.add_timetable_level(final_entry)
-        
-        for cls in final_entry.classes.values():
-            self.timetable_editor.add_timetable_class(cls)
+            
+            self.timetable_editor.add_timetable_level(final_entry)
+            
+            for cls in final_entry.classes.values():
+                self.timetable_editor.add_timetable_class(cls)
         
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)

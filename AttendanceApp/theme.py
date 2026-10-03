@@ -1,6 +1,147 @@
 
 from imports import *
 
+
+PALETTES = {
+    "general-palette": {
+        "title_text_teacher": "#a6a6a6",
+        "title_text_prefect": "#a6a6a6",
+        
+        "border_teacher": "#a6a6a6",
+        "border_prefect": "#a6a6a6",
+
+        "text_teacher": "#ffffff",
+        "text_prefect": "#ffffff"
+    },
+
+    "main-palette":{
+        "dark": {
+            "bg": "#1e1e1e",
+            "bg2": "#2a2a2a",
+            "bg3": "#4b4b4b",
+            "text": "#f0f0f0",
+            "mute-bg": "#404040",
+            "secondary": "#3a3a3d",
+            "border": "#B6B6B6",
+            "input_bg": "#2d2d2d",
+            "input_border": "#555",
+            "scrollbar": "#555",
+            "tooltip_bg": "#333",
+            "tooltip_text": "#eee",
+            "disabled": "#777777",
+            "hover2": "#353536",
+            "hover3": "#47474b"
+        },
+        
+        "light":{
+            "bg": "#ffffff",
+            "bg2": "#ddd",
+            "bg3": "#b8b8b8",
+            "text": "#1a1a1a",
+            "mute-bg": "#bfbfbf",
+            "secondary": "#f0f0f0",
+            "border": "#ccc",
+            "input_bg": "#ffffff",
+            "input_border": "#bbb",
+            "scrollbar": "#999",
+            "tooltip_bg": "#fefefe",
+            "tooltip_text": "#111",
+            "disabled": "#aaaaaa",
+            "hover2": "#c1c1c1",
+            "hover3": "#8f8f8f"
+        },
+        
+        "red": {
+            "bg": "#3f0000",
+            "bg2": "#610000",
+            "bg3": "#5f0000",
+            "text": "#f0f0f0",
+            "mute-bg": "#150000",
+            "secondary": "#7e0000",
+            "border": "#444",
+            "input_bg": "#300000",
+            "input_border": "#555",
+            "scrollbar": "#555",
+            "tooltip_bg": "#333",
+            "tooltip_text": "#eee",
+            "disabled": "#777777",
+            "hover2": "#612121",
+            "hover3": "#490101"
+        },
+
+        "green": {
+            "bg": "#001b01",
+            "bg2": "#023d00",
+            "bg3": "#004910",
+            "text": "#f0f0f0",
+            "mute-bg": "#001500",
+            "secondary": "#00660e",
+            "border": "#444",
+            "input_bg": "#003008",
+            "input_border": "#555",
+            "scrollbar": "#555",
+            "tooltip_bg": "#333",
+            "tooltip_text": "#eee",
+            "disabled": "#777777",
+            "hover2": "#236121",
+            "hover3": "#014907"
+        },
+
+        "darkblue": {
+            "bg": "#02001b",
+            "bg2": "#01003d",
+            "bg3": "#050049",
+            "text": "#f0f0f0",
+            "mute-bg": "#0a001f",
+            "secondary": "#020066",
+            "border": "#444",
+            "input_bg": "#030030",
+            "input_border": "#555",
+            "scrollbar": "#555",
+            "tooltip_bg": "#333",
+            "tooltip_text": "#eee",
+            "disabled": "#777777",
+            "hover2": "#252161",
+            "hover3": "#060149"
+        }
+    },
+
+    "accent-palette": {
+        "blue": {
+            "primary_text": "#ffffff",
+            "primary": "#0770c0",
+            "primary_hover": "#0d63aa",
+            "primary_pressed": "#0a548d",
+            "highlight": "#a3d6ff",
+            
+            "teacher": "#002358",
+            "prefect": "#010025"
+        },
+
+        "green": {
+            "primary_text": "#f0f0f0",
+            "primary": "#0e9c15",
+            "primary_hover": "#17bb11",
+            "primary_pressed": "#15810b",
+            "highlight": "#00cc00",
+            
+            "teacher": "#008100",
+            "prefect": "#002506"
+        },
+
+        "red": {
+            "primary_text": "#f0f0f0",
+            "primary": "#9c0e0e",
+            "primary_hover": "#bb1111",
+            "primary_pressed": "#810b0b",
+            "highlight": "#cc0000",
+            
+            "teacher": "#810000",
+            "prefect": "#250000"
+        }
+    }
+}
+
 STYLESHEET = '''
     QWidget.Bordered {{
         border: 1px solid {input_border};
@@ -312,10 +453,10 @@ STYLESHEET = '''
     }}
     
     QLabel.LabeledContainerTitle {{
-        color: red;
         font-size: 11px;
-        font-weight: 500;
-        padding: 0 4px;
+        font-weight: 300;
+        padding: 0px 0px;
+        background: none;
     }}
     QLabel.LabeledContainerTitle:disabled {{
         color: {disabled};
@@ -324,15 +465,14 @@ STYLESHEET = '''
     .labeled-widget {{
         border-radius: 6px;
         border: 1px solid {border};
+        background: none;
     }}
     
     QWidget.AttendanceTeacherEntryWidget *, QWidget.StaffListTeacherEntryWidget * {{
         background-color: {teacher};
     }}
-    
     QWidget.AttendancePrefectEntryWidget *, QWidget.StaffListPrefectEntryWidget * {{
         background-color: {prefect};
-        color: {text_prefect};
     }}
     
     QWidget.StaffListTeacherEntryWidget,
@@ -345,161 +485,40 @@ STYLESHEET = '''
         border: 2px solid grey;
     }}
     
-    QWidget.StaffListTeacherEntryWidget * QLabel,
-    QWidget.AttendanceTeacherEntryWidget * QLabel
-    {{
-        color: {text_teacher};
-        font-weight: bold;
+    QLabel.AttendanceTeacherEntryWidget * QLabel.LabeledContainerTitle, QLabel.StaffListTeacherEntryWidget * QLabel.LabeledContainerTitle {{
+        color: {title_text_teacher};
     }}
     
-    QWidget.StaffListPrefectEntryWidget * QLabel,
-    QWidget.AttendancePrefectEntryWidget * QLabel
-    {{
-        color: {text_prefect};
-        font-weight: bold;
+    QLabel.AttendancePrefectEntryWidget * QLabel.LabeledContainerTitle, QLabel.StaffListPrefectEntryWidget * QLabel.LabeledContainerTitle {{
+        color: {title_text_prefect};
     }}
     
+    /*
+        QWidget.AttendanceTeacherEntryWidget *, QWidget.StaffListTeacherEntryWidget * {{
+            background-color: {teacher};
+            color: {text_teacher};
+        }}
+        
+        QWidget.AttendancePrefectEntryWidget *, QWidget.StaffListPrefectEntryWidget * {{
+            background-color: {prefect};
+            color: {text_prefect};
+        }}
+        
+        QWidget.StaffListTeacherEntryWidget * QLabel,
+        QWidget.AttendanceTeacherEntryWidget * QLabel
+        {{
+            color: {text_teacher};
+            font-weight: bold;
+        }}
+        
+        QWidget.StaffListPrefectEntryWidget * QLabel,
+        QWidget.AttendancePrefectEntryWidget * QLabel
+        {{
+            color: {text_prefect};
+            font-weight: bold;
+        }}
+    */
 '''
-
-PALETTES = {
-    "general-palette": {
-        "title_text_teacher": "#a6a6a6",
-        "title_text_prefect": "#a6a6a6",
-        
-        "border_teacher": "#a6a6a6",
-        "border_prefect": "#a6a6a6",
-
-        "text_teacher": "#ffffff",
-        "text_prefect": "#ffffff"
-    },
-
-    "main-palette":{
-        "dark": {
-            "bg": "#1e1e1e",
-            "bg2": "#2a2a2a",
-            "bg3": "#4b4b4b",
-            "text": "#f0f0f0",
-            "mute-bg": "#404040",
-            "secondary": "#3a3a3d",
-            "border": "#B6B6B6",
-            "input_bg": "#2d2d2d",
-            "input_border": "#555",
-            "scrollbar": "#555",
-            "tooltip_bg": "#333",
-            "tooltip_text": "#eee",
-            "disabled": "#777777",
-            "hover2": "#353536",
-            "hover3": "#47474b"
-        },
-        
-        "light":{
-            "bg": "#ffffff",
-            "bg2": "#ddd",
-            "bg3": "#b8b8b8",
-            "text": "#1a1a1a",
-            "mute-bg": "#bfbfbf",
-            "secondary": "#f0f0f0",
-            "border": "#ccc",
-            "input_bg": "#ffffff",
-            "input_border": "#bbb",
-            "scrollbar": "#999",
-            "tooltip_bg": "#fefefe",
-            "tooltip_text": "#111",
-            "disabled": "#aaaaaa",
-            "hover2": "#c1c1c1",
-            "hover3": "#8f8f8f"
-        },
-        
-        "red": {
-            "bg": "#3f0000",
-            "bg2": "#610000",
-            "bg3": "#5f0000",
-            "text": "#f0f0f0",
-            "mute-bg": "#150000",
-            "secondary": "#7e0000",
-            "border": "#444",
-            "input_bg": "#300000",
-            "input_border": "#555",
-            "scrollbar": "#555",
-            "tooltip_bg": "#333",
-            "tooltip_text": "#eee",
-            "disabled": "#777777",
-            "hover2": "#612121",
-            "hover3": "#490101"
-        },
-
-        "green": {
-            "bg": "#001b01",
-            "bg2": "#023d00",
-            "bg3": "#004910",
-            "text": "#f0f0f0",
-            "mute-bg": "#001500",
-            "secondary": "#00660e",
-            "border": "#444",
-            "input_bg": "#003008",
-            "input_border": "#555",
-            "scrollbar": "#555",
-            "tooltip_bg": "#333",
-            "tooltip_text": "#eee",
-            "disabled": "#777777",
-            "hover2": "#236121",
-            "hover3": "#014907"
-        },
-
-        "darkblue": {
-            "bg": "#02001b",
-            "bg2": "#01003d",
-            "bg3": "#050049",
-            "text": "#f0f0f0",
-            "mute-bg": "#0a001f",
-            "secondary": "#020066",
-            "border": "#444",
-            "input_bg": "#030030",
-            "input_border": "#555",
-            "scrollbar": "#555",
-            "tooltip_bg": "#333",
-            "tooltip_text": "#eee",
-            "disabled": "#777777",
-            "hover2": "#252161",
-            "hover3": "#060149"
-        }
-    },
-
-    "accent-palette": {
-        "blue": {
-            "primary_text": "#ffffff",
-            "primary": "#0770c0",
-            "primary_hover": "#0d63aa",
-            "primary_pressed": "#0a548d",
-            "highlight": "#a3d6ff",
-            
-            "teacher": "#002358",
-            "prefect": "#010025"
-        },
-
-        "green": {
-            "primary_text": "#f0f0f0",
-            "primary": "#0e9c15",
-            "primary_hover": "#17bb11",
-            "primary_pressed": "#15810b",
-            "highlight": "#00cc00",
-            
-            "teacher": "#008100",
-            "prefect": "#002506"
-        },
-
-        "red": {
-            "primary_text": "#f0f0f0",
-            "primary": "#9c0e0e",
-            "primary_hover": "#bb1111",
-            "primary_pressed": "#810b0b",
-            "highlight": "#cc0000",
-            
-            "teacher": "#810000",
-            "prefect": "#250000"
-        }
-    }
-}
 
 
 class AttendanceThemeManager:

@@ -1,4 +1,6 @@
 
+from widgets.base import *
+
 from .functions_and_uncategorized import *
 from .imports import *
 from .communication import *
@@ -57,27 +59,16 @@ class GraphCanvas(FigureCanvas):
         self.draw()
 
 
-class BarWidget(QWidget):
+class BarWidget(BaseWidget):
     def __init__(self, title: str, x_label: str, y_label: str):
         super().__init__()
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         
-        layout = QVBoxLayout(self)
-        
-        self.container = QWidget()
-        self.main_layout = QVBoxLayout()
-        self.container.setLayout(self.main_layout)
-        
-        layout.addWidget(self.container)
-        
-        self.main_keys_widget = QWidget()
-        self.main_keys_layout = QHBoxLayout()
-        self.main_keys_widget.setLayout(self.main_keys_layout)
-        
+        self.main_keys_widget = BaseWidget()
         self.bar_canvas = BarChartCanvas(title, x_label, y_label)
         
-        self.main_layout.addWidget(self.main_keys_widget)
-        self.main_layout.addWidget(self.bar_canvas)
+        self.addWidget(self.main_keys_widget)
+        self.addWidget(self.bar_canvas)
     
     def add_data(self, name: str, color, data: tuple[list, list] | dict, add_key: bool = True):
         if isinstance(data, dict):
@@ -101,7 +92,7 @@ class BarWidget(QWidget):
             keys_layout.addWidget(key_frame)
             keys_layout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignLeft)
             
-            self.main_keys_layout.addWidget(keys_widget, alignment=Qt.AlignmentFlag.AlignLeft)
+            self.main_keys_widget.addWidget(keys_widget, alignment=Qt.AlignmentFlag.AlignLeft)
         
         self.bar_canvas.bar(data[0], data[1], display_values=True, color=color, edgecolor="black")
     
@@ -115,25 +106,17 @@ class BarWidget(QWidget):
         
         self.bar_canvas.axes.set_ylim(y_lim)
         
-        clear_layout(self.main_keys_layout)
+        self.main_keys_widget.clearLayout()
         
         self.bar_canvas.set_vars(self.bar_canvas.title, self.bar_canvas.x_label, self.bar_canvas.y_label)
 
-class GraphWidget(QWidget):
+class GraphWidget(BaseWidget):
     def __init__(self, title: str, x_label: str, y_label: str):
         super().__init__()
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         
-        layout = QVBoxLayout(self)
-        
-        self.container = QWidget()
-        self.main_layout = QVBoxLayout()
-        self.container.setLayout(self.main_layout)
-        
-        layout.addWidget(self.container)
-        
         self.graph = GraphCanvas(title, x_label, y_label)
-        self.main_layout.addWidget(self.graph)
+        self.addWidget(self.graph)
     
     def plot(self, x, y, **kwargs):
         self.graph.plot(x, y, **kwargs)
