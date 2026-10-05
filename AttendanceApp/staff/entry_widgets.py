@@ -22,8 +22,8 @@ class _CharacterNameWidget(QWidget):
         widget_2_1_1.setLayout(layout_2_1_1)
         layout_2_1.addWidget(widget_2_1_1)
         
-        name_1 = LabeledField("Surname", QLabel(f"<span style='font-weight: bold'>{self.name.start}</span>"))
-        name_2 = LabeledField("First name", QLabel(f"<span style='font-weight: bold'>{self.name.first}</span>"))
+        name_1 = LabeledField("Surname", QLabel(f"<span style='font-weight: bold'>{self.name.first}</span>"))
+        name_2 = LabeledField("First name", QLabel(f"<span style='font-weight: bold'>{self.name.second}</span>"))
         
         layout_2_1_1.addWidget(name_1)
         layout_2_1_1.addWidget(name_2)
@@ -33,7 +33,7 @@ class _CharacterNameWidget(QWidget):
         widget_2_1_2.setLayout(layout_2_1_2)
         layout_2_1.addWidget(widget_2_1_2)
         
-        name_4 = LabeledField("Other name", QLabel(f"<span style='font-weight: bold'>{self.name.other if self.name.other else "No other name"}</span>"))
+        name_4 = LabeledField("Other name", QLabel(f"<span style='font-weight: bold'>{self.name.third if self.name.third else "No other name"}</span>"))
         name_5 = LabeledField("Abbreviation", QLabel(f"<span style='font-weight: bold'>{self.name.abbrev if self.name.abbrev else "No abbreviatory name"}</span>"))
         
         layout_2_1_2.addWidget(name_4)

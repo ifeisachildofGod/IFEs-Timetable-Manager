@@ -455,7 +455,7 @@ class AttendanceWidget(BaseScrollListWidget):
                                 ),
                             [
                                 sw_list[-1].staff.IUD,    
-                                sw_list[-1].staff.name.other,
+                                sw_list[-1].staff.name.third,
                                 sw_list[-1].staff.post_name if isinstance(sw_list[-1].staff, Prefect) else None,
                                 f"{sw_list[-1].staff.cls.level.name.full()} {sw_list[-1].staff.cls.name}" if isinstance(sw_list[-1].staff, Prefect) else None
                                 ] + (
@@ -486,7 +486,7 @@ class AttendanceWidget(BaseScrollListWidget):
                                 ),
                             [
                                 sw.staff.IUD,    
-                                sw.staff.name.other,
+                                sw.staff.name.third,
                                 sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
                                 f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
                                 ] + (
@@ -864,7 +864,7 @@ class StaffListWidget(BaseScrollListWidget):
                             "Prefect" if isinstance(sw.staff, Prefect) else "Teacher"
                             ),
                         [
-                            sw.staff.name.other,
+                            sw.staff.name.third,
                             sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
                             f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
                             ] + (

@@ -1,7 +1,6 @@
 
 """Core framework backbone"""
 
-import json
 import random
 from dataclasses import dataclass
 from typing import Optional, TypeVar
@@ -558,7 +557,7 @@ class School:
         for t_id, t in self.teachers:
             s_t_index_mapping[t_id] = [l_subjects.index(t_s_id) + 1 for t_s_id in t.subjects]
             
-            name = t.name.full() if t.name.full() == t.name.short() else f"{t.name.start} ■ {t.name.first if t.name.first else ""} ■ {t.name.other if t.name.other else ""} ■ {t.name.abbrev}"
+            name = t.name.full() if t.name.full() == t.name.short() else f"{t.name.first} ■ {t.name.second if t.name.second else ""} ■ {t.name.third if t.name.third else ""} ■ {t.name.abbrev}"
             subject_indexes = " ".join([str(i) for i in s_t_index_mapping[t_id]])
             
             text += f"({name} - {t_id}): {subject_indexes}\n"

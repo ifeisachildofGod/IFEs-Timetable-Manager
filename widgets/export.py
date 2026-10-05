@@ -496,6 +496,8 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         central_widget.setSpacing(0)
         central_widget.setContentsMargins(0, 0, 0, 0)
         
+        self.preview_button = QPushButton("Preview")
+        
         timetable_widget = BaseWidget(QHBoxLayout)
         timetable_widget.addWidget(self._initSideBarWidget(), stretch=25)
         timetable_widget.addWidget(self._initTimetableSection(), stretch=75)
@@ -532,7 +534,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             self.vlt_sb
         )
         
-        self.preview_button = QPushButton("Preview")
         self.preview_button.clicked.connect(lambda: export_dialog.exec())
         
         self.export_button = QPushButton("Export")
@@ -606,13 +607,13 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         e_widget.addWidget(e_bottom_widget)
         
         def csv_disable(text: str): 
-            self._unsaved()
-            
             f_widget.setDisabled(text == "CSV")
             t_widget.setDisabled(text == "CSV")
             self.preview_button.setDisabled(text == "CSV")
             
             SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type = text
+            
+            self._unsaved()
         
         self.eft_cb.currentTextChanged.connect(csv_disable)
         
@@ -674,22 +675,39 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             start_gpe_widget.setDisabled(not state)
             SCHOOL.settings.EXPORT_attendance_settings.start_limit_period = start_gpe_widget.period if state else None
             
-            end_gpe_widget.min_period = start_gpe_widget.period or end_gpe_widget._default_min_period.copy()
+            if SCHOOL.settings.EXPORT_attendance_settings.start_limit_period:
+                end_gpe_widget.min_period = start_gpe_widget.period
+            else:
+                end_gpe_widget.min_period = end_gpe_widget._default_min_period.copy()
+            
             end_gpe_widget.update_inputs()
+            
+            self._unsaved()
         
         def ep_en_func(state: bool):
             end_gpe_widget.setDisabled(not state)
+            
             SCHOOL.settings.EXPORT_attendance_settings.end_limit_period = end_gpe_widget.period if state else None
             
-            start_gpe_widget.max_period = end_gpe_widget.period or start_gpe_widget._default_max_period.copy()
+            if SCHOOL.settings.EXPORT_attendance_settings.end_limit_period:
+                start_gpe_widget.max_period = end_gpe_widget.period
+            else:
+                start_gpe_widget.max_period = start_gpe_widget._default_max_period.copy()
+            
             start_gpe_widget.update_inputs()
+            
+            self._unsaved()
         
         def attendance_eft_func(file_type: str):
             SCHOOL.settings.EXPORT_attendance_settings.export_file_type = file_type
+            
+            self._unsaved()
         
         def make_extra_info_func(index: int):
             def func(state: bool):
                 SCHOOL.settings.EXPORT_attendance_settings.special_booleans[index] = state
+                
+                self._unsaved()
             
             return func
         
@@ -703,6 +721,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         start_period_widget = BaseWidget()
         start_point_enabled_cb = QCheckBox("Enabled") ; start_point_enabled_cb.clicked.connect(sp_en_func)
         start_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.start_limit_period, max_period=SCHOOL.settings.EXPORT_attendance_settings.end_limit_period)
+        start_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         start_period_widget.addWidget(start_gpe_widget)
         start_period_widget.addWidget(start_point_enabled_cb)
         start_period_widget.setProperty("class", "DarkendBG")
@@ -710,6 +729,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         end_period_widget = BaseWidget()
         end_point_enabled_cb = QCheckBox("Enabled") ; end_point_enabled_cb.clicked.connect(ep_en_func)
         end_gpe_widget = GeneralPeriodEditor(self._window, SCHOOL.settings.EXPORT_attendance_settings.end_limit_period, min_period=SCHOOL.settings.EXPORT_attendance_settings.start_limit_period)
+        end_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         end_period_widget.addWidget(end_gpe_widget)
         end_period_widget.addWidget(end_point_enabled_cb)
         end_period_widget.setProperty("class", "DarkendBG")
@@ -1170,39 +1190,12 @@ def write_export_csv(writer, cls: Class):
     timetable = cls.timetable.table
     timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
-    timing = timings["Everyday"]
-    evd_timing_strings = [""]
-    for i in range(cls.level.period_amount):
-        bp_index = cls.level.break_period - 1
-        
-        b_pst = i > bp_index
-        n_b_pst = i + 1 > bp_index
-        
-        brk = timing.break_time_duration * (i != 0 and b_pst) * 60
-        n_brk = timing.break_time_duration * n_b_pst * 60
-        
-        evd_timing_strings.append(f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}")
-    
-    writer.writerow(evd_timing_strings)
+    if "Everyday" in timings:
+        writer.writerow([""] + timings["Everyday"].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
     
     for day, periods in timetable.items():
         if day in timings:
-            evd_timing_strings = [""]
-            timing = timings[day]
-            
-            b_pst = 0
-            n_b_pst = 0
-            
-            for i, subject in enumerate(periods):
-                b_pst |= timetable[day][i - 1].id == BreakPeriod.id
-                n_b_pst |= subject.id == BreakPeriod.id
-                
-                brk = timing.break_time_duration * (i != 0 and b_pst) * 60
-                n_brk = timing.break_time_duration * n_b_pst * 60
-                
-                evd_timing_strings.append(f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}")
-            
-            writer.writerow(evd_timing_strings)
+            writer.writerow([""] + timings[day].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
         
         writer.writerow([day] + [(subject.name.full() if subject.id != FreePeriod.id else "") for subject in periods])
 
@@ -1571,10 +1564,8 @@ def get_export_surface(cls: Class):
         ttbl_weekday_rect = _Rect(x1, _y, title_width, height) ; _y += ttbl_weekday_rect.height
         
         if col == 0 and "Everyday" in SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]:
-            time_settings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]["Everyday"]
-            
-            start_time = end_time = time_settings.start_time
             ttbl_time_x = ttbl_weekday_rect.right
+            timetable_stamps = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]["Everyday"].get_timetable_stamps(cls.level.period_amount, cls.level.break_period)
             
             for row in range(len(periods)):
                 if row == -1:
@@ -1583,9 +1574,7 @@ def get_export_surface(cls: Class):
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval) * 60
-                    
-                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, f"{str(start_time)[:-3]} - {str(end_time)[:-3]}")
+                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, timetable_stamps[row])
                     ttbl_time_rect = _Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
                     
                     ttbl_t_t_y = ttbl_time_rect.centery - ttbl_time_surf.get_height() / 2
@@ -1601,8 +1590,6 @@ def get_export_surface(cls: Class):
                     
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     screen.blit(ttbl_time_surf, ttbl_time_text_rect)
-                    
-                    start_time = end_time
                     
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                     if row == len(periods) - 1:
@@ -1614,10 +1601,8 @@ def get_export_surface(cls: Class):
             _y += ttbl_weekday_rect.height
         
         if day in SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]:
-            time_settings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id][day]
-            
-            start_time = end_time = time_settings.start_time
             ttbl_time_x = ttbl_weekday_rect.right
+            timetable_stamps = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id][day].get_timetable_stamps(cls.level.period_amount, cls.level.break_period)
             
             for row in range(-1, len(periods)):
                 if row == -1:
@@ -1626,9 +1611,7 @@ def get_export_surface(cls: Class):
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                 else:
-                    end_time = start_time + (time_settings.break_time_duration if timetable[day][row].id == BreakPeriod.id else time_settings.interval) * 60
-                    
-                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, f"{start_time.hour}:{start_time.minute} - {end_time.hour}:{end_time.minute}")
+                    ttbl_time_surf = _get_text(export_theme.ttbl_heading_text_theme, timetable_stamps[row])
                     ttbl_time_rect = _Rect(ttbl_time_x, ttbl_weekday_rect.y, width, height) ; ttbl_time_x += ttbl_time_rect.width
                     
                     ttbl_t_t_y = ttbl_time_rect.centery - ttbl_time_surf.get_height() / 2
@@ -1644,8 +1627,6 @@ def get_export_surface(cls: Class):
                     
                     _draw_rect(screen, export_theme.ttbl_heading_bg_color, ttbl_time_rect)
                     screen.blit(ttbl_time_surf, ttbl_time_text_rect)
-                    
-                    start_time = end_time
                     
                     _draw_line(screen, export_theme.border_color, ttbl_time_rect.topleft, ttbl_time_rect.bottomleft, export_theme.vertical_line_thickness)
                     
@@ -1728,18 +1709,12 @@ def get_export_html_text(cls: Class):
     
     ttbl_text = '<div class="ttbl_content" style="background-color: {ttbl_bg_color};"><h3></h3></div>'
     
-    timing = timings["Everyday"]
-    for i in range(cls.level.period_amount):
-        bp_index = cls.level.break_period - 1
-        
-        b_pst = i > bp_index
-        n_b_pst = i + 1 > bp_index
-        
-        brk = timing.break_time_duration * (i != 0 and b_pst) * 60
-        n_brk = timing.break_time_duration * n_b_pst * 60
-        
-        time_str = f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}"
-        ttbl_text += f'<div class="timing" style="border-top: {{border_horizontal_width}}px solid {{border_color}};"><h3>{time_str}</h3></div>'
+    if "Everyday" in timings:
+        ttbl_text += "".join([
+            f'<div class="timing" style="border-top: {{border_horizontal_width}}px solid {{border_color}};"><h3>{t_stamp}</h3></div>'
+            for t_stamp in
+            timings["Everyday"].get_timetable_stamps(cls.level.period_amount, cls.level.break_period)
+        ])
     
     ttbl_text += "\n\t\t\t"
     
@@ -1747,22 +1722,12 @@ def get_export_html_text(cls: Class):
     
     for day, periods in timetable.items():
         if day in timings:
-            timing = timings[day]
-            
-            b_pst = 0
-            n_b_pst = 0
-            
             ttbl_text += f'<div class="weekday"><h3></h3></div>'
-            
-            for i, subject in enumerate(periods):
-                b_pst |= timetable[day][i - 1].id == BreakPeriod.id
-                n_b_pst |= subject.id == BreakPeriod.id
-                
-                brk = timing.break_time_duration * (i != 0 and b_pst) * 60
-                n_brk = timing.break_time_duration * n_b_pst * 60
-                
-                time_str = f"{str(timing.start_time + brk + timing.interval * 60 * (i - b_pst))[:-3]} - {str(timing.start_time + n_brk + timing.interval * 60 * ((i + 1) - n_b_pst))[:-3]}"
-                ttbl_text += f'<div class="timing"{' style="border-top: {border_horizontal_width}px solid {border_color};"' if subject.id == BreakPeriod.id else ''}><h3>{time_str}</h3></div>'
+            ttbl_text += "".join([
+                f'<div class="timing"{' style="border-top: {border_horizontal_width}px solid {border_color};"' if subject.id == BreakPeriod.id else ''}><h3>{t_stamp}</h3></div>'
+                for t_stamp in
+                timings[day].get_timetable_stamps(cls.level.period_amount, cls.level.break_period)
+            ])
             
             ttbl_text += "\n\t\t\t"
         

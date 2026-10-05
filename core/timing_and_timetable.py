@@ -282,6 +282,13 @@ class TimetableTime:
     
     def copy(self):
         return TimetableTime(self.start_time, self.interval, self.break_time_duration)
+    
+    def get_time_stamps(self, amount: int, break_index: int):
+        return [self.start_time + (i - (i >= break_index)) * self.interval * 60 + (self.break_time_duration * 60 * (i >= break_index)) for i in range(amount)]
+    
+    def get_timetable_stamps(self, period_amount: int, break_period: int):
+        time_stamps = self.get_time_stamps(period_amount + 1, break_period)
+        return [f"{str(ts)[:-3]} - {str(time_stamps[i + 1])[:-3]}" for i, ts in enumerate(time_stamps) if i != len(time_stamps) - 1]
 
 @dataclass
 class StaffAttendanceTimeSettings:

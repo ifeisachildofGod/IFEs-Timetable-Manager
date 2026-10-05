@@ -612,7 +612,7 @@ class BaseSettingEntry[_T](BaseWidget):
         menu_area = BaseWidget(QHBoxLayout)
         menu_area.setContentsMargins(0, 0, 0, 0)
         
-        options_option = self.IconToolBarOption((options_widget := BaseWidget()), "☰")
+        self.options_option = self.IconToolBarOption((options_widget := BaseWidget()), "☰")
         
         dialog_buttons_widget = BaseWidget(QHBoxLayout)
         for button in self.get_dialog_buttons():
@@ -622,7 +622,7 @@ class BaseSettingEntry[_T](BaseWidget):
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
         
-        menu_area.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignLeft)
+        menu_area.addWidget(self.options_option, alignment=Qt.AlignmentFlag.AlignLeft)
         menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
         menu_area.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignRight)
                 
@@ -676,27 +676,6 @@ class BaseSettingEntry[_T](BaseWidget):
         # ----------------------------------------------------------------------------------------
         
         if self.extended_line_edits:
-            def rb_clicked(s: bool):
-                self.simple_line_edit.setVisible(s)
-                self.extended_edits_widget.setVisible(not s)
-                
-                options_option.disappear()
-                
-                if s:
-                    self.simple_line_edit.setFocus()
-                    
-                    for i in range(len(self.extended_line_edits)):
-                        self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
-                    
-                    self.simple_line_edit.setText(self.simple_line_edit.text())
-                    self._simple_name_changed(self.simple_line_edit.text())
-                elif self.extended_line_edits:
-                    self.extended_line_edits[0].setFocus()
-                    
-                    for i, le in enumerate(self.extended_line_edits):
-                        le.setText(le.text())
-                        self.extended_name_empty(i, le.text())
-            
             sn_rb = QRadioButton("Short Name")
             ln_rb = QRadioButton("Long Name")
             
@@ -705,14 +684,14 @@ class BaseSettingEntry[_T](BaseWidget):
             
             sn_rb.setChecked(True)
             
-            sn_rb.clicked.connect(lambda s: rb_clicked(s))
-            ln_rb.clicked.connect(lambda s: rb_clicked(not s))
+            sn_rb.clicked.connect(lambda s: self.toogle_name_format(s))
+            ln_rb.clicked.connect(lambda s: self.toogle_name_format(not s))
             
             for i, line_edit in enumerate(self.extended_line_edits):
                 line_edit.textChanged.connect(self._make_ext_name_empty(i))
                 line_edit.setText(extended[i])
         else:
-            options_option.setDisabled(True)
+            self.options_option.setDisabled(True)
         
         self.addWidget(menu_area)
         self.addWidget(edits_area)
@@ -793,6 +772,28 @@ class BaseSettingEntry[_T](BaseWidget):
     
     def get_init_text(self):
         raise NotImplementedError()
+    
+    def toogle_name_format(self, s: bool):
+        if self.extended_line_edits:
+            self.simple_line_edit.setVisible(s)
+            self.extended_edits_widget.setVisible(not s)
+            
+            self.options_option.disappear()
+            
+            if s:
+                self.simple_line_edit.setFocus()
+                
+                for i in range(len(self.extended_line_edits)):
+                    self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
+                
+                self.simple_line_edit.setText(self.simple_line_edit.text())
+                self._simple_name_changed(self.simple_line_edit.text())
+            elif self.extended_line_edits:
+                self.extended_line_edits[0].setFocus()
+                
+                for i, le in enumerate(self.extended_line_edits):
+                    le.setText(le.text())
+                    self.extended_name_empty(i, le.text())
     
     def simple_name_empty(self, text: str):
         if text:
@@ -906,6 +907,158 @@ class BaseSettingWidget[_T](BaseWidget):
         self.get_global().remove(widget.entry.id)
         
         return widget.entry.id
+
+
+class BaseSelectionList[_T](BaseSettingDialog):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, _T | tuple[_T, int]]], content_scope: dict[ID, _T | tuple[_T, int]]):
+        super().__init__(title)
+        
+        self.id = id
+        self._parent = parent
+        self.setFixedSize(400, 300)
+        
+        self.widgets: dict[ID, BaseSelectObjectWidget] = {}
+        
+        selected_ids = []
+        
+        # Add selected items
+        for item_id, item_data in selected_items:
+            if isinstance(item_data, tuple):
+                item, index = item_data
+            else:
+                item = item_data
+                index = None
+            
+            selected_ids.append(item_id)
+            self.addWidget(SL_SelectedWidget(self, item_id, item.name.full(), self.item_removed, self.item_selected, self._parent.window(), index))
+        
+        # Add unselected items
+        for item_id, item_data in content_scope.items():
+            if isinstance(item_data, tuple):
+                item, index = item_data
+            else:
+                item = item_data
+                index = None
+            
+            if item_id not in selected_ids:
+                self.addWidget(SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window(), index))
+        
+        self.addStretch()
+    
+    def addWidget(self, widget, stretch = None, alignment = None):
+        self.widgets[widget.id] = widget
+        
+        return super().addWidget(widget, stretch, alignment)
+    
+    def insertWidget(self, index, widget, stretch = None, alignment = None):
+        self.widgets[widget.id] = widget
+        
+        return super().insertWidget(index, widget, stretch, alignment)
+    
+    def removeWidget(self, widget: BaseSelectObjectWidget):
+        self.widgets.pop(widget.id)
+        
+        r = super().removeWidget(widget)
+        widget.deleteLater()
+        
+        return r
+    
+    def item_removed(self, id: ID):
+        raise NotImplementedError()
+    
+    def item_selected(self, id: ID):
+        raise NotImplementedError()
+    
+    def go_to(self, widget: "SL_SelectedWidget"):
+        def func():
+            self.scroll_to(widget, 100)
+            
+            widget.setFocus()
+        
+        QTimer.singleShot(200, func)
+
+
+class BaseSelectObjectWidget(BaseWidget):
+    def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None], window: QMainWindow, index: int = None):
+        super().__init__(QHBoxLayout)
+        
+        self.id = id
+        self.text = text
+        self._parent = parent
+        self._window = window
+        self.index = index
+        
+        self.on_remove = on_remove
+        self.on_opp_remove = on_opp_remove
+        
+        metrics = QFontMetrics(self.font())
+        label = QLabel(metrics.elidedText(self.text, Qt.TextElideMode.ElideRight, 200))
+        label.setFont(self.font())
+        label.setToolTip(self.text)
+        
+        self.addWidget(label)
+        self.addStretch()
+        
+        self.clicked.connect(self.sl_clicked)
+    
+    def sl_clicked(self, a0):
+        self._parent.removeWidget(self)
+        
+        insert_index, widget = self.get_new_widget_index()
+        
+        self._parent.insertWidget(insert_index, widget)
+        
+        self.on_remove(self.id)
+        
+        self._window.window().saved_state_changed.emit(True)
+    
+    def get_new_widget_index(self) -> tuple[int, "BaseSelectObjectWidget"]:
+        raise NotImplementedError()
+
+class SL_SelectedWidget(BaseSelectObjectWidget):
+    def __init__(self, parent, id, text, on_remove, on_opp_remove, window, index = None):
+        super().__init__(parent, id, text, on_remove, on_opp_remove, window, index)
+        
+        self.setProperty("class", "SelectedSelectionListEntry")
+    
+    def get_new_widget_index(self):
+        selected_widget_amt = sum(1 for widget in self._parent.widgets.values() if isinstance(widget, SL_SelectedWidget))
+        unselected_widget_amt_index = len(self._parent.widgets)
+        sl_unselected_widget = SL_UnSelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window, self.index)
+        
+        if self.index is not None:
+            index_count = 0
+            
+            for widget in sorted(list(self._parent.widgets.values()), key=lambda w: int(w.index)):
+                if isinstance(widget, SL_UnSelectedWidget):
+                    if widget.index is not None and widget.index > self.index:
+                        return selected_widget_amt + index_count, sl_unselected_widget
+                    
+                    index_count += 1
+        
+        return unselected_widget_amt_index, sl_unselected_widget
+
+class SL_UnSelectedWidget(BaseSelectObjectWidget):
+    def __init__(self, parent, id, text, on_remove, on_opp_remove, window, index = None):
+        super().__init__(parent, id, text, on_remove, on_opp_remove, window, index)
+        
+        self.setProperty("class", "UnselectedSelectionListEntry")
+    
+    def get_new_widget_index(self):
+        selected_widget_amt = sum(1 for widget in self._parent.widgets.values() if isinstance(widget, SL_SelectedWidget))
+        sl_selected_widget = SL_SelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window, self.index)
+        
+        if self.index is not None:
+            index_count = 0
+            
+            for widget in sorted(list(self._parent.widgets.values()), key=lambda w: int(w.index)):
+                if isinstance(widget, SL_SelectedWidget):
+                    if widget.index is not None and widget.index > self.index:
+                        return index_count, sl_selected_widget
+                    
+                    index_count += 1
+        
+        return selected_widget_amt, sl_selected_widget
 
 
 

@@ -8,71 +8,7 @@ from .user_interface import *
 from AttendanceApp import AttendanceManager
 
 
-class BaseSelectionList(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, Subject | Teacher]], content_scope: Global, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title)
-        
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-        
-        self.id = id
-        self._parent = parent
-        self.setFixedSize(400, 300)
-        
-        self.widgets: dict[ID, SelectWidget] = {}
-        
-        selected_ids = []
-        
-        # Add selected items
-        for item_id, item in selected_items:
-            selected_ids.append(item_id)
-            widget = _SL_SelectedWidget(self, item_id, item.name.full(), self.item_removed, self.item_selected, self._parent.window())
-            
-            self.addWidget(widget)
-        
-        # Add unselected items
-        for item_id, item in content_scope.items():
-            if item_id not in selected_ids:
-                widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window())
-                
-                self.addWidget(widget)
-        
-        self.addStretch()
-    
-    def addWidget(self, widget, stretch = None, alignment = None):
-        self.widgets[widget.id] = widget
-        
-        return super().addWidget(widget, stretch, alignment)
-    
-    def insertWidget(self, index, widget, stretch = None, alignment = None):
-        self.widgets[widget.id] = widget
-        
-        return super().insertWidget(index, widget, stretch, alignment)
-    
-    def removeWidget(self, widget):
-        self.widgets.pop(widget.id)
-        
-        r = super().removeWidget(widget)
-        widget.deleteLater()
-        
-        return r
-    
-    def item_removed(self, id: ID):
-        raise NotImplementedError()
-    
-    def item_selected(self, id: ID):
-        raise NotImplementedError()
-    
-    def go_to(self, widget: "_SL_SelectedWidget"):
-        def func():
-            self.scroll_to(widget, 100)
-            
-            widget.setFocus()
-        
-        QTimer.singleShot(200, func)
-
-
-class SubjectSelectionList(BaseSelectionList):
+class SubjectSelectionList(BaseSelectionList[Teacher]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.subject: Subject = SCHOOL.subjects[id]
         
@@ -80,7 +16,10 @@ class SubjectSelectionList(BaseSelectionList):
         
         selected, scope = self._get_list_data(id)
         
-        super().__init__(parent, id, title, selected.items(), scope, timetable_editor, attendance_manager)
+        super().__init__(parent, id, title, selected.items(), scope)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
     
     def _get_list_data(self, id: ID):
         selected = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
@@ -130,21 +69,23 @@ class SubjectSelectionList(BaseSelectionList):
         deassign_teacher(SCHOOL.teachers[id], self.id, self.timetable_editor, self.attendance_manager, c_subjects)
         
         _, scope = self._get_list_data(self.id)
-        selected_ids = [item_id for item_id, item_widget in self.widgets.items() if isinstance(item_widget, _SL_SelectedWidget)]
+        selected_ids = [item_id for item_id, item_widget in self.widgets.items() if isinstance(item_widget, SL_SelectedWidget)]
         
         for item_id, item in scope.items():
             if item_id not in selected_ids and item_id not in self.widgets:
-                widget = _SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window())
-                self.addWidget(widget)
+                self.insertWidget(len(self.widgets), SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class CombinedSubjectSelectionList(BaseSelectionList):
+class CombinedSubjectSelectionList(BaseSelectionList[Subject]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.c_subject: CombinedSubject = SCHOOL.subjects[id]
         
         self.selected_items = {s.id: s for s in self.c_subject.subjects}
         self.full_scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if self._scope_check(s)}
         
-        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope, timetable_editor, attendance_manager)
+        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
     
     def _scope_check(self, subject: Subject | CombinedSubject):
         return isinstance(subject, Subject) and subject.classes
@@ -164,16 +105,19 @@ class CombinedSubjectSelectionList(BaseSelectionList):
         for s_id, s in SCHOOL.subjects.items():
             if self._scope_check(s) and s_id not in self.full_scope and s_id not in self.selected_items:
                 self.full_scope[s_id] = s
-                self.insertWidget(len(self.full_scope) - 1, _SL_UnSelectedWidget(self, s_id, s.name.full(), self.getLayout(), self.item_selected, self.item_removed, self._parent.window()))
+                self.insertWidget(len(self.full_scope) - 1, SL_UnSelectedWidget(self, s_id, s.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class TeacherSelectionList(BaseSelectionList):
+class TeacherSelectionList(BaseSelectionList[Subject]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.teacher = SCHOOL.teachers[id]
         
         self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
         scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(id, s)}
         
-        super().__init__(parent, id, title, self.teacher.subjects.items(), scope, timetable_editor, attendance_manager)
+        super().__init__(parent, id, title, self.teacher.subjects.items(), scope)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
     
     def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
         if not isinstance(subject, Subject):
@@ -1193,61 +1137,6 @@ class ClassOptionsMaker(BaseSettingDialog):
             self._parent.window().saved_state_changed.emit(True)
 
 
-class SelectWidget(BaseWidget):
-    def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None], window: QMainWindow):
-        super().__init__(QHBoxLayout)
-        
-        self.id = id
-        self.text = text
-        self._parent = parent
-        self._window = window
-        
-        self.on_remove = on_remove
-        self.on_opp_remove = on_opp_remove
-        
-        metrics = QFontMetrics(self.font())
-        label = QLabel(metrics.elidedText(self.text, Qt.TextElideMode.ElideRight, 200))
-        label.setFont(self.font())
-        label.setToolTip(self.text)
-        
-        self.addWidget(label)
-        self.addStretch()
-        
-        self.clicked.connect(self.sl_clicked)
-    
-    def sl_clicked(self, a0):
-        self._window.saved_state_changed.emit(True)
-        
-        self._parent.removeWidget(self)
-        
-        insert_index, widget = self.get_new_widget_index()
-        
-        self._parent.insertWidget(insert_index, widget)
-        
-        self.on_remove(self.id)
-    
-    def get_new_widget_index(self) -> tuple[int, "SelectWidget"]:
-        raise NotImplementedError()
-
-class _SL_SelectedWidget(SelectWidget):
-    def __init__(self, parent, id, text, on_remove, on_opp_remove, window):
-        super().__init__(parent, id, text, on_remove, on_opp_remove, window)
-        
-        self.setProperty("class", "SelectedSelectionListEntry")
-    
-    def get_new_widget_index(self):
-        return len(self._parent.widgets), _SL_UnSelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window)
-
-class _SL_UnSelectedWidget(SelectWidget):
-    def __init__(self, parent, id, text, on_remove, on_opp_remove, window):
-        super().__init__(parent, id, text, on_remove, on_opp_remove, window)
-        
-        self.setProperty("class", "UnselectedSelectionListEntry")
-    
-    def get_new_widget_index(self):
-        return sum(1 for widget in self._parent.widgets.values() if isinstance(widget, _SL_SelectedWidget)), _SL_SelectedWidget(self._parent, self.id, self.text, self.on_opp_remove, self.on_remove, self._window)
-
-
 
 # Assignments
 def deassign_subject_class_teacher(subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -1340,7 +1229,7 @@ def deassign_combined_subject_class_teacher(combinedSubjectID: ID, subjectID: ID
         
         cls_focus_subject.teacher = None
     
-    if cls_subject.name.full_name is None:
+    if cls_subject.name.first is None:
         timetable_editor.update_subject_name(cls_subject)
 
 def deassign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -1438,7 +1327,7 @@ def assign_combined_subject_class_teacher(combinedSubjectID: ID, subjectID: ID, 
         if teacher.id in teacher_filtered_dict:
             teacher_filtered_dict[teacher.id].add_class(subjectID, cls)
     
-    if cls_subject.full_name is None:
+    if cls_subject.name.first is None:
         timetable_editor.update_subject_name(cls_subject)
 
 def assign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -1564,7 +1453,7 @@ def subject_name_update(subjectID: ID, timetable_editor: SchoolTimetableEditor, 
                         
                         cb.blockSignals(False)
     
-    c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and subjectID in s.classes and s.name.full_name is None]
+    c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and subjectID in s.classes and s.name.first is None]
     
     for teacher in SCHOOL.teachers.values():
         if subjectID in teacher.subjects:
@@ -1631,7 +1520,7 @@ def teacher_name_update(teacherID: ID, timetable_editor: SchoolTimetableEditor, 
 def class_name_update(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     cls = SCHOOL.class_levels[classID.class_level_id].classes[classID]
     
-    timetable_editor.update_class_level_name(cls)
+    timetable_editor.update_class_name(cls)
     attendance_manager.update_staff_list_class_name(cls)
     
     for combo_dict in timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:

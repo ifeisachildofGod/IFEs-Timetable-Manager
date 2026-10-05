@@ -64,8 +64,19 @@ class CLASS_ID(ID):
 
 
 @dataclass
+class Name:
+    first: str
+    
+    def full(self):
+        return self.first
+    
+    def short(self):
+        return self.full()
+@dataclass
 class Entry:
     id: ID
+    
+    name: Name
 @dataclass
 class AttendanceEntry:
     period: Period
@@ -80,15 +91,11 @@ class SubjectOccurrance:
     day_max: int
     week_max: int
 @dataclass
-class SubjectName:
-    full_name: str
+class SubjectName(Name):
     abbrev: str
     
-    def full(self):
-        return self.full_name
-    
     def short(self):
-        return self.abbrev if self.abbrev else self.full_name
+        return self.abbrev if self.abbrev else self.full()
 @dataclass
 class Subject(Entry):
     name: SubjectName
@@ -129,17 +136,16 @@ class Subject(Entry):
         return Subject(self.id, self.name, None, self.classes)
 @dataclass
 class CombinedSubjectName(SubjectName):
-    full_name: Optional[str]
+    first: Optional[str]
     abbrev: Optional[str]
     
     def full(self):
-        return self.full_name or (self.abbrev or "")
+        return self.first or (self.abbrev or "")
     
     def short(self):
         return self.full()
 @dataclass
 class CombinedSubject(Entry):
-    focus_id: Optional[ID]
     name: CombinedSubjectName
     
     subjects: list[Subject]
@@ -153,7 +159,7 @@ class CombinedSubject(Entry):
         long_no_name = "/".join(long_name_list) + ("/" if long_name_list == 1 else "")
         short_no_name = "/".join(short_name_list) + ("/" if short_name_list == 1 else "")
         
-        return (self.name.full() if len(self.name.full()) <= 16 else self.name.short()) if self.name.full_name is not None or not short_name_list else (long_no_name if len(long_no_name) <= 16 else short_no_name)
+        return (self.name.full() if len(self.name.full()) <= 16 else self.name.short()) if self.name.first is not None or not short_name_list else (long_no_name if len(long_no_name) <= 16 else short_no_name)
     
     def remove_subject(self, subject: Subject):
         self.subjects.remove(subject)
@@ -175,7 +181,7 @@ class CombinedSubject(Entry):
         self.classes.pop(subject.id)
     
     def passCopy(self):
-        return CombinedSubject(self.id, self.focus_id, self.name, [s.passCopy() for s in self.subjects], self.classes, self.default_occurance_data)
+        return CombinedSubject(self.id, self.name, [s.passCopy() for s in self.subjects], self.classes, self.default_occurance_data)
 @dataclass
 class FreePeriod:
     id: str = "FreePeriodID"
@@ -201,17 +207,16 @@ class BreakPeriod:
 
 
 @dataclass
-class StaffName:
-    start: str
-    first: Optional[str]
-    other: Optional[str]
+class StaffName(Name):
+    second: Optional[str]
+    third: Optional[str]
     abbrev: str
     
     def full(self):
-        return f"{self.start} {self.first} {self.other}" if None not in (self.first, self.other) else self.start
+        return f"{self.first} {self.second} {self.third}" if None not in (self.second, self.third) else self.first
     
     def short(self):
-        return self.abbrev if self.abbrev else self.start
+        return self.abbrev if self.abbrev else self.first
 @dataclass
 class Staff(Entry):
     IUD: Optional[str]
@@ -271,6 +276,8 @@ class Class:
 class ClassLevelName(str):
     def __init__(self, *args):
         super().__init__()
+        
+        self.first = self
     
     def full(self):
         return str(self)

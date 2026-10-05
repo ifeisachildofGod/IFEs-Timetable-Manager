@@ -1197,6 +1197,8 @@ class IconToolBarOption(BaseWidget):
         return menu
 
 class GeneralPeriodEditor(BaseWidget):
+    periodChanged = pySignal(Period)
+    
     def __init__(self, window: QMainWindow, period: Optional[Period] = None, min_period: Optional[Period] = None, max_period: Optional[Period] = None):
         super().__init__()
         
@@ -1263,9 +1265,14 @@ class GeneralPeriodEditor(BaseWidget):
         self.__init = False
     
     def update_inputs(self):
-        self.year_sb.setValue(self.year_sb.value())
-        self.month_cb.setCurrentText(self.month_cb.currentText())
-        self.date_sb.setValue(self.date_sb.value())
+        if self.period.in_seconds() > self.max_period.in_seconds():
+            self.year_sb.setValue(self.max_period.year)
+            self.month_cb.setCurrentText(self.max_period.month)
+            self.date_sb.setValue(self.max_period.date)
+        elif self.period.in_seconds() < self.min_period.in_seconds():
+            self.year_sb.setValue(self.min_period.year)
+            self.month_cb.setCurrentText(self.min_period.month)
+            self.date_sb.setValue(self.min_period.date)
     
     def _date_value_changed(self, date: int):
         prev_date = self.period.date
@@ -1284,6 +1291,8 @@ class GeneralPeriodEditor(BaseWidget):
         self.date_sb.setSuffix(positionify(self.period.date)[-2:])
         
         self._prev_day_amt = self.period.in_days()
+        
+        self.periodChanged.emit(self.period)
         
         if not self.__init:
             self._window.saved_state_changed.emit(True)

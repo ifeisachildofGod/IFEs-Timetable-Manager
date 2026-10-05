@@ -21,6 +21,9 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             },
             entry
         )
+        
+        if self.entry.name.abbrev:
+            self.toogle_name_format(False)
     
     def new(self):
         return Subject(NEW_ID(), SubjectName("", ""), None, {})
@@ -31,10 +34,10 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         return super().remove()
     
     def get_init_text(self):
-        return self.entry.name.full_name, (self.entry.name.full_name, self.entry.name.abbrev)
+        return self.entry.name.first, (self.entry.name.first, self.entry.name.abbrev)
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit]):
-        self.entry.name.full_name = text
+        self.entry.name.first = text
         
         full_name_e = extended_line_edits[0]
         full_name_e.setText(text)
@@ -42,7 +45,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
     def extended_name_changed(self, index, text, simple_line_edit):
         match index:
             case 0:
-                self.entry.name.full_name = text
+                self.entry.name.first = text
                 
                 if text != simple_line_edit.text():
                     simple_line_edit.setText(text)
@@ -81,7 +84,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             self.simple_name_changed(self.simple_line_edit.text(), None)
     
     def new(self):
-        return CombinedSubject(NEW_ID(), None, CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
+        return CombinedSubject(NEW_ID(), CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
     
     def remove(self):
         delete_combined_subject(self.id, self.timetable_editor, self.attendance_manager)
@@ -89,14 +92,14 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         return super().remove()
     
     def get_init_text(self):
-        return self.entry.name.full_name, None
+        return self.entry.name.first, None
     
     def simple_name_changed(self, text, _):
         if text:
-            self.entry.name.full_name = text
+            self.entry.name.first = text
             self.entry.name.abbrev = None
         else:
-            self.entry.name.full_name = None
+            self.entry.name.first = None
             self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
         
         combined_subject_name_update(self.id, self.timetable_editor, self.attendance_manager, self)
@@ -120,9 +123,12 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
             },
             entry
         )
+        
+        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
+            self.toogle_name_format(False)
     
     def new(self):
-        return Teacher(NEW_ID(), None, StaffName("", "", "", ""), "AttendanceApp/src/profile-images/t_id1.png", [], {})
+        return Teacher(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], {})
     
     def remove(self):
         delete_teacher(self.id, self.timetable_editor, self.attendance_manager)
@@ -130,7 +136,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         return super().remove()
     
     def get_init_text(self):
-        return self.entry.name.start, (self.entry.name.start, self.entry.name.first, self.entry.name.other, self.entry.name.abbrev)
+        return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
         full_name_e = extended_line_edits[0]
@@ -141,18 +147,18 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
             le.setText("")
             le.blockSignals(False)
         
-        self.entry.name.first = None
-        self.entry.name.other = None
+        self.entry.name.second = None
+        self.entry.name.third = None
         self.entry.name.abbrev = None
     
     def extended_name_changed(self, index, text, simple_line_edit):
         match index:
             case 0:
-                self.entry.name.start = text
-            case 1:
                 self.entry.name.first = text
+            case 1:
+                self.entry.name.second = text
             case 2:
-                self.entry.name.other = text
+                self.entry.name.third = text
             case 3:
                 self.entry.name.abbrev = text
         
@@ -160,7 +166,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         
         if self.extended_edits_widget.isVisible():
             simple_line_edit.blockSignals(True)
-            simple_line_edit.setText(f"{self.entry.name.start or ""}{" " + self.entry.name.first if self.entry.name.first is not None else ""}{" " + self.entry.name.other if self.entry.name.other is not None else ""}")
+            simple_line_edit.setText(f"{self.entry.name.first or ""}{" " + self.entry.name.second if self.entry.name.second is not None else ""}{" " + self.entry.name.third if self.entry.name.third is not None else ""}")
             simple_line_edit.blockSignals(False)
     
     def extended_name_empty(self, index, text):
