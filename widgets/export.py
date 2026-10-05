@@ -494,7 +494,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         central_widget = TabViewWidget()
         central_widget.setSpacing(0)
-        central_widget.setContentsMargins(0, 0, 0, 0)
+        central_widget.setContentsMargins(5, 0, 5, 0)
         
         self.preview_button = QPushButton("Preview")
         

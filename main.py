@@ -1,6 +1,8 @@
 import subprocess
 import traceback
 
+import threading
+
 from utils import *
 from imports import *
 from widgets import *
@@ -8,12 +10,32 @@ from widgets import *
 from AttendanceApp import AttendanceManager
 
 
+class CmdListener(QObject):
+    command_recieved = pySignal(str)
+    
+    def start(self):
+        def loop():
+            print("CMD active, awaiting commands")
+            while True:
+                try:
+                    cmd = input(">> ")
+                    self.command_recieved.emit(cmd)
+                except (EOFError, OSError):
+                    break
+            print("Goodbye")
+        
+        threading.Thread(target=loop, daemon=True).start()
 class Window(QMainWindow):
     saved_state_changed = pySignal(bool)
     crashed_signal = pySignal(Exception)
     
-    def __init__(self, arguments: list[str]):
+    def __init__(self, arguments: list[str], cmd_listener: Optional[CmdListener] = None):
         super().__init__()
+        
+        if cmd_listener:
+            cmd_listener.command_recieved.connect(self.handle_cmd)
+        
+        self.CMD_ACTIONS = {}
         
         self.crashed_signal.connect(lambda e: QMessageBox.critical(None, e.__class__.__name__, str(e)))
         
@@ -253,6 +275,31 @@ class Window(QMainWindow):
         
         self.export_editor._init(self.file)
         self.file.set_callbacks(self.save_callback, self.open_callback, self.export_editor.export_callback)
+    
+    def _parse_string_arg(self, arg: str):
+        index = arg.find(":")
+        a_type, a_value = arg[:index], arg[index + 1:]
+        
+        def str_func(v: str):
+            assert v.startswith('"') and v.endswith('"')
+            return v.removeprefix('"').removesuffix('"')
+        
+        def list_func(v: str):
+            assert v.startswith('[') and v.endswith(']')
+            return v.removeprefix('[').removesuffix(']').split()
+        
+        {
+            "str": str_func,
+            "list": list_func,
+        }
+        
+        return arg
+    
+    def handle_cmd(self, cmd: str):
+        key, *values = cmd.split()
+        
+        if key in self.CMD_ACTIONS:
+            self.CMD_ACTIONS[key](*[self._parse_string_arg(arg) for arg in values])
     
     def load(self):
         try:
@@ -532,16 +579,17 @@ class Window(QMainWindow):
         return palette_action_func
 
 
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
     app.setWindowIcon(QIcon(resource_path("src/images/logo.png")))
     
     THEME_MANAGER.set_application(app)
     
-    window = Window(app.arguments())
+    listener = CmdListener()
+    window = Window(app.arguments(), listener)
     window.showMaximized()
+    
+    listener.start()
     
     sys.exit(app.exec())
     
