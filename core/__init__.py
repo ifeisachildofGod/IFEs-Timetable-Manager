@@ -240,22 +240,24 @@ class School:
                                         (
                                             True
                                             for s_list, c_list in
-                                            cls.timetable.gen_data.combined_subjects.items()
+                                            self.gen_data.combined_subjects[class_level.id]
                                             if (subj.id in s_list and o_s_id in s_list) and (cls.id in c_list and o_cls.id in c_list)
                                         ),
                                         False
                                     )
                                     
-                                    if not is_combined:
-                                        if key not in clashes:
-                                            clashes[key] = []
-                                        
-                                        clash_cls = days_uid_tracker[day][i][clash_subject_index][1]
-                                        
-                                        if clash_cls not in clashes[key]:
-                                            clashes[key].append(clash_cls)
-                                        
-                                        clashes[key].append(cls)
+                                    if is_combined:
+                                        continue
+                                    
+                                    if key not in clashes:
+                                        clashes[key] = []
+                                    
+                                    clash_cls = days_uid_tracker[day][i][clash_subject_index][1]
+                                    
+                                    if clash_cls not in clashes[key]:
+                                        clashes[key].append(clash_cls)
+                                    
+                                    clashes[key].append(cls)
                                 else:
                                     days_uid_tracker[day][i].append((s_uid, cls))
         

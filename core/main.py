@@ -341,7 +341,7 @@ class Timetable:
                         
                         self.table_remains.insert(index, subject)
     
-    def _sps(self, s_id: str):
+    def _sps(self, s_id: ID):
         period_scores: dict[str, list[int | float]] = {day: [] for day in self.cls.level.weekdays}
         
         for day, periods in self.table.items():
@@ -356,7 +356,7 @@ class Timetable:
     
     def _period_score(
             self,
-            s_id: str,
+            s_id: ID,
             day: str,
             period: Subject | CombinedSubject | FreePeriod | BreakPeriod,
             p_index: int,

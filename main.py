@@ -1,3 +1,4 @@
+import os
 import subprocess
 import traceback
 
@@ -12,17 +13,23 @@ from AttendanceApp import AttendanceManager
 
 class CmdListener(QObject):
     command_recieved = pySignal(str)
+    listener_killed = pySignal()
     
     def start(self):
         def loop():
-            print("CMD active, awaiting commands")
+            print(f"TASS 1.0.0 on {os.name}")
+            print('Type "help" for further information')
+            
             while True:
                 try:
                     cmd = input(">> ")
                     self.command_recieved.emit(cmd)
                 except (EOFError, OSError):
+                    self.listener_killed.emit()
+                    print()
                     break
-            print("Goodbye")
+            
+            print("TASS 1.0.0 says Goodbye")
         
         threading.Thread(target=loop, daemon=True).start()
 class Window(QMainWindow):
@@ -34,8 +41,7 @@ class Window(QMainWindow):
         
         if cmd_listener:
             cmd_listener.command_recieved.connect(self.handle_cmd)
-        
-        self.CMD_ACTIONS = {}
+            cmd_listener.listener_killed.connect(self.close)
         
         self.crashed_signal.connect(lambda e: QMessageBox.critical(None, e.__class__.__name__, str(e)))
         
@@ -210,6 +216,8 @@ class Window(QMainWindow):
         central_widget.addWidget(viewing_container)
         
         self.setCentralWidget(central_widget)
+        
+        self.CMD_ACTIONS = self._get_cmd_actions()
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -220,6 +228,21 @@ class Window(QMainWindow):
     
     def _set_file_type(self, arg: str):
         self._open_file_type = arg
+    
+    def _get_cmd_actions(self):
+        cmd_actions = {
+            "NEW": self.file.new,
+            "OPEN": self.file.open,
+            "SAVE": self.file.save,
+            "SAVE-AS": self.file.save_as,
+            "QUIT": self.close,
+            
+            "HELP": lambda: print("Not Implemented")
+        }
+        
+        cmd_actions.update({n.lower(): f for n, f in cmd_actions.items()})
+        
+        return cmd_actions
     
     def _goto_search(self, sw: BaseSettingEntry):
         current_display_index = self.stack.currentIndex()
@@ -277,21 +300,21 @@ class Window(QMainWindow):
         self.file.set_callbacks(self.save_callback, self.open_callback, self.export_editor.export_callback)
     
     def _parse_string_arg(self, arg: str):
-        index = arg.find(":")
-        a_type, a_value = arg[:index], arg[index + 1:]
+        # index = arg.find(":")
+        # a_type, a_value = arg[:index], arg[index + 1:]
         
-        def str_func(v: str):
-            assert v.startswith('"') and v.endswith('"')
-            return v.removeprefix('"').removesuffix('"')
+        # def str_func(v: str):
+        #     assert v.startswith('"') and v.endswith('"')
+        #     return v.removeprefix('"').removesuffix('"')
         
-        def list_func(v: str):
-            assert v.startswith('[') and v.endswith(']')
-            return v.removeprefix('[').removesuffix(']').split()
+        # def list_func(v: str):
+        #     assert v.startswith('[') and v.endswith(']')
+        #     return v.removeprefix('[').removesuffix(']').split()
         
-        {
-            "str": str_func,
-            "list": list_func,
-        }
+        # {
+        #     "str": str_func,
+        #     "list": list_func,
+        # }
         
         return arg
     
