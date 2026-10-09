@@ -190,8 +190,8 @@ class BaseWidget(QWidget):
     def popWidget(self, index: int):
         widget = self.getChildren()[index]
         
-        widget.deleteLater()
         self.getLayout().removeWidget(widget)
+        widget.deleteLater()
         
         self._children.pop(index)
     
@@ -448,7 +448,7 @@ class BaseFlowGridWidget(BaseScrollWidget):
             
             self.widgets.append(bg_widget)
         
-        self.widgets[-1].insertWidget(self.widget_count % self.row_max, widget, stretch, alignment)
+        self.widgets[-1].insertWidget(len(self.widgets[-1].getChildren()), widget, stretch, alignment)
         self.widget_count += 1
     
     def insertWidget(self, row: int, col: int, widget: QWidget, stretch: int = None, alignment: Qt.AlignmentFlag = None):
@@ -917,7 +917,7 @@ class BaseSelectionList[_T](BaseSettingDialog):
         self._parent = parent
         self.setFixedSize(400, 300)
         
-        self.widgets: dict[ID, BaseSelectObjectWidget] = {}
+        self.widgets: dict[ID, _BaseSelectObjectWidget] = {}
         
         selected_ids = []
         
@@ -955,7 +955,7 @@ class BaseSelectionList[_T](BaseSettingDialog):
         
         return super().insertWidget(index, widget, stretch, alignment)
     
-    def removeWidget(self, widget: BaseSelectObjectWidget):
+    def removeWidget(self, widget: _BaseSelectObjectWidget):
         self.widgets.pop(widget.id)
         
         r = super().removeWidget(widget)
@@ -963,10 +963,10 @@ class BaseSelectionList[_T](BaseSettingDialog):
         
         return r
     
-    def item_removed(self, id: ID):
+    def item_removed(self, id: ID, index: int):
         raise NotImplementedError()
     
-    def item_selected(self, id: ID):
+    def item_selected(self, id: ID, index: int):
         raise NotImplementedError()
     
     def go_to(self, widget: "SL_SelectedWidget"):
@@ -978,8 +978,8 @@ class BaseSelectionList[_T](BaseSettingDialog):
         QTimer.singleShot(200, func)
 
 
-class BaseSelectObjectWidget(BaseWidget):
-    def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID], None], on_opp_remove: Callable[[ID], None], window: QMainWindow, index: int = None):
+class _BaseSelectObjectWidget(BaseWidget):
+    def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID, int], None], on_opp_remove: Callable[[ID], None], window: QMainWindow, index: int = None):
         super().__init__(QHBoxLayout)
         
         self.id = id
@@ -1008,14 +1008,14 @@ class BaseSelectObjectWidget(BaseWidget):
         
         self._parent.insertWidget(insert_index, widget)
         
-        self.on_remove(self.id)
+        self.on_remove(self.id, insert_index)
         
         self._window.window().saved_state_changed.emit(True)
     
-    def get_new_widget_index(self) -> tuple[int, "BaseSelectObjectWidget"]:
+    def get_new_widget_index(self) -> tuple[int, "_BaseSelectObjectWidget"]:
         raise NotImplementedError()
 
-class SL_SelectedWidget(BaseSelectObjectWidget):
+class SL_SelectedWidget(_BaseSelectObjectWidget):
     def __init__(self, parent, id, text, on_remove, on_opp_remove, window, index = None):
         super().__init__(parent, id, text, on_remove, on_opp_remove, window, index)
         
@@ -1038,7 +1038,7 @@ class SL_SelectedWidget(BaseSelectObjectWidget):
         
         return unselected_widget_amt_index, sl_unselected_widget
 
-class SL_UnSelectedWidget(BaseSelectObjectWidget):
+class SL_UnSelectedWidget(_BaseSelectObjectWidget):
     def __init__(self, parent, id, text, on_remove, on_opp_remove, window, index = None):
         super().__init__(parent, id, text, on_remove, on_opp_remove, window, index)
         
@@ -1059,6 +1059,42 @@ class SL_UnSelectedWidget(BaseSelectObjectWidget):
                     index_count += 1
         
         return selected_widget_amt, sl_selected_widget
+
+
+
+class BaseDayOfTheWeekEditor(BaseSelectionList):
+    def __init__(self, parent: BaseWidget, title: str, weekdays: list[str], selected_scope: Optional[list[tuple[str, tuple[Entry, int]]]] = None):
+        self.weekdays = weekdays
+        
+        self.full_scope = self._get_sl_tokens(DAYS_OF_THE_WEEK)
+        self.selected_scope = selected_scope or self._get_sl_tokens(self.weekdays)
+        
+        super().__init__(parent, None, title, self.selected_scope, dict(self.full_scope))
+    
+    def _get_sl_tokens(self, weekdays: list[str]):
+        return [(day, (Entry(day, Name(day)), i)) for i, day in enumerate(weekdays)]
+    
+    def _item_removed(self, prev_weekdays: list[str], day: str):
+        days_of_the_week = self._get_sl_tokens(prev_weekdays)
+        
+        day_index = next(
+            index
+            for index, (d_day, _) in
+            enumerate(days_of_the_week)
+            if day == d_day
+        )
+        
+        days_of_the_week.pop(day_index)
+        
+        return dict(days_of_the_week)
+    
+    def _item_selected(self, prev_weekdays: list[str], day: str, index: int):
+        days_of_the_week = self._get_sl_tokens(prev_weekdays)
+        
+        day_data = next(v for v in self.full_scope if v[0] == day)
+        days_of_the_week.insert(index, day_data)
+        
+        return dict(days_of_the_week)
 
 
 

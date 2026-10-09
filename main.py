@@ -26,12 +26,12 @@ class CmdListener(QObject):
                     self.command_recieved.emit(cmd)
                 except (EOFError, OSError):
                     self.listener_killed.emit()
-                    print()
                     break
             
             print("TASS 1.0.0 says Goodbye")
         
         threading.Thread(target=loop, daemon=True).start()
+
 class Window(QMainWindow):
     saved_state_changed = pySignal(bool)
     crashed_signal = pySignal(Exception)
@@ -108,6 +108,7 @@ class Window(QMainWindow):
         self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager)
         self.teachers_widget = TeachersMainWidget(self.timetable_widget, self.attendance_manager)
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
+        self.prefects_widget = PrefectsMainWidget(self.attendance_manager)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(f"Search {v}") if v else self.title_bar.search_pb.setText(None))
@@ -138,6 +139,8 @@ class Window(QMainWindow):
         teachers_btn = QPushButton("Teachers")
         classes_btn = QPushButton("Class Levels")
         
+        prefects_btn = QPushButton("Prefects")
+        
         attendance_btn = QPushButton("Attendance")
         timetable_btn = QPushButton("Timetable")
         
@@ -160,10 +163,17 @@ class Window(QMainWindow):
         
         # Add widgets to stack
         self.is_option_sidebar_focused = True
-        self.option_buttons: list[Optional[tuple[QPushButton, BaseSettingWidget | SchoolTimetableEditor | AttendanceManager]]] = [
+        self.option_buttons: list[Optional[tuple[QPushButton, tuple[BaseSettingWidget | SchoolTimetableEditor | AttendanceManager, Callable]]]] = [
             (subjects_btn, (self.subjects_widget, reset)),
             (teachers_btn, (self.teachers_widget, reset)),
             (classes_btn, (self.classes_widget, reset)),
+            None,
+            (prefects_btn, (self.prefects_widget, reset)),
+            None,
+            None,
+            None,
+            None,
+            None,
             None,
             (attendance_btn, (self.attendance_manager, on_att_widget_func)),
             (timetable_btn, (self.timetable_widget, on_ttbl_widget_func))

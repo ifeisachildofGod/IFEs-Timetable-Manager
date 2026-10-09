@@ -16,8 +16,8 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             "Subject",
             ["Full Name", "Abbreviation"],
             {
-                "Offering Classes": ("Classes offering {name}", SubjectDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, )),
-                "Assign Teachers": ("Teachers teaching {name}", SubjectSelectionList, (self.timetable_editor, self.attendance_manager))
+                "Offering Classes": ("Classes offering {name}", Subject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, )),
+                "Assign Teachers": ("Teachers teaching {name}", Subject_SelectionList, (self.timetable_editor, self.attendance_manager))
             },
             entry
         )
@@ -74,8 +74,8 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             "Subject",
             None,
             {
-                "Offering Classes": ("Classes offering {name}", CombinedSubjectDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
-                "Child Subjects": ("Subjects under {name}", CombinedSubjectSelectionList, (self.timetable_editor, self.attendance_manager))
+                "Offering Classes": ("Classes offering {name}", CombinedSubject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
+                "Child Subjects": ("Subjects under {name}", CombinedSubject_SelectionList, (self.timetable_editor, self.attendance_manager))
             },
             entry
         )
@@ -118,8 +118,8 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             {
-                "Assign Classes": ("Classes taught by {name}", TeacherDropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
-                "Assign Subjects": ("Subjects {name} teaches", TeacherSelectionList, (self.timetable_editor, self.attendance_manager))
+                "Assign Classes": ("Classes taught by {name}", Teacher_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
+                "Assign Subjects": ("Subjects {name} teaches", Teacher_SelectionList, (self.timetable_editor, self.attendance_manager))
             },
             entry
         )
@@ -199,8 +199,8 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
             "Class Level",
             None,
             {
-                "Create and Edit Classes": ("Classes under {name}", ClassOptionsMaker, (self.timetable_editor, self.attendance_manager)),
-                "Edit Subjects Occurences": ("Edit {name} subjects occurences", OccuranceEditor, (self.timetable_editor, self.attendance_manager))
+                "Create and Edit Classes": ("Classes under {name}", ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager)),
+                "Edit Subjects Occurences": ("Edit {name} subjects occurences", ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager))
             },
             entry
         )
@@ -246,6 +246,87 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         self.entry.name = ClassLevelName(text)
         
         class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
+
+class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
+    def __init__(self, parent: BaseSettingWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager):
+        self.attendance_manager = attendance_manager
+        
+        super().__init__(
+            parent,
+            "Prefect",
+            ["Surname", "First Name", "Other Names", "Abbreviation"],
+            {
+                "Select Class": ("Select {name}'s class", Prefect_ClassSelector, (self.attendance_manager, )),
+                "Select Post": ("Set the post of {name}", Prefect_PostAssigner, (self.attendance_manager, )),
+                "Set Duties": ("Set Duties done by {name}", Prefect_DutyAssigner, (self.attendance_manager, ))
+            },
+            entry
+        )
+        
+        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
+            self.toogle_name_format(False)
+    
+    def new(self):
+        return Prefect(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], None, None, {})
+    
+    def remove(self):
+        self.attendance_manager.staff_list_widget.delete_staff(self.entry)
+        
+        return super().remove()
+    
+    def get_init_text(self):
+        return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
+    
+    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
+        full_name_e = extended_line_edits[0]
+        full_name_e.setText(text)
+        
+        for le in extended_line_edits[1:]:
+            le.blockSignals(True)
+            le.setText("")
+            le.blockSignals(False)
+        
+        self.entry.name.second = None
+        self.entry.name.third = None
+        self.entry.name.abbrev = None
+    
+    def extended_name_changed(self, index, text, simple_line_edit):
+        match index:
+            case 0:
+                self.entry.name.first = text
+            case 1:
+                self.entry.name.second = text
+            case 2:
+                self.entry.name.third = text
+            case 3:
+                self.entry.name.abbrev = text
+        
+        self.attendance_manager.update_staff_list_staff_name(self.id)
+        
+        if self.extended_edits_widget.isVisible():
+            simple_line_edit.blockSignals(True)
+            simple_line_edit.setText(f"{self.entry.name.first or ""}{" " + self.entry.name.second if self.entry.name.second is not None else ""}{" " + self.entry.name.third if self.entry.name.third is not None else ""}")
+            simple_line_edit.blockSignals(False)
+    
+    def extended_name_empty(self, index, text):
+        key = f"E{index}EmptyNameWarning"
+        
+        if text:
+            self.status_widget.removeLinient(key)
+        
+        match index:
+            case 0:
+                if not text and self.extended_edits_widget.isVisible():
+                    self.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
+            case 1:
+                if not text:
+                    self.status_widget.addMessage(Status.WARN, key, f"First name is empty")
+            case 2:
+                if not text:
+                    self.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
+            case 3:
+                if not text:
+                    self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
 
 class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
@@ -362,4 +443,25 @@ class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
 
-
+class PrefectsMainWidget(BaseSettingWidget[Prefect]):
+    def __init__(self, attendance_manager: AttendanceManager):
+        self.attendance_manager = attendance_manager
+        
+        super().__init__(["Prefect"])
+    
+    def get_global(self):
+        return SCHOOL.prefects
+    
+    def get_widget_type(self):
+        return PrefectsSettingEntry, (self.attendance_manager, )
+    
+    def add(self, entry = None, index = None, focus = None, button_index = None):
+        final_entry = super().add(entry, index, focus)
+        
+        if entry is None:
+            SCHOOL.prefects.add(final_entry, index)
+        
+        self.attendance_manager.staff_list_widget.add_staff(final_entry)
+        
+        if focus or index is not None:
+            self.window().saved_state_changed.emit(True)

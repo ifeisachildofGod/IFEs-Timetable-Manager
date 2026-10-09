@@ -8,7 +8,7 @@ from .user_interface import *
 from AttendanceApp import AttendanceManager
 
 
-class SubjectSelectionList(BaseSelectionList[Teacher]):
+class Subject_SelectionList(BaseSelectionList[Teacher]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.subject: Subject = SCHOOL.subjects[id]
         
@@ -60,10 +60,10 @@ class SubjectSelectionList(BaseSelectionList[Teacher]):
         
         return selected, scope
     
-    def item_selected(self, id: ID):
+    def item_selected(self, id: ID, _):
         assign_teacher(SCHOOL.teachers[id], self.id, self.attendance_manager)
     
-    def item_removed(self, id: ID):
+    def item_removed(self, id: ID, _):
         c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and self.id in s.classes]
         
         deassign_teacher(SCHOOL.teachers[id], self.id, self.timetable_editor, self.attendance_manager, c_subjects)
@@ -75,7 +75,7 @@ class SubjectSelectionList(BaseSelectionList[Teacher]):
             if item_id not in selected_ids and item_id not in self.widgets:
                 self.insertWidget(len(self.widgets), SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class CombinedSubjectSelectionList(BaseSelectionList[Subject]):
+class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.c_subject: CombinedSubject = SCHOOL.subjects[id]
         
@@ -90,7 +90,7 @@ class CombinedSubjectSelectionList(BaseSelectionList[Subject]):
     def _scope_check(self, subject: Subject | CombinedSubject):
         return isinstance(subject, Subject) and subject.classes
     
-    def item_selected(self, id: ID):
+    def item_selected(self, id, _):
         subject = SCHOOL.subjects[id]
         assign_combined_subject_sub_subject(self.c_subject, subject, self._parent)
         
@@ -99,7 +99,7 @@ class CombinedSubjectSelectionList(BaseSelectionList[Subject]):
                 self.full_scope.pop(s_id)
                 self.removeWidget(self.widgets[s_id])
     
-    def item_removed(self, id):
+    def item_removed(self, id, _):
         deassign_combined_subject_sub_subject(self.c_subject, id, self.timetable_editor, self.attendance_manager, self._parent)
         
         for s_id, s in SCHOOL.subjects.items():
@@ -107,7 +107,7 @@ class CombinedSubjectSelectionList(BaseSelectionList[Subject]):
                 self.full_scope[s_id] = s
                 self.insertWidget(len(self.full_scope) - 1, SL_UnSelectedWidget(self, s_id, s.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class TeacherSelectionList(BaseSelectionList[Subject]):
+class Teacher_SelectionList(BaseSelectionList[Subject]):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.teacher = SCHOOL.teachers[id]
         
@@ -141,15 +141,15 @@ class TeacherSelectionList(BaseSelectionList[Subject]):
         
         return True
     
-    def item_selected(self, id: ID):
+    def item_selected(self, id, _):
         assign_teacher(self.teacher, id, self.attendance_manager)
     
-    def item_removed(self, id: ID):
+    def item_removed(self, id, _):
         c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
         
         deassign_teacher(self.teacher, id, self.timetable_editor, self.attendance_manager, c_subjects)
 
-class SubjectDropdownCheckBoxes(BaseSettingDialog):
+class Subject_DropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
@@ -310,7 +310,7 @@ class SubjectDropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_subject_class(self.id, cls, self.timetable_editor, self.attendance_manager, self.c_subjects)
 
-class CombinedSubjectDropdownCheckBoxes(BaseSettingDialog):
+class CombinedSubject_DropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
@@ -476,7 +476,7 @@ class CombinedSubjectDropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_combined_subject_sub_subject_class(self.combined_subject, subject.id, cls, self.timetable_editor, self.attendance_manager)
 
-class TeacherDropdownCheckBoxes(BaseSettingDialog):
+class Teacher_DropdownCheckBoxes(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
@@ -895,7 +895,7 @@ class TeacherDropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_combined_subject_class_teacher(c_subject.id, u_subject.id, cls, self.timetable_editor, self.attendance_manager)
 
-class OccuranceEditor(BaseSettingDialog):
+class ClassLevel_OccuranceEditor(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title, BaseWidget)
         
@@ -1051,7 +1051,7 @@ class OccuranceEditor(BaseSettingDialog):
         
         return text_changed_func
 
-class ClassOptionsMaker(BaseSettingDialog):
+class ClassLevel_ClassMaker(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         super().__init__(title)
         
@@ -1134,8 +1134,169 @@ class ClassOptionsMaker(BaseSettingDialog):
         
         if is_new:
             option.start_editing()
+            self.main_area.scroll_to(self.main_area.widgets[-1], 100)
+            
             self._parent.window().saved_state_changed.emit(True)
 
+class Prefect_ClassSelector(BaseSettingDialog):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+        super().__init__(title)
+        
+        self.setFixedSize(250, 200)
+        
+        self.attendance_manager = attendance_manager
+        
+        self.id = id
+        self._parent = parent
+        self.prefect = SCHOOL.prefects[self.id]
+        
+        overflow_limit = 10
+        
+        col_widget_1 = BaseWidget()
+        col_widget_2 = BaseWidget()
+        
+        classes = [cls for cls_level in SCHOOL.class_levels.values() for cls in cls_level.classes.values()]
+        
+        for i, cls in enumerate(classes):
+            rb = QRadioButton(f"{cls.level.name.full()} {cls.name}")
+            rb.setChecked(bool(self.prefect.cls and self.prefect.cls.id == cls.id))
+            rb.clicked.connect(self._make_select_func(cls))
+            
+            if len(classes) < overflow_limit or (len(classes) < overflow_limit * 2 and (i + 1) // overflow_limit == 0) or (len(classes) >= overflow_limit * 2 and (i + 1) <= len(classes) / 2):
+                col_widget_1.addWidget(rb, alignment=Qt.AlignmentFlag.AlignCenter)
+            else:
+                col_widget_2.addWidget(rb, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        col_widget_1.addStretch()
+        col_widget_2.addStretch()
+        
+        main_widget = BaseWidget(QHBoxLayout)
+        
+        main_widget.addWidget(col_widget_1, stretch=5)
+        main_widget.addWidget(col_widget_2, stretch=5)
+        
+        self.addWidget(main_widget)
+    
+    def _make_select_func(self, cls: Class):
+        def func():
+            self.prefect.cls = cls
+        
+        return func
+
+class Prefect_PostAssigner(BaseSettingDialog):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+        super().__init__(title)
+        
+        self.attendance_manager = attendance_manager
+        
+        self.id = id
+        self._parent = parent
+        self.prefect = SCHOOL.prefects[self.id]
+        
+        main_widget = BaseScrollWidget()
+        
+        add_new_pb = QPushButton("Add New")
+        
+        self.addWidget(main_widget)
+        self.addWidget(add_new_pb)
+
+class Prefect_DutyAssigner(BaseSettingDialog):
+    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
+        super().__init__(title)
+        
+        self.setFixedSize(650, 450)
+        self.setContentsMargins(10, 10, 10, 10)
+        
+        self.attendance_manager = attendance_manager
+        
+        self.id = id
+        self._parent = parent
+        self.prefect = SCHOOL.prefects[self.id]
+        
+        self.duty_widgets: dict[str, list[EditableCancelableEntry]] = {}
+        
+        if self.prefect.cls:
+            for day in self.prefect.cls.level.weekdays:
+                main_widget = BaseFlowGridWidget(4)
+                main_widget.setMinimumHeight(150)
+                main_widget.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+                
+                day_widg = LabeledField(day, main_widget)
+                
+                add_duty_button = QPushButton("Add Duty")
+                add_duty_button.clicked.connect(self._make_add_duty_func(main_widget, day))
+                
+                day_widg.title_area.addWidget(add_duty_button)
+                
+                if day in self.prefect.duties:
+                    for duty in self.prefect.duties[day]:
+                        main_widget.addWidget(self._duty_entry(main_widget, day, duty))
+                
+                self.addWidget(day_widg)
+            
+            self.addStretch()
+    
+    def _make_entry_action_funcs(self, main_widget: BaseWidget, entry: EditableCancelableEntry, day: str):
+        def update():
+            index = self.duty_widgets[day].index(entry)
+            
+            self.prefect.duties[day][index] = entry.get_text()
+            self.attendance_manager.update_staff_list_prefect_duty(self.prefect.id, day, index)
+            
+            self._parent.window().saved_state_changed.emit(True)
+        
+        def remove():
+            index = self.duty_widgets[day].index(entry)
+            
+            self.prefect.duties[day].pop(index)
+            self.duty_widgets[day].pop(index)
+            
+            if not self.prefect.duties[day]:
+                self.prefect.duties.pop(day)
+                self.duty_widgets.pop(day)
+            
+            main_widget.removeWidget(entry)
+            entry.deleteLater()
+            
+            self.attendance_manager.remove_staff_list_prefect_duty(self.prefect.id, day, index)
+            
+            self._parent.window().saved_state_changed.emit(True)
+        
+        return update, remove
+    
+    def _duty_entry(self, main_widget: BaseWidget, day: str, duty: Optional[str] = None):
+        duty_entry = EditableCancelableEntry(duty)
+        
+        update_option, remove_option = self._make_entry_action_funcs(main_widget, duty_entry, day)
+        
+        duty_entry.finished_editing_signal.connect(update_option)
+        duty_entry.deleted.connect(remove_option)
+        
+        if day not in self.duty_widgets:
+            self.duty_widgets[day] = []
+        
+        self.duty_widgets[day].append(duty_entry)
+        
+        return duty_entry
+    
+    def _make_add_duty_func(self, main_widget: BaseWidget, day: str):
+        def func():
+            if day not in self.prefect.duties:
+                self.prefect.duties[day] = []
+            
+            self.prefect.duties[day].append("")
+            
+            entry = self._duty_entry(main_widget, day)
+            
+            main_widget.addWidget(entry)
+            main_widget.scroll_to(main_widget.widgets[-1], 100)
+            entry.start_editing()
+            
+            self.attendance_manager.add_staff_list_prefect_duty(self.prefect.id, day, None)
+            
+            self._parent.window().saved_state_changed.emit(True)
+        
+        return func
 
 
 # Assignments
@@ -1506,7 +1667,7 @@ def combined_subject_name_update(combinedSubjectID: ID, timetable_editor: School
         parent.simple_line_edit.setPlaceholderText(f"{parent.simple_placeholder}; {default}")
     
     timetable_editor.update_subject_name(c_subject)
-    attendance_manager.update_staff_list_subject_name(c_subject)
+    attendance_manager.update_staff_list_teacher_subject_name(c_subject)
 
 def teacher_name_update(teacherID: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
     teacher = SCHOOL.teachers[teacherID]
@@ -1521,7 +1682,7 @@ def class_name_update(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor
     cls = SCHOOL.class_levels[classID.class_level_id].classes[classID]
     
     timetable_editor.update_class_name(cls)
-    attendance_manager.update_staff_list_class_name(cls)
+    attendance_manager.update_staff_list_teacher_class_name(cls)
     
     for combo_dict in timetable_editor.combination_widgets[cls.level.id].combo_box_widgets:
         for cb in combo_dict["classes"]:
@@ -1544,7 +1705,7 @@ def class_level_name_update(classLevelID: ID, timetable_editor: SchoolTimetableE
     
     timetable_editor.update_class_level_name(class_level)
     for cls in class_level.classes.values():
-        attendance_manager.update_staff_list_class_name(cls)
+        attendance_manager.update_staff_list_teacher_class_name(cls)
     
     for combo_dict in timetable_editor.combination_widgets[classLevelID].combo_box_widgets:
         for cb in combo_dict["classes"]:

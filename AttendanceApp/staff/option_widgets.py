@@ -115,10 +115,12 @@ class StaffDataWidget(BaseOptionsWidget):
             staff_position_data = None
             cls_name = None
         elif isinstance(staff, Prefect):
-            bar_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Cummulative Attendance Chart"
-            graph_title = f"{staff.name.full()}'s ({staff.post_name}) Monthly Average Punctuality Graph"
+            post = SCHOOL.posts[staff.post_id]
+            
+            bar_title = f"{staff.name.full()}'s ({post}) Monthly Cummulative Attendance Chart"
+            graph_title = f"{staff.name.full()}'s ({post}) Monthly Average Punctuality Graph"
             staff_list = list(SCHOOL.prefects)
-            staff_position_data = "Post", staff.post_name
+            staff_position_data = "Post", post
             cls_name = f"{staff.cls.level.name.full()} {staff.cls.name}"
         else:
             raise Exception()

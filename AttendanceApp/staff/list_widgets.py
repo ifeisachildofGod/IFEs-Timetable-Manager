@@ -10,148 +10,6 @@ from .entry_widgets import *
 from .option_widgets import *
 
 
-class _StaffTimingSettings(BaseDialogWidget):
-    def __init__(self, parent: StaffListWidget, title: str, staff_attendance_time_settings: StaffAttendanceTimeSettings):
-        super().__init__(title, BaseWidget)
-        
-        self.setFixedSize(650, 500)
-        self.setContentsMargins(10, 5, 10, 5)
-        
-        self._parent = parent
-        self.staff_attendance_time_settings = staff_attendance_time_settings
-        
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        check_time_widget = BaseWidget(QHBoxLayout)
-        check_time_widget.setSpacing(15)
-        
-        self.cit_editor = QTimeEdit(QTime(self.staff_attendance_time_settings.check_in_time.hour, self.staff_attendance_time_settings.check_in_time.minute))
-        self.cit_editor.timeChanged.connect(self._make_ct_changed_func(self.staff_attendance_time_settings.check_in_time))
-        self.cot_editor = QTimeEdit(QTime(self.staff_attendance_time_settings.check_out_time.hour, self.staff_attendance_time_settings.check_out_time.minute))
-        self.cot_editor.timeChanged.connect(self._make_ct_changed_func(self.staff_attendance_time_settings.check_out_time))
-        
-        check_time_widget.addWidget(LabeledWidget("Check In Time", self.cit_editor))
-        check_time_widget.addWidget(LabeledWidget("Check Out Time", self.cot_editor))
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        check_time_safe_interval_widget = BaseWidget(QHBoxLayout)
-        check_time_safe_interval_widget.setSpacing(15)
-        
-        citsi_sb = QSpinBox() ; citsi_sb.valueChanged.connect(self.cibm_changed_func)
-        citsi_sb.setSuffix("min")
-        citsi_sb.setValue(self.staff_attendance_time_settings.check_in_border_interval_minutes)
-        citsi_sb.setRange(0, 60 * 6)
-        cotsi_sb = QSpinBox() ; cotsi_sb.valueChanged.connect(self.cobm_changed_func)
-        cotsi_sb.setSuffix("min")
-        cotsi_sb.setValue(self.staff_attendance_time_settings.check_out_border_interval_minutes)
-        cotsi_sb.setRange(0, 60 * 6)
-        
-        check_time_safe_interval_widget.addWidget(LabeledWidget("Valid Check In Window", citsi_sb))
-        check_time_safe_interval_widget.addWidget(LabeledWidget("Valid Check Out Window", cotsi_sb))
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        timeline_editing_widget = BaseWidget()
-        timeline_editing_widget.setProperty("class", "DarkendBG1")
-        timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
-        
-        self.timeline_widget = BaseScrollWidget()
-        self.timeline_widget.setSpacing(15)
-        self.timeline_widget.setContentsMargins(5, 3, 5, 3)
-        self.timeline_widget.addStretch()
-        
-        add_timeline_pb = QPushButton("Add Timeline")
-        add_timeline_pb.clicked.connect(lambda: self.add_timeline())
-        
-        for timeline_date in self.staff_attendance_time_settings.timeline_dates:
-            self.add_timeline(timeline_date)
-        
-        timeline_editing_widget.addWidget(self.timeline_widget)
-        timeline_editing_widget.addWidget(add_timeline_pb, alignment=Qt.AlignmentFlag.AlignRight)
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        
-        self.addWidget(check_time_widget)
-        self.addWidget(check_time_safe_interval_widget)
-        self.addWidget(timeline_editing_widget)
-    
-    def _make_ct_changed_func(self, target_time: Time):
-        def func(time: QTime):
-            target_time.hour = time.hour()
-            target_time.minute = time.minute()
-            
-            self._update_cot_sb_limit()
-            self._update_cit_sb_limit()
-            
-            self._parent.window().saved_state_changed.emit(True)
-        
-        return func
-    
-    def _update_cit_sb_limit(self):
-        cibim = self.staff_attendance_time_settings.check_in_border_interval_minutes
-        cobim = self.staff_attendance_time_settings.check_out_border_interval_minutes
-        
-        interval = cibim + cobim
-        
-        self.cit_editor.setMinimumTime(QTime(cibim // 60, cibim % 60))
-        self.cit_editor.setMaximumTime(QTime(self.staff_attendance_time_settings.check_out_time.hour - interval // 60, self.staff_attendance_time_settings.check_out_time.minute - interval % 60))
-    
-    def _update_cot_sb_limit(self):
-        cibim = self.staff_attendance_time_settings.check_in_border_interval_minutes
-        cobim = self.staff_attendance_time_settings.check_out_border_interval_minutes
-        
-        interval = cibim + cobim
-        
-        self.cot_editor.setMinimumTime(QTime(self.staff_attendance_time_settings.check_in_time.hour + interval // 60, self.staff_attendance_time_settings.check_in_time.minute + interval % 60))
-        self.cot_editor.setMaximumTime(QTime(24 - cobim // 60, 24 - cobim % 60))
-    
-    def cibm_changed_func(self, value: int):
-        self.staff_attendance_time_settings.check_in_border_interval_minutes = value
-        
-        self._update_cit_sb_limit()
-        self._update_cot_sb_limit()
-    
-    def cobm_changed_func(self, value: int):
-        self.staff_attendance_time_settings.check_out_border_interval_minutes = value
-        
-        self._update_cit_sb_limit()
-        self._update_cot_sb_limit()
-    
-    def add_timeline(self, timeline: Optional[tuple[Period, Period]] = None):
-        def remove_func():
-            self.timeline_widget.removeWidget(widget)
-            widget.deleteLater()
-            
-            self.staff_attendance_time_settings.timeline_dates.remove(timeline_periods)
-            
-            self._parent.window().saved_state_changed.emit(True)
-        
-        timeline_periods = timeline
-        
-        if timeline_periods is None:
-            timeline_periods = Period.str_to_period(time.ctime()), Period.str_to_period(time.ctime())
-            self.staff_attendance_time_settings.timeline_dates.append(timeline_periods)
-        
-        widget = BaseWidget()
-        widget.setSpacing(0)
-        widget.setContentsMargins(8, 5, 8, 5)
-        widget.setProperty("class", "DarkendBG BorderRadiused")
-        
-        cancel_pb = QPushButton("×")
-        cancel_pb.setProperty("class", "SettingEntryClose")
-        cancel_pb.clicked.connect(remove_func)
-        
-        central_widget = BaseWidget(QHBoxLayout)
-        central_widget.setProperty("class", "NoBG")
-        
-        central_widget.addWidget(GeneralPeriodEditor(self._parent.window(), timeline_periods[0], max_period=timeline_periods[1]), alignment=Qt.AlignmentFlag.AlignCenter)
-        central_widget.addSpacing(15)
-        central_widget.addWidget(GeneralPeriodEditor(self._parent.window(), timeline_periods[1], min_period=timeline_periods[0]), alignment=Qt.AlignmentFlag.AlignCenter)
-        
-        widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
-        widget.addWidget(central_widget)
-        
-        self.timeline_widget.insertWidget(len(self.timeline_widget.getChildren()), widget)
-        self.scroll_to(widget, 100)
-        
-        self._parent.window().saved_state_changed.emit(False)
-
-
 class AttendanceWidget(BaseScrollListWidget):
     comm_signal = pySignal(str)
     
@@ -416,20 +274,6 @@ class AttendanceWidget(BaseScrollListWidget):
         
         return period
     
-    def update_tooltip(self):
-        self.scroll_widget.setToolTip(
-            f"Prefect Check In Time: {SCHOOL.attendance.prefect_attendance_time_settings.check_in_time}\n"\
-            f"Prefect Check Out Time: {SCHOOL.attendance.prefect_attendance_time_settings.check_out_time}\n\n"\
-            f"Teacher Check In Time: {SCHOOL.attendance.teacher_attendance_time_settings.check_in_time}\n"\
-            f"Teacher Check Out Time: {SCHOOL.attendance.teacher_attendance_time_settings.check_out_time}\n\n"\
-            f"Valid Prefect Check In Window: {SCHOOL.attendance.prefect_attendance_time_settings.check_in_border_interval_minutes}min\n"\
-            f"Valid Prefect Check Out Window: {SCHOOL.attendance.prefect_attendance_time_settings.check_out_border_interval_minutes}min\n\n"\
-            f"Valid Teacher Check In Window: {SCHOOL.attendance.teacher_attendance_time_settings.check_in_border_interval_minutes}min\n"\
-            f"Valid Teacher Check Out Window: {SCHOOL.attendance.teacher_attendance_time_settings.check_out_border_interval_minutes}min\n\n"\
-            f"Prefects Timeline Window:\n  {"\n  ".join([f"Start: {positionify(start_period.date)} {start_period.month}, {end_period.year}; End: {positionify(end_period.date)} {end_period.month}, {end_period.year}" for start_period, end_period in SCHOOL.attendance.prefect_attendance_time_settings.timeline_dates])}\n\n"\
-            f"Teacher Timeline Window:\n  {"\n  ".join([f"Start: {positionify(start_period.date)} {start_period.month}, {end_period.year}; End: {positionify(end_period.date)} {end_period.month}, {end_period.year}" for start_period, end_period in SCHOOL.attendance.teacher_attendance_time_settings.timeline_dates])}"\
-        )
-    
     def search_goto(self, sw: AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget | list[DropdownLabeledField | AttendancePrefectEntryWidget | AttendanceTeacherEntryWidget]):
         if isinstance(sw, list):
             self._reveal_widget(sw[:-1], sw[-1])
@@ -456,7 +300,7 @@ class AttendanceWidget(BaseScrollListWidget):
                             [
                                 sw_list[-1].staff.IUD,    
                                 sw_list[-1].staff.name.third,
-                                sw_list[-1].staff.post_name if isinstance(sw_list[-1].staff, Prefect) else None,
+                                SCHOOL.posts[sw_list[-1].staff.post_id] if isinstance(sw_list[-1].staff, Prefect) else None,
                                 f"{sw_list[-1].staff.cls.level.name.full()} {sw_list[-1].staff.cls.name}" if isinstance(sw_list[-1].staff, Prefect) else None
                                 ] + (
                                     (list(set(flatten(sw_list[-1].staff.duties.values()))) + list(sw_list[-1].staff.duties))
@@ -487,7 +331,7 @@ class AttendanceWidget(BaseScrollListWidget):
                             [
                                 sw.staff.IUD,    
                                 sw.staff.name.third,
-                                sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
+                                SCHOOL.posts[sw.staff.post_id] if isinstance(sw.staff, Prefect) else None,
                                 f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
                                 ] + (
                                     (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
@@ -817,20 +661,157 @@ class StaffListWidget(BaseScrollListWidget):
         self.filter_cb.addItems(list(self.widgets))
         self.filter_cb.currentIndexChanged.connect(self.filter)
         
-        self.tts_widget = _StaffTimingSettings(self, "Set Teachers Time Settings", SCHOOL.attendance.teacher_attendance_time_settings)
-        self.pts_widget = _StaffTimingSettings(self, "Set Prefects Time Settings", SCHOOL.attendance.prefect_attendance_time_settings)
+        teacher_time_settings_widget = BaseWidget(QHBoxLayout) ; teacher_time_settings_widget.setContentsMargins(0, 0, 0, 0)
+        prefect_time_settings_widget = BaseWidget(QHBoxLayout) ; prefect_time_settings_widget.setContentsMargins(0, 0, 0, 0)
         
-        tts_pb = QPushButton("Teachers Time Settings") ; tts_pb.clicked.connect(lambda: self.tts_widget.exec())
-        pts_pb = QPushButton("Prefects Time Settings") ; pts_pb.clicked.connect(lambda: self.pts_widget.exec())
+        main_teacher_tsw, teacher_timeline_widget = self.timing_settings(SCHOOL.attendance.teacher_attendance_time_settings)
+        main_prefect_tsw, prefect_timeline_widget = self.timing_settings(SCHOOL.attendance.prefect_attendance_time_settings)
         
-        self.filter_widget.addWidget(tts_pb)
-        self.filter_widget.addWidget(pts_pb)
+        teacher_time_settings_widget.addWidget(main_teacher_tsw) ; teacher_time_settings_widget.addWidget(teacher_timeline_widget)
+        prefect_time_settings_widget.addWidget(main_prefect_tsw) ; prefect_time_settings_widget.addWidget(prefect_timeline_widget)
+        
+        self.filter_widget.addWidget(LabeledField("Teacher", teacher_time_settings_widget))
+        self.filter_widget.addWidget(LabeledField("Prefect", prefect_time_settings_widget))
         self.filter_widget.addStretch()
         self.filter_widget.addWidget(self.filter_cb)
         
         self._layout.insertWidget(0, self.filter_widget)
         
         self.filter(0)
+    
+    def timing_settings(self, staff_attendance_time_settings: StaffAttendanceTimeSettings):
+        main_widget = BaseWidget()
+        
+        def _make_ct_changed_func(target_time: Time):
+            def func(time: QTime):
+                target_time.hour = time.hour()
+                target_time.minute = time.minute()
+                
+                _update_cot_sb_limit()
+                _update_cit_sb_limit()
+                
+                self.saved_state_changed.emit(True)
+            
+            return func
+        
+        def _update_cit_sb_limit():
+            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
+            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
+            
+            interval = cibim + cobim
+            
+            cit_editor.setMinimumTime(QTime(cibim // 60, cibim % 60))
+            cit_editor.setMaximumTime(QTime(staff_attendance_time_settings.check_out_time.hour - interval // 60, staff_attendance_time_settings.check_out_time.minute - interval % 60))
+        
+        def _update_cot_sb_limit():
+            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
+            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
+            
+            interval = cibim + cobim
+            
+            cot_editor.setMinimumTime(QTime(staff_attendance_time_settings.check_in_time.hour + interval // 60, staff_attendance_time_settings.check_in_time.minute + interval % 60))
+            cot_editor.setMaximumTime(QTime(24 - cobim // 60, 24 - cobim % 60))
+        
+        def cibm_changed_func(value: int):
+            staff_attendance_time_settings.check_in_border_interval_minutes = value
+            
+            _update_cit_sb_limit()
+            _update_cot_sb_limit()
+        
+        def cobm_changed_func(value: int):
+            staff_attendance_time_settings.check_out_border_interval_minutes = value
+            
+            _update_cit_sb_limit()
+            _update_cot_sb_limit()
+        
+        def add_timeline(timeline: Optional[tuple[Period, Period]] = None):
+            def remove_func():
+                timeline_widget.removeWidget(widget)
+                widget.deleteLater()
+                
+                staff_attendance_time_settings.timeline_dates.remove(timeline_periods)
+                
+                self.saved_state_changed.emit(True)
+            
+            timeline_periods = timeline
+            
+            if timeline_periods is None:
+                timeline_periods = Period.str_to_period(time.ctime()), Period.str_to_period(time.ctime())
+                staff_attendance_time_settings.timeline_dates.append(timeline_periods)
+            
+            widget = BaseWidget()
+            widget.setSpacing(0)
+            widget.setContentsMargins(8, 5, 8, 5)
+            widget.setProperty("class", "DarkendBG BorderRadiused")
+            
+            cancel_pb = QPushButton("×")
+            cancel_pb.setProperty("class", "SettingEntryClose")
+            cancel_pb.clicked.connect(remove_func)
+            
+            central_widget = BaseWidget(QHBoxLayout)
+            central_widget.setProperty("class", "NoBG")
+            
+            central_widget.addWidget(GeneralPeriodEditor(self.parent_widget.window(), timeline_periods[0], max_period=timeline_periods[1]), alignment=Qt.AlignmentFlag.AlignCenter)
+            central_widget.addSpacing(15)
+            central_widget.addWidget(GeneralPeriodEditor(self.parent_widget.window(), timeline_periods[1], min_period=timeline_periods[0]), alignment=Qt.AlignmentFlag.AlignCenter)
+            
+            widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
+            widget.addWidget(central_widget)
+            
+            timeline_widget.insertWidget(len(timeline_widget.getChildren()), widget)
+            timeline_widget.scroll_to(widget, 100)
+            
+            self.saved_state_changed.emit(False)
+
+        time_widget = BaseWidget(QHBoxLayout)
+        time_widget.setSpacing(10) ; time_widget.setContentsMargins(0, 0, 0, 0)
+        
+        cit_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_in_time.hour, staff_attendance_time_settings.check_in_time.minute))
+        cit_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_in_time))
+        cot_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_out_time.hour, staff_attendance_time_settings.check_out_time.minute))
+        cot_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_out_time))
+        
+        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Time</span>", cit_editor))
+        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Time</span>", cot_editor))
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        time_border_widget = BaseWidget(QHBoxLayout)
+        time_border_widget.setSpacing(10) ; time_border_widget.setContentsMargins(0, 0, 0, 0)
+        
+        citsi_sb = QSpinBox() ; citsi_sb.valueChanged.connect(cibm_changed_func)
+        citsi_sb.setSuffix("min")
+        citsi_sb.setValue(staff_attendance_time_settings.check_in_border_interval_minutes)
+        citsi_sb.setRange(0, 60 * 6)
+        cotsi_sb = QSpinBox() ; cotsi_sb.valueChanged.connect(cobm_changed_func)
+        cotsi_sb.setSuffix("min")
+        cotsi_sb.setValue(staff_attendance_time_settings.check_out_border_interval_minutes)
+        cotsi_sb.setRange(0, 60 * 6)
+        
+        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Window</span>", citsi_sb))
+        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Window</span>", cotsi_sb))
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        timeline_editing_widget = BaseWidget()
+        timeline_editing_widget.setProperty("class", "DarkendBG1")
+        timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
+        
+        timeline_widget = BaseScrollWidget()
+        timeline_widget.setSpacing(15)
+        timeline_widget.setContentsMargins(5, 3, 5, 3)
+        timeline_widget.addStretch()
+        
+        add_timeline_pb = QPushButton("Add Timeline")
+        add_timeline_pb.clicked.connect(lambda: add_timeline())
+        
+        for timeline_date in staff_attendance_time_settings.timeline_dates:
+            add_timeline(timeline_date)
+        
+        timeline_editing_widget.addWidget(timeline_widget)
+        timeline_editing_widget.addWidget(add_timeline_pb, alignment=Qt.AlignmentFlag.AlignRight)
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        
+        main_widget.addWidget(time_widget)
+        main_widget.addWidget(time_border_widget)
+        
+        return main_widget, IconToolBarOption(title=f"<span style='background-color: {THEME_MANAGER.process_stylesheet("{mute-bg}")};'>Timelines</span>", content=timeline_editing_widget)
     
     def get_filtered_widgets(
         self,
@@ -865,7 +846,7 @@ class StaffListWidget(BaseScrollListWidget):
                             ),
                         [
                             sw.staff.name.third,
-                            sw.staff.post_name if isinstance(sw.staff, Prefect) else None,
+                            SCHOOL.posts[sw.staff.post_id] if isinstance(sw.staff, Prefect) else None,
                             f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
                             ] + (
                                 (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
@@ -922,7 +903,9 @@ class StaffListWidget(BaseScrollListWidget):
         for f_key, staff_maps in self.all_staff_widgets.items():
             if staff.id in staff_maps:
                 widget = staff_maps.pop(staff.id)
+                
                 self.widgets[f_key].removeWidget(widget)
+                widget.deleteLater()
 
 class AttendanceBarWidget(BaseDataDisplayWidget):
     def __init__(self, staff_data_widget: StaffDataWidget):

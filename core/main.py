@@ -227,8 +227,8 @@ class Staff(Entry):
     attendance: list[AttendanceEntry]
 @dataclass
 class Prefect(Staff):
-    post_name: str
-    cls: "Class"
+    post_id: Optional[ID]
+    cls: Optional["Class"]
     duties: dict[str, list[str]]
 @dataclass
 class Teacher(Staff):

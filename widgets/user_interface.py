@@ -14,6 +14,18 @@ from typing import Literal, TypeVar
 T = TypeVar("T")
 
 
+def wrapify_text(text: str, length: int):
+    if len(text) > length:
+        index = length
+        
+        if " " in text and (_temp_index := text[:length].rfind(" ")) != -1:
+            index = _temp_index
+        
+        return [text[:index]] + wrapify_text(text[index + (text[index] == " "):], length)
+    else:
+        return [text]
+
+
 class ProgressBar(QProgressBar):
     def __init__(self, master: QWidget):
         super().__init__()
@@ -261,17 +273,6 @@ class _SearchEditOption(BaseWidget):
         
         self.clicked.connect(self.selected)
     
-    def _wrapify_text(self, text: str, length: int):
-        if len(text) > length:
-            if " " in text:
-                index = text[:length].rfind(" ")
-            else:
-                index = length
-            
-            return text[:index] + "■" + self._wrapify_text(text[index:], length)
-        else:
-            return text
-    
     def update_highlights(self, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
         score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
         
@@ -279,7 +280,7 @@ class _SearchEditOption(BaseWidget):
             if not self.isVisible():
                 self.setVisible(True)
             
-            self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate(self._wrapify_text(self.main_text, 30))]))
+            self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate("■".join(wrapify_text(self.main_text, 30)))]))
             self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
             self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
             self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
@@ -668,7 +669,7 @@ class EditableCancelableEntry(BaseWidget):
         # Input mode widgets
         self.input = QLineEdit()
         self.input.setProperty("class", "OptionEdit")
-        self.input.setText(self.text)
+        self.input.setText(f"<span>{"<br>".join(wrapify_text(self.text, 10))}</span>")
         self.input.setPlaceholderText("Enter option")
         self.input.setFixedWidth(100)  # Fix input width
         self.input.returnPressed.connect(self.input.clearFocus)
@@ -695,14 +696,19 @@ class EditableCancelableEntry(BaseWidget):
         self.input.hide()
         
         self.setFixedWidth(130)
-        self.setFixedHeight(40)
+        
+        self.set_text(self.text)
     
     def _finished_editing(self):
         if self.is_editing:
             self.text = self.input.text().strip()
+            
             self.is_editing = False
             self.setup_display_mode()
-            self.label.setText(self.text)
+            self.set_text(self.text)
+    
+    def set_text(self, text: str):
+        self.label.setText(f"<span>{"<br>".join(wrapify_text(text, 10))}</span>")
     
     def setup_display_mode(self):
         self.label.show()
@@ -1028,13 +1034,18 @@ class LabeledField(BaseWidget):
         
         self.label = QLabel(title, self)
         self.label.setProperty("class", "LabeledContainerTitle")
-        self.label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.title_area = BaseWidget(QHBoxLayout)
+        self.title_area.setContentsMargins(0, 0, 0, 0)
+        
+        self.title_area.addWidget(self.label)
+        self.title_area.addStretch()
         
         self.setProperty("class", "LabeledContainer")
-        self.setContentsMargins(8, 10, 8, 8)
+        self.setContentsMargins(8, 3, 8, 8)
         self.setSpacing(6)
         
-        self.addWidget(self.label)
+        self.addWidget(self.title_area)
         self.addWidget(self.inner_widget)
     
     def setTitle(self, title: str):
@@ -1049,7 +1060,7 @@ class IconToolBarOption(BaseWidget):
     
     def initialize(
             self,
-            content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | QWidget,
+            content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | BaseWidget,
             title: Optional[str | QLabel] = None,
             font_size: Optional[int] = None,
             show_dp_icon: bool = False

@@ -564,86 +564,51 @@ class CombinationEditor(BaseWidget):
         if not self.__init:
             self.editor.window().saved_state_changed.emit(True)
 
-class DOTW_Editor(BaseSelectionList):
+class DOTW_Editor(BaseDayOfTheWeekEditor):
     def __init__(self, title: str, editor: "SchoolTimetableEditor", level_id: ID, selected_scope: Optional[list[tuple[str, tuple[Entry, int]]]] = None):
-        self.full_scope = {day: (Entry(day, Name(day)), i) for i, day in enumerate(DAYS_OF_THE_WEEK)}
-        self.selected_scope = selected_scope
-        
-        if self.selected_scope is None:
-            self.selected_scope = self._get_sl_tokens(SCHOOL.class_levels[level_id].weekdays)
-        
-        super().__init__(editor, None, title, self.selected_scope, self.full_scope)
-        
         self.editor = editor
         self.level_id = level_id
+        
+        super().__init__(editor, title, SCHOOL.class_levels[level_id].weekdays, selected_scope)
     
-    def _get_sl_tokens(self, weekdays: list[str]):
-        return [(day, (Entry(day, Name(day)), i)) for i, day in enumerate(weekdays)]
-    
-    def _item_removed(self, level_id: ID, day: str):
-        lvl_weekdays = SCHOOL.class_levels[level_id].weekdays
+    def item_removed(self, id, _):
+        lvl_weekdays = SCHOOL.class_levels[self.level_id].weekdays
         
-        days_of_the_week = self._get_sl_tokens(lvl_weekdays)
+        days_of_the_week = self._item_removed(lvl_weekdays, id)
         
-        day_index = next(
-            index
-            for index, (d_day, _) in
-            enumerate(days_of_the_week)
-            if day == d_day
-        )
-        
-        days_of_the_week.pop(day_index)
-        
-        for i, ttbl in enumerate(self.editor.timetable_widgets[level_id].values()):
-            ttbl.set_dotw(dict(days_of_the_week))
+        for i, ttbl in enumerate(self.editor.timetable_widgets[self.level_id].values()):
+            ttbl.set_dotw(days_of_the_week)
             
-            if i == len(self.editor.timetable_widgets[level_id]) - 1:
+            if i == len(self.editor.timetable_widgets[self.level_id]) - 1:
                 lvl_weekdays.clear()
                 lvl_weekdays.extend(list(ttbl.cls.timetable.table))
     
-    def _item_selected(self, level_id: ID, day: str):
-        lvl_weekdays = SCHOOL.class_levels[level_id].weekdays
+    def item_selected(self, id, index):
+        lvl_weekdays = SCHOOL.class_levels[self.level_id].weekdays
         
-        days_of_the_week = self._get_sl_tokens(lvl_weekdays)
+        days_of_the_week = self._item_selected(lvl_weekdays, id, index)
         
-        day_index = next(
-            index + (col < self.full_scope[day][1] and index == len(days_of_the_week) - 1)
-            for index, (_, (_, col)) in
-            enumerate(days_of_the_week)
-            if col > self.full_scope[day][1] or index == len(days_of_the_week) - 1
-        )
-        
-        day_data = next(v for v in self.full_scope.items() if v[0] == day)
-        
-        days_of_the_week.insert(day_index, day_data)
-        
-        for i, ttbl in enumerate(self.editor.timetable_widgets[level_id].values()):
-            ttbl.set_dotw(dict(days_of_the_week))
+        for i, ttbl in enumerate(self.editor.timetable_widgets[self.level_id].values()):
+            ttbl.set_dotw(days_of_the_week)
             
-            if i == len(self.editor.timetable_widgets[level_id]) - 1:
+            if i == len(self.editor.timetable_widgets[self.level_id]) - 1:
                 lvl_weekdays.clear()
                 lvl_weekdays.extend(list(ttbl.cls.timetable.table))
-    
-    def item_removed(self, id):
-        self._item_removed(self.level_id, id)
-    
-    def item_selected(self, id):
-        self._item_selected(self.level_id, id)
 
-class GeneralDOTW_Editor(DOTW_Editor):
+class GeneralDOTW_Editor(BaseDayOfTheWeekEditor):
     def __init__(self, editor: "SchoolTimetableEditor"):
+        self.editor = editor
+        
         weekdays = sorted(
             (lvl_weekdays := (
                 [lvl.weekdays for lvl in SCHOOL.class_levels.values()] +
-                [day for i, day in enumerate(DAYS_OF_THE_WEEK) if i not in (len(DAYS_OF_THE_WEEK) - 2, len(DAYS_OF_THE_WEEK) - 1)]
+                [[day for i, day in enumerate(DAYS_OF_THE_WEEK) if i not in (len(DAYS_OF_THE_WEEK) - 2, len(DAYS_OF_THE_WEEK) - 1)]]
             )),
             key=lambda v: lvl_weekdays.count(v),
             reverse=True
         )[0]
         
-        self.selected_scope = self._get_sl_tokens(weekdays)
-        
-        super().__init__("Select School Days of the Week", editor, None, self.selected_scope)
+        super().__init__(editor, "Select School Days of the Week", weekdays)
     
     def _normalize(self, lvl_id: ID):
         for day in SCHOOL.class_levels[lvl_id].weekdays.copy():
@@ -654,16 +619,40 @@ class GeneralDOTW_Editor(DOTW_Editor):
             if day not in SCHOOL.class_levels[lvl_id].weekdays:
                 self._item_selected(lvl_id, day)
     
-    def item_removed(self, id):
+    def _item_removed(self, lvl_id: ID, day: str):
+        weekdays = SCHOOL.class_levels[lvl_id].weekdays
+        
+        days_of_the_week = super()._item_removed(weekdays, day)
+        
+        for i, ttbl in enumerate(self.editor.timetable_widgets[lvl_id].values()):
+            ttbl.set_dotw(days_of_the_week)
+            
+            if i == len(self.editor.timetable_widgets[lvl_id]) - 1:
+                weekdays.clear()
+                weekdays.extend(list(ttbl.cls.timetable.table))
+    
+    def _item_selected(self, lvl_id: ID, day: str, index: int):
+        weekdays = SCHOOL.class_levels[lvl_id].weekdays
+        
+        days_of_the_week = super()._item_selected(weekdays, day, index)
+        
+        for i, ttbl in enumerate(self.editor.timetable_widgets[lvl_id].values()):
+            ttbl.set_dotw(days_of_the_week)
+            
+            if i == len(self.editor.timetable_widgets[lvl_id]) - 1:
+                weekdays.clear()
+                weekdays.extend(list(ttbl.cls.timetable.table))
+
+    def item_removed(self, day: str, _):
         for lvl_id in SCHOOL.class_levels:
             self._normalize(lvl_id)
-            self._item_removed(lvl_id, id)
+            self._item_removed(lvl_id, day)
     
-    def item_selected(self, id):
+    def item_selected(self, day: str, index: int):
         for lvl_id in SCHOOL.class_levels:
             self._normalize(lvl_id)
-            self._item_selected(lvl_id, id)
-    
+            self._item_selected(lvl_id, day, index)
+
 
 
 class ExtraSubjectDraggableLabel(QLabel):

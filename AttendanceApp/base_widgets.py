@@ -6,6 +6,7 @@ from .functions_and_uncategorized import *
 
 from widgets.user_interface import IconToolBarOption
 
+_T = TypeVar("_T")
 
 class BaseListWidget(QWidget):
     def __init__(self, scroll_area: QScrollArea) -> None:
@@ -77,8 +78,7 @@ class BaseScrollListWidget(QWidget):
         self.update()
         
         self._scroll_delay += 1
-        
-        if (self._target_y <= self._scroll_start - 100 and self._scroll_delta > 0) or (self._target_y >= self._scroll_start - 150 and self._scroll_delta < 0):
+        if (self._target_y <= self._scroll_start - 100 and self._scroll_delta > 0) or (self._target_y >= self._scroll_start - 150 and self._scroll_delta < 0) or self._scroll_start - 50 <= self._target_y <= self._scroll_start + 50:
             self._scroll_delay = 0
             self.scroll_delay = 10
             self.scroll_timer.stop()
@@ -258,8 +258,8 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
 
 
 
-class BaseStaffListEntryWidget(QWidget):
-    def __init__(self, parent_widget: TabViewWidget, staff: Staff, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
+class BaseStaffListEntryWidget[_T](QWidget):
+    def __init__(self, parent_widget: TabViewWidget, staff: _T, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
         super().__init__()
         
         self.staff = staff
@@ -338,12 +338,12 @@ class BaseStaffListEntryWidget(QWidget):
         
         self.parent_widget.stack.setCurrentWidget(self.staff_data_widget)
 
-class BaseAttendanceEntryWidget(QWidget):
+class BaseAttendanceEntryWidget[_T](QWidget):
     def __init__(self, name: str, data: AttendanceEntry, layout_type: type[QHBoxLayout] | type[QVBoxLayout] = QHBoxLayout):
         super().__init__()
         
         self.data = data
-        self.staff = self.data.staff
+        self.staff: _T = self.data.staff
         
         layout = QVBoxLayout()
         self.setLayout(layout)

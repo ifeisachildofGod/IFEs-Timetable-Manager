@@ -42,7 +42,7 @@ class _CharacterNameWidget(QWidget):
         self.main_layout.addWidget(LabeledField("Names", widget_2_1, height_policy=QSizePolicy.Policy.Maximum))
 
 
-class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
+class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
     def __init__(self, data: AttendanceEntry):
         super().__init__("Teacher", data)
         self.staff: Teacher = self.staff
@@ -119,7 +119,7 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget):
                     layout_2_2_2_1.addWidget(LabeledField(f"{cls.level.name.full()} {cls.name}", widget_2_2_2_1_1), int(index / 3), index % 3)
                 widget_2_2_2.addWidget(LabeledField(SCHOOL.subjects[subject_id].name.full(), widget_2_2_2_1))
 
-class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
+class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget[Prefect]):
     def __init__(self, data: AttendanceEntry):
         super().__init__("Prefect", data)
         self.staff: Prefect = self.staff
@@ -176,24 +176,80 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget):
         self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
 
 
-class StaffListPrefectEntryWidget(BaseStaffListEntryWidget):
-    def __init__(self, parent_widget: TabViewWidget, prefect: Prefect, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
-        super().__init__(parent_widget, prefect, comm_device, card_scanner_index, staff_data_index)
+class StaffListPrefectEntryWidget(BaseStaffListEntryWidget[Prefect]):
+    def __init__(self, parent_widget, staff, comm_system, card_scanner_widget, staff_data_widget):
+        super().__init__(parent_widget, staff, comm_system, card_scanner_widget, staff_data_widget)
+        
         self.container.setProperty("class", "StaffListPrefectEntryWidget")
         
-        self.sub_info_widget.addWidget(LabeledField("Post", QLabel(self.staff.post_name)))
-        self.sub_info_widget.addWidget(LabeledField("Class", (cls_label := QLabel(f"{self.staff.cls.level.name.full()} {self.staff.cls.name}"))))
+        self._duty_text: dict[str, list[str]] = {}
+        self._duty_day_widgets: dict[str, LabeledField] = {}
         
-        self.cls_label = cls_label
+        self.cls_label = QLabel()
+        self.post_label = QLabel()
+        self.duties_widget = BaseScrollWidget() ; self.duties_widget.setMinimumHeight(110)
+        
+        self.sub_info_widget.addWidget(LabeledField("Class", self.cls_label, height_policy=QSizePolicy.Policy.Maximum))
+        self.sub_info_widget.addWidget(LabeledField("Post", self.post_label, height_policy=QSizePolicy.Policy.Maximum))
+        self.sub_info_widget.addWidget(LabeledField("Duties", self.duties_widget))
+        
+        self.update_class()
+        self.update_post()
+        
+        for day, duties in self.staff.duties.items():
+            for duty in duties:
+                self.add_duty(day, duty)
     
-    def update_class_name(self, cls: Class):
-        self.cls_label.setText(f"<b>●</b> <span style='font-weight: bold'>{cls.level.name.full()} {cls.name}</span>")
-
-class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
-    def __init__(self, parent_widget: TabViewWidget, teacher: Teacher, comm_device: BaseCommSystem, card_scanner_index: int, staff_data_index: int):
-        super().__init__(parent_widget, teacher, comm_device, card_scanner_index, staff_data_index)
+    def update_class(self):
+        self.cls_label.setText(
+            f"<span style='font-weight: bold'>{self.staff.cls.level.name.full()} {self.staff.cls.name}</span>"
+            if self.staff.cls is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
+    
+    def update_post(self):
+        self.post_label.setText(
+            f"<span style='font-weight: bold'>{SCHOOL.posts[self.staff.post_id]}</span>"
+            if self.staff.post_id is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
+    
+    def update_duty(self, day: str, index: int):
+        duty = self.staff.duties[day][index]
         
-        self.teacher = teacher
+        self._duty_text[day][index] = duty
+        
+        label: QLabel = self._duty_day_widgets[day].inner_widget.indexWidget(index)
+        label.setText(f"<b>●</b> <span style='font-weight: bold'>{duty}</span>")
+    
+    def add_duty(self, day: str, duty: str):
+        if day not in self._duty_day_widgets:
+            self._duty_text[day] = []
+            self._duty_day_widgets[day] = LabeledField(day, BaseWidget())
+            
+            self.duties_widget.addWidget(self._duty_day_widgets[day])
+        
+        self._duty_text[day].append(duty)
+        self._duty_day_widgets[day].inner_widget.addWidget(QLabel())
+        
+        self.update_duty(day, len(self._duty_text[day]) - 1)
+    
+    def remove_duty(self, day: str, index: int):
+        self._duty_text[day].pop(index)
+        self._duty_day_widgets[day].inner_widget.popWidget(index)
+        
+        if not self._duty_text:
+            day_widget = self._duty_day_widgets[day]
+            
+            self.duties_widget.removeWidget(day_widget)
+            day_widget.deleteLater()
+            
+            self._duty_text.pop(day)
+            self._duty_day_widgets.pop(day)
+
+class StaffListTeacherEntryWidget(BaseStaffListEntryWidget[Teacher]):
+    def __init__(self, parent_widget, staff, comm_system, card_scanner_widget, staff_data_widget):
+        super().__init__(parent_widget, staff, comm_system, card_scanner_widget, staff_data_widget)
         
         self.subject_fields: dict[ID, LabeledField] = {}
         self.class_labels: dict[ID, list[tuple[ID, QLabel]]] = {}
@@ -220,11 +276,11 @@ class StaffListTeacherEntryWidget(BaseStaffListEntryWidget):
         
         for cls in subject.classes.values():
             if subject.id in cls.subjects:
-                if cls.subjects[subject.id].teacher and cls.subjects[subject.id].teacher.id == self.teacher.id:
+                if cls.subjects[subject.id].teacher and cls.subjects[subject.id].teacher.id == self.staff.id:
                     self.add_class(subject.id, cls)
             else:
                 for subj in SCHOOL.subjects.values():
-                    if isinstance(subj, CombinedSubject) and next((subj.id in cls.subjects and cls.subjects[subj.id].subjects[i].teacher and cls.subjects[subj.id].subjects[i].teacher.id == self.teacher.id for i, s in enumerate(subj.subjects) if s.id == subject.id), False):
+                    if isinstance(subj, CombinedSubject) and next((subj.id in cls.subjects and cls.subjects[subj.id].subjects[i].teacher and cls.subjects[subj.id].subjects[i].teacher.id == self.staff.id for i, s in enumerate(subj.subjects) if s.id == subject.id), False):
                         self.add_class(subject.id, cls)
                         break
     
