@@ -1,87 +1,38 @@
 
 from widgets.base import *
+from widgets.user_interface import *
 
 from ..base_widgets import *
 from ..extra_widgets import *
 
 
-class _CharacterNameWidget(QWidget):
-    def __init__(self, name: StaffName):
-        super().__init__()
-        self.name = name
+class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget[Prefect]):
+    def __init__(self, data: AttendanceEntry):
+        super().__init__("Prefect", data)
+        self.labeled_container.setProperty("class", "AttendancePrefectEntryWidget")
         
-        self.main_layout = QVBoxLayout()
-        self.setLayout(self.main_layout)
+        widget_2_2, layout_2_2 = create_widget(None, QHBoxLayout)
         
-        widget_2_1 = QWidget()
-        layout_2_1 = QVBoxLayout()
-        widget_2_1.setLayout(layout_2_1)
+        layout_2_2.addWidget(LabeledField("Class", (cls_label := QLabel()), height_policy=QSizePolicy.Policy.Maximum)) ; self.cls_label = cls_label
+        self.cls_label.setText(f"<b>{self.staff.cls.level.name.full()} {self.staff.cls.name}</b")
         
-        widget_2_1_1 = QWidget()
-        layout_2_1_1 = QHBoxLayout()
-        widget_2_1_1.setLayout(layout_2_1_1)
-        layout_2_1.addWidget(widget_2_1_1)
+        if data.is_check_in:
+            widget_1_3_1 = BaseScrollWidget()
+            
+            for index, duty in enumerate(self.staff.duties.get(self.data.period.day, [])):
+                widget_1_3_1.addWidget(QLabel(f"<b>{index + 1}.</b> <span style='font-weight: bold'>{"<br>&nbsp;&nbsp;&nbsp;&nbsp;".join(wrapify_text(duty, 50))}</span>"))
+            
+            layout_2_2.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         
-        name_1 = LabeledField("Surname", QLabel(f"<span style='font-weight: bold'>{self.name.first}</span>"))
-        name_2 = LabeledField("First name", QLabel(f"<span style='font-weight: bold'>{self.name.second}</span>"))
-        
-        layout_2_1_1.addWidget(name_1)
-        layout_2_1_1.addWidget(name_2)
-        
-        widget_2_1_2 = QWidget()
-        layout_2_1_2 = QHBoxLayout()
-        widget_2_1_2.setLayout(layout_2_1_2)
-        layout_2_1.addWidget(widget_2_1_2)
-        
-        name_4 = LabeledField("Other name", QLabel(f"<span style='font-weight: bold'>{self.name.third if self.name.third else "No other name"}</span>"))
-        name_5 = LabeledField("Abbreviation", QLabel(f"<span style='font-weight: bold'>{self.name.abbrev if self.name.abbrev else "No abbreviatory name"}</span>"))
-        
-        layout_2_1_2.addWidget(name_4)
-        layout_2_1_2.addWidget(name_5, alignment=Qt.AlignmentFlag.AlignRight)
-        
-        self.main_layout.addWidget(LabeledField("Names", widget_2_1, height_policy=QSizePolicy.Policy.Maximum))
-
+        self.main_info_layout.addWidget(widget_2_2)
 
 class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
     def __init__(self, data: AttendanceEntry):
         super().__init__("Teacher", data)
-        self.staff: Teacher = self.staff
-        
         self.labeled_container.setProperty("class", "AttendanceTeacherEntryWidget")
         
-        _, layout_1 = create_widget(self.main_layout, QVBoxLayout)
-        
-        image = Image(self.staff.img_path, parent=self.container, height=300)
-        
-        layout_1.addWidget(image, alignment=Qt.AlignmentFlag.AlignCenter)
-        # layout_1.addStretch()
-        
-        widget_1_2, layout_1_2 = create_widget(None, QHBoxLayout)
-        
-        layout_1.addWidget(widget_1_2)
-        
-        widget_1_2_1, layout_1_2_1 = create_widget(None, QHBoxLayout)
-        
-        layout_1_2_1.addWidget(LabeledField("Day", QLabel(f"<span style='font-weight: bold'>{self.data.period.day}</span")))
-        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"<span style='font-weight: bold'>{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}</span>")))
-        
-        layout_1_2.addWidget(LabeledField("Date Info", widget_1_2_1, height_policy=QSizePolicy.Policy.Maximum))
-        
-        widget_1_2_2, layout_1_2_2 = create_widget(None, QHBoxLayout)
-        
-        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.hour < 10 else "")}{str(self.data.period.time.hour)}</span>")))
-        layout_1_2_2.addWidget(LabeledField("Min", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.minute < 10 else "")}{str(self.data.period.time.minute)}</span>")))
-        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.second < 10 else "")}{str(self.data.period.time.second)}</span>")))
-        
-        layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
-        
-        _, layout_2 = create_widget(self.main_layout, QVBoxLayout)
-        
-        name_widget = _CharacterNameWidget(self.staff.name)
-        layout_2.addWidget(name_widget)
-        
         if data.is_check_in:
-            layout_2.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            self.main_info_layout.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
             widget_2_2_2.setFixedHeight(180)
             
             periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}
@@ -115,65 +66,9 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
                     
                     widget_2_2_2_1_1, layout_2_2_2_1_1 = create_widget(None, QVBoxLayout) ; layout_2_2_2_1_1.addStretch()
                     for i, period in enumerate(periods):
-                        layout_2_2_2_1_1.insertWidget(i, QLabel(f"{positionify(str(period))} period"))
+                        layout_2_2_2_1_1.insertWidget(i, QLabel(f"<b>{positionify(str(period))} period</b>"))
                     layout_2_2_2_1.addWidget(LabeledField(f"{cls.level.name.full()} {cls.name}", widget_2_2_2_1_1), int(index / 3), index % 3)
                 widget_2_2_2.addWidget(LabeledField(SCHOOL.subjects[subject_id].name.full(), widget_2_2_2_1))
-
-class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget[Prefect]):
-    def __init__(self, data: AttendanceEntry):
-        super().__init__("Prefect", data)
-        self.staff: Prefect = self.staff
-        
-        self.labeled_container.setProperty("class", "AttendancePrefectEntryWidget")
-        
-        _, layout_1 = create_widget(self.main_layout, QVBoxLayout)
-        
-        image = Image(self.staff.img_path, parent=self.container, height=300)
-        
-        layout_1.addWidget(image, alignment=Qt.AlignmentFlag.AlignCenter)
-        # layout_1.addStretch()
-        
-        widget_1_2, layout_1_2 = create_widget(None, QHBoxLayout)
-        
-        layout_1.addWidget(widget_1_2)
-        
-        widget_1_2_1, layout_1_2_1 = create_widget(None, QHBoxLayout)
-        
-        layout_1_2_1.addWidget(LabeledField("Day", QLabel(f"<span style='font-weight: bold'>{self.data.period.day}</span")))
-        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"<span style='font-weight: bold'>{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}</span>")))
-        
-        layout_1_2.addWidget(LabeledField("Date Info", widget_1_2_1, height_policy=QSizePolicy.Policy.Maximum))
-        
-        widget_1_2_2, layout_1_2_2 = create_widget(None, QHBoxLayout)
-        
-        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.hour < 10 else "") + str(self.data.period.time.hour)}</span>")))
-        layout_1_2_2.addWidget(LabeledField("Min", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.minute < 10 else "") + str(self.data.period.time.minute)}</span>")))
-        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.second < 10 else "") + str(self.data.period.time.second)}</span>")))
-        
-        layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
-        
-        _, layout_2 = create_widget(self.main_layout, QVBoxLayout)
-        
-        name_widget = _CharacterNameWidget(self.staff.name)
-        layout_2.addWidget(name_widget)
-        
-        widget_2_2, layout_2_2 = create_widget(None, QHBoxLayout)
-        
-        layout_2_2.addWidget(LabeledField("Class", (cls_label := QLabel()), height_policy=QSizePolicy.Policy.Maximum)) ; self.cls_label = cls_label
-        self.update_class_name(self.staff.cls)
-        
-        if data.is_check_in:
-            widget_1_3_1 = BaseScrollWidget()
-            
-            for index, duty in enumerate(self.staff.duties.get(self.data.period.day, [])):
-                widget_1_3_1.addWidget(QLabel(f"{index + 1}. {duty}"))
-            
-            layout_2_2.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
-        
-        layout_2.addWidget(widget_2_2)
-    
-    def update_class_name(self, cls: Class):
-        self.cls_label.setText(f"{cls.level.name.full()} {cls.name}")
 
 
 class StaffListPrefectEntryWidget(BaseStaffListEntryWidget[Prefect]):
@@ -189,9 +84,9 @@ class StaffListPrefectEntryWidget(BaseStaffListEntryWidget[Prefect]):
         self.post_label = QLabel()
         self.duties_widget = BaseScrollWidget() ; self.duties_widget.setMinimumHeight(110)
         
-        self.sub_info_widget.addWidget(LabeledField("Class", self.cls_label, height_policy=QSizePolicy.Policy.Maximum))
-        self.sub_info_widget.addWidget(LabeledField("Post", self.post_label, height_policy=QSizePolicy.Policy.Maximum))
-        self.sub_info_widget.addWidget(LabeledField("Duties", self.duties_widget))
+        self.sub_info_widget.addWidget(LabeledField("Class", self.cls_label, height_policy=QSizePolicy.Policy.Maximum), stretch=4)
+        self.sub_info_widget.addWidget(LabeledField("Post", self.post_label, height_policy=QSizePolicy.Policy.Maximum), stretch=4)
+        self.sub_info_widget.addWidget(LabeledField("Duties", self.duties_widget), stretch=9)
         
         self.update_class()
         self.update_post()
@@ -209,7 +104,7 @@ class StaffListPrefectEntryWidget(BaseStaffListEntryWidget[Prefect]):
     
     def update_post(self):
         self.post_label.setText(
-            f"<span style='font-weight: bold'>{SCHOOL.posts[self.staff.post_id]}</span>"
+            f"<span style='font-weight: bold'>{"<br>".join(wrapify_text(SCHOOL.posts[self.staff.post_id], 30))}</span>"
             if self.staff.post_id is not None else
             "<i><b style='font-size: larger;'>NONE</b></i>"
         )
@@ -220,7 +115,7 @@ class StaffListPrefectEntryWidget(BaseStaffListEntryWidget[Prefect]):
         self._duty_text[day][index] = duty
         
         label: QLabel = self._duty_day_widgets[day].inner_widget.indexWidget(index)
-        label.setText(f"<b>●</b> <span style='font-weight: bold'>{duty}</span>")
+        label.setText(f"<b>●</b> <span style='font-weight: bold'>{"<br>&nbsp;&nbsp;".join(wrapify_text(duty, 45))}</span>")
     
     def add_duty(self, day: str, duty: str):
         if day not in self._duty_day_widgets:

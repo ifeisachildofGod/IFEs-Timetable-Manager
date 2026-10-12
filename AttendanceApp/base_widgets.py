@@ -258,6 +258,44 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
 
 
 
+class _CharacterNameWidget(QWidget):
+    def __init__(self, name: StaffName):
+        super().__init__()
+        self.name = name
+        
+        self.main_layout = QVBoxLayout()
+        self.setLayout(self.main_layout)
+        
+        widget_2_1 = QWidget()
+        layout_2_1 = QVBoxLayout()
+        widget_2_1.setLayout(layout_2_1)
+        
+        widget_2_1_1 = QWidget()
+        layout_2_1_1 = QHBoxLayout()
+        widget_2_1_1.setLayout(layout_2_1_1)
+        layout_2_1.addWidget(widget_2_1_1)
+        
+        name_1 = LabeledField("Surname", QLabel(f"<span style='font-weight: bold'>{self.name.first}</span>"))
+        name_2 = LabeledField("First name", QLabel(f"<span style='font-weight: bold'>{self.name.second}</span>"))
+        
+        layout_2_1_1.addWidget(name_1)
+        layout_2_1_1.addWidget(name_2)
+        
+        widget_2_1_2 = QWidget()
+        layout_2_1_2 = QHBoxLayout()
+        widget_2_1_2.setLayout(layout_2_1_2)
+        layout_2_1.addWidget(widget_2_1_2)
+        
+        name_4 = LabeledField("Other name", QLabel(f"<span style='font-weight: bold'>{self.name.third if self.name.third else "No other name"}</span>"))
+        name_5 = LabeledField("Abbreviation", QLabel(f"<span style='font-weight: bold'>{self.name.abbrev if self.name.abbrev else "No abbreviatory name"}</span>"))
+        
+        layout_2_1_2.addWidget(name_4)
+        layout_2_1_2.addWidget(name_5, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        self.main_layout.addWidget(LabeledField("Names", widget_2_1, height_policy=QSizePolicy.Policy.Maximum))
+
+
+
 class BaseStaffListEntryWidget[_T](QWidget):
     def __init__(self, parent_widget: TabViewWidget, staff: _T, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
         super().__init__()
@@ -289,7 +327,7 @@ class BaseStaffListEntryWidget[_T](QWidget):
         main_info_layout.addWidget(image, alignment=Qt.AlignmentFlag.AlignLeft)
         main_info_layout.addStretch()
         
-        self.name_label = QLabel(self.staff.name.full())
+        self.name_label = QLabel(f"<b>{self.staff.name.full()}</b>")
         
         self.name_label.setStyleSheet("font-size: 50px")
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -308,7 +346,7 @@ class BaseStaffListEntryWidget[_T](QWidget):
         self.sub_info_widget.setContentsMargins(30, 5, 30, 5)
         self.main_layout.addWidget(self.sub_info_widget)
         
-        self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "No IUD set")
+        self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "<i><b>NONE</b></i>")
         self.iud_label.setStyleSheet("font-weight: bold;")
         
         self.sub_info_widget.addWidget(iud_lf := LabeledField("IUD", self.iud_label, height_policy=QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignCenter)
@@ -339,14 +377,14 @@ class BaseStaffListEntryWidget[_T](QWidget):
         self.parent_widget.stack.setCurrentWidget(self.staff_data_widget)
 
 class BaseAttendanceEntryWidget[_T](QWidget):
-    def __init__(self, name: str, data: AttendanceEntry, layout_type: type[QHBoxLayout] | type[QVBoxLayout] = QHBoxLayout):
+    def __init__(self, name: str, data: AttendanceEntry[_T], layout_type: type[QHBoxLayout] | type[QVBoxLayout] = QHBoxLayout):
         super().__init__()
         
         self.data = data
-        self.staff: _T = self.data.staff
+        self.staff = self.data.staff
         
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        _layout = QVBoxLayout()
+        self.setLayout(_layout)
         
         self.container = QWidget()
         
@@ -355,7 +393,38 @@ class BaseAttendanceEntryWidget[_T](QWidget):
         
         self.labeled_container = LabeledField(f"<span style='font-weight: bold;'>{name} - Check {"IN" if data.is_check_in else "OUT"}</span>", self.container, height_policy=QSizePolicy.Policy.Maximum)
         
-        layout.addWidget(self.labeled_container)
+        _layout.addWidget(self.labeled_container)
+        
+        _, layout_1 = create_widget(self.main_layout, QVBoxLayout)
+        
+        image = Image(self.staff.img_path, parent=self.container, height=300)
+        
+        layout_1.addWidget(image, alignment=Qt.AlignmentFlag.AlignCenter)
+        # layout_1.addStretch()
+        
+        widget_1_2, layout_1_2 = create_widget(None, QHBoxLayout)
+        
+        layout_1.addWidget(widget_1_2)
+        
+        widget_1_2_1, layout_1_2_1 = create_widget(None, QHBoxLayout)
+        
+        layout_1_2_1.addWidget(LabeledField("Day", QLabel(f"<span style='font-weight: bold'>{self.data.period.day}</span")))
+        layout_1_2_1.addWidget(LabeledField("Date", QLabel(f"<span style='font-weight: bold'>{positionify(str(self.data.period.date))} of {self.data.period.month}, {self.data.period.year}</span>")))
+        
+        layout_1_2.addWidget(LabeledField("Date Info", widget_1_2_1, height_policy=QSizePolicy.Policy.Maximum))
+        
+        widget_1_2_2, layout_1_2_2 = create_widget(None, QHBoxLayout)
+        
+        layout_1_2_2.addWidget(LabeledField("Hr", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.hour < 10 else "")}{str(self.data.period.time.hour)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Min", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.minute < 10 else "")}{str(self.data.period.time.minute)}</span>")))
+        layout_1_2_2.addWidget(LabeledField("Sec", QLabel(f"<span style='font-weight: bold'>{("0" if self.data.period.time.second < 10 else "")}{str(self.data.period.time.second)}</span>")))
+        
+        layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
+        
+        _, self.main_info_layout = create_widget(self.main_layout, QVBoxLayout)
+        
+        name_widget = _CharacterNameWidget(self.staff.name)
+        self.main_info_layout.addWidget(name_widget)
 
 
 

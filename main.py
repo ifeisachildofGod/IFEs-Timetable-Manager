@@ -1,4 +1,4 @@
-import os
+import platform
 import subprocess
 import traceback
 
@@ -10,6 +10,8 @@ from widgets import *
 
 from AttendanceApp import AttendanceManager
 
+TITLE = "IFEs Timetable and Attendance Software Systems"
+VERSION = "0.1.0"
 
 class CmdListener(QObject):
     command_recieved = pySignal(str)
@@ -17,7 +19,7 @@ class CmdListener(QObject):
     
     def start(self):
         def loop():
-            print(f"TASS 1.0.0 on {os.name}")
+            print(f"{TITLE} v{VERSION} [{platform.platform()}]")
             print('Type "help" for further information')
             
             while True:
@@ -81,8 +83,6 @@ class Window(QMainWindow):
                 self.flag_mapping["--arg--"](i, arg)
                 
                 i += 1
-        
-        self.title = "IFEs Timetable Generator"
         
         # Setting resize geometry
         self.setGeometry(100, 100, 1000, 700)
@@ -302,7 +302,7 @@ class Window(QMainWindow):
                 SCHOOL.set(self.LOADED_SCHOOL)
                 self.saved_callback()
         else:
-            self.setWindowTitle(self.title)
+            self.setWindowTitle(TITLE)
         
         THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
         
@@ -329,10 +329,11 @@ class Window(QMainWindow):
         return arg
     
     def handle_cmd(self, cmd: str):
-        key, *values = cmd.split()
-        
-        if key in self.CMD_ACTIONS:
-            self.CMD_ACTIONS[key](*[self._parse_string_arg(arg) for arg in values])
+        if cmd.strip():
+            key, *values = cmd.split()
+            
+            if key in self.CMD_ACTIONS:
+                self.CMD_ACTIONS[key](*[self._parse_string_arg(arg) for arg in values])
     
     def load(self):
         try:
@@ -374,13 +375,13 @@ class Window(QMainWindow):
         self.saved = False
         
         if self.file.path is not None:
-            self.setWindowTitle(f"{self.title} - {os.path.abspath(self.file.path)} *Unsaved")
+            self.setWindowTitle(f"{TITLE} - {os.path.abspath(self.file.path)} *Unsaved")
         else:
-            self.setWindowTitle(self.title)
+            self.setWindowTitle(TITLE)
     
     def saved_callback(self):
         self.saved = True
-        self.setWindowTitle(f"{self.title} - {os.path.abspath(self.file.path)}")
+        self.setWindowTitle(f"{TITLE} - {os.path.abspath(self.file.path)}")
     
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
         arguments = []

@@ -291,7 +291,7 @@ class School:
                         
                         if subj_id not in (prev_subj_id, next_subj_id) and subj_id in seen_subjects:
                             if c_id not in islands:
-                                islands[c_id] = subject.classes[c_id].level, []
+                                islands[c_id] = class_level, []
                             
                             islands[c_id][1].append(((subj_id, day, subject_index)))
                             if seen_subjects.count(subj_id) == 1:

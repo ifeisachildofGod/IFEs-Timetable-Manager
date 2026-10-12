@@ -681,6 +681,7 @@ class StaffListWidget(BaseScrollListWidget):
     
     def timing_settings(self, staff_attendance_time_settings: StaffAttendanceTimeSettings):
         main_widget = BaseWidget()
+        main_widget.setContentsMargins(0, 5, 0, 0)
         
         def _make_ct_changed_func(target_time: Time):
             def func(time: QTime):
@@ -717,12 +718,16 @@ class StaffListWidget(BaseScrollListWidget):
             
             _update_cit_sb_limit()
             _update_cot_sb_limit()
+            
+            self.saved_state_changed.emit(True)
         
         def cobm_changed_func(value: int):
             staff_attendance_time_settings.check_out_border_interval_minutes = value
             
             _update_cit_sb_limit()
             _update_cot_sb_limit()
+            
+            self.saved_state_changed.emit(True)
         
         def add_timeline(timeline: Optional[tuple[Period, Period]] = None):
             def remove_func():
@@ -792,6 +797,7 @@ class StaffListWidget(BaseScrollListWidget):
         timeline_editing_widget = BaseWidget()
         timeline_editing_widget.setProperty("class", "DarkendBG1")
         timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
+        timeline_editing_widget.setFixedHeight(350)
         
         timeline_widget = BaseScrollWidget()
         timeline_widget.setSpacing(15)
@@ -811,7 +817,7 @@ class StaffListWidget(BaseScrollListWidget):
         main_widget.addWidget(time_widget)
         main_widget.addWidget(time_border_widget)
         
-        return main_widget, IconToolBarOption(title=f"<span style='background-color: {THEME_MANAGER.process_stylesheet("{mute-bg}")};'>Timelines</span>", content=timeline_editing_widget)
+        return main_widget, IconToolBarOption(title=f"Timelines", content=timeline_editing_widget, default_bg=THEME_MANAGER.process_stylesheet("{pressed__bg3}"))
     
     def get_filtered_widgets(
         self,
@@ -971,6 +977,9 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
                         teacher_data[subject.id] = [t_data]
                     
                     teacher_data[subject.id].append(t_data)
+                    
+                    if subject.id not in self.teacher_dep_widgets:
+                        self.add_subject(subject.id)
         
         if teacher_data:
             index = 0
@@ -1046,6 +1055,9 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
                 if data is not None:
                     teacher_data[subject.id] = data
                 
+                if subject.id not in self.teacher_info_widgets:
+                    self.add_subject(subject.id)
+                
                 self.teacher_info_widgets[subject.id].clear()
         
         if teacher_data:
@@ -1066,5 +1078,4 @@ class PunctualityGraphWidget(BaseDataDisplayWidget):
         
         if y_plot_points:
             return staff.name.short(), y_plot_points
-
 

@@ -1,7 +1,7 @@
 import math
 import random
 import importlib
-from typing import Any
+from typing import TypeVar
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
 
@@ -9,6 +9,7 @@ from os import PathLike
 
 from core.timing_and_timetable import *
 
+_T = TypeVar("_T")
 
 class ID(str):
     def __init__(self, *args, **kwargs):
@@ -78,11 +79,9 @@ class Entry:
     
     name: Name
 @dataclass
-class AttendanceEntry:
+class AttendanceEntry[_T]:
     period: Period
-    
-    staff: "Staff"
-    
+    staff: _T
     is_check_in: bool = True
 
 
@@ -309,8 +308,8 @@ class GeneratingData:
     #                              ClassID  SubjectID   Day    DayWeight  PeriodProclivity
     subject_positioning_weights: dict[ID, dict[ID, dict[str, tuple[float, int]]]]
     
-    #                          ClassID  SubjectID    Day  Weight
-    subject_clumping_weights: dict[ID, dict[ID, dict[str, float]]]
+    #                              ClassID    SubjectID    Day  Weight
+    subject_clumping_weights: dict[CLASS_ID, dict[ID, dict[str, float]]]
     
     #                    LevelID             SubjectID    ClassIDs
     combined_subjects: dict[ID, list[tuple[list[ID], list[CLASS_ID]]]]
@@ -510,7 +509,7 @@ class Timetable:
             #     score += space_left * 10
             
             score += (day_weight or 0) * 10
-            score += ((1 - (abs(period_proclivity - p_index) if period_proclivity else 0) / period_amt)) * 10
+            score += ((1 - (abs(period_proclivity - (p_index + 1)) if period_proclivity else 0) / period_amt)) * 10
             
             score += (1 - (p_index / period_amt)) * 20
             
@@ -547,6 +546,11 @@ class Timetable:
         
         if self.gen_data.randomize[self.cls.id]:
             random.shuffle(self.table_remains)
+        else:
+            self.table_remains.sort(
+                key=lambda s: self.cls.level.subjects_occurence[s.id].week_max * self.cls.level.subjects_occurence[s.id].day_max + (self.cls.id in self.gen_data.subject_positioning_weights and s.id in self.gen_data.subject_positioning_weights[self.cls.id]) * 3,
+                reverse=True
+            )
         
         for subject in self.table_remains.copy():
             scores = self._sps(subject.id)

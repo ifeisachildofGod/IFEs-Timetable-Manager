@@ -671,7 +671,7 @@ class EditableCancelableEntry(BaseWidget):
         self.input.setProperty("class", "OptionEdit")
         self.input.setText(f"<span>{"<br>".join(wrapify_text(self.text, 10))}</span>")
         self.input.setPlaceholderText("Enter option")
-        self.input.setFixedWidth(100)  # Fix input width
+        self.input.setFixedWidth(110)  # Fix input width
         self.input.returnPressed.connect(self.input.clearFocus)
         self.input.editingFinished.connect(self.finish_editing)
         
@@ -685,7 +685,7 @@ class EditableCancelableEntry(BaseWidget):
         
         # Label mode widget
         self.label = QLabel(self.text)
-        self.label.setMinimumWidth(100)
+        self.label.setMinimumWidth(110)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.mousePressEvent = lambda _: self.started_editing_signal.emit()
         
@@ -695,7 +695,7 @@ class EditableCancelableEntry(BaseWidget):
         self.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignHCenter)
         self.input.hide()
         
-        self.setFixedWidth(130)
+        self.setFixedWidth(140)
         
         self.set_text(self.text)
     
@@ -708,7 +708,7 @@ class EditableCancelableEntry(BaseWidget):
             self.set_text(self.text)
     
     def set_text(self, text: str):
-        self.label.setText(f"<span>{"<br>".join(wrapify_text(text, 10))}</span>")
+        self.label.setText(f"<span>{"<br>".join(wrapify_text(text, 15))}</span>")
     
     def setup_display_mode(self):
         self.label.show()
@@ -1063,7 +1063,8 @@ class IconToolBarOption(BaseWidget):
             content: Callable | list[tuple[str, Callable | dict[str, Callable] | tuple[Callable, Callable]]] | BaseWidget,
             title: Optional[str | QLabel] = None,
             font_size: Optional[int] = None,
-            show_dp_icon: bool = False
+            show_dp_icon: bool = False,
+            default_bg: str = None
         ):
         self._first_press = True
         
@@ -1080,7 +1081,7 @@ class IconToolBarOption(BaseWidget):
         self.STYLESHEET = THEME_MANAGER.process_stylesheet(
             f"""
                 QWidget.IconToolBarOption {{{{
-                    background-color: transparent;
+                    background-color: {default_bg or "transparent"};
                 }}}}
                 
                 QWidget.IconToolBarOption QWidget._TopWidget QLabel.TitleLabel {{{{
@@ -1090,6 +1091,7 @@ class IconToolBarOption(BaseWidget):
                 QWidget.IconToolBarOption QLabel {{{{
                     color: {{text}};
                     font-size: {font_size}px;
+                    background-color: transparent;
                 }}}}
             """
         ) + self.HOVER_STYLESHEET

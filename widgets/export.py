@@ -1,5 +1,13 @@
 
 import csv
+import pandas as pd
+from docx import Document
+from docx.shared import Inches
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle, Image
+
 from io import StringIO
 
 from utils import *
@@ -8,6 +16,7 @@ from AttendanceApp.extra_widgets import TabViewWidget
 
 from .base import *
 from .user_interface import *
+from core.timing_and_timetable import positionify
 
 from PIL import Image as PIL_Image, ImageDraw, ImageFont
 from pathlib import Path
@@ -463,6 +472,16 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     def __init__(self, window: QMainWindow):
         self._window = window
         
+        self.FILE_EXTENSION_TO_NAME_MAPPING = {
+            "PNG": "Png Image Files",
+            "JPG": "Jpeg Image Files",
+            "HTML": "Hypertext Markup Language Files",
+            "CSV": "Comma Separated Value Files",
+            "DOCX": "Microsoft Documents",
+            "XLSX": "Microsoft Excel Spreadsheets",
+            "PDF": "Pdf Files"
+        }
+        
         super().__init__("Export Editor", BaseWidget)
     
     def _init(self, file_manager: FileManager):
@@ -492,9 +511,11 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             QLabel("Physics")
         ]
         
+        self._export_state = None
+        
         central_widget = TabViewWidget()
-        central_widget.setSpacing(0)
-        central_widget.setContentsMargins(5, 0, 5, 0)
+        central_widget.setSpacing(5)
+        central_widget.setContentsMargins(5, 5, 5, 0)
         
         self.preview_button = QPushButton("Preview")
         
@@ -506,8 +527,18 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         bottom_widget = self._initBottomWidget()
         
-        central_widget.add("Timetable", timetable_widget, lambda _: self.preview_button.setVisible(True))
-        central_widget.add("Attendance", attendance_widget, lambda _: self.preview_button.setVisible(False))
+        def changed_to_timetable(_):
+            self._export_state = "TIMETABLE"
+            self.preview_button.setVisible(True)
+        
+        def changed_to_attendance(_):
+            self._export_state = "ATTENDANCE"
+            self.preview_button.setVisible(False)
+        
+        central_widget.add("Timetable", timetable_widget, changed_to_timetable)
+        central_widget.add("Attendance", attendance_widget, changed_to_attendance)
+        
+        changed_to_timetable(None)
         
         self.addWidget(central_widget)
         self.addWidget(bottom_widget)
@@ -520,6 +551,19 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         self.__init = False
     
     def _initBottomWidget(self):
+        def export_func():
+            if self._export_state == "TIMETABLE":
+                export_type = min(1, SCHOOL.settings.EXPORT_timetable_export_theme.export_mode)
+                export_file_type = self.eft_cb.currentText()
+            elif self._export_state == "ATTENDANCE":
+                export_type = 0
+                export_file_type = SCHOOL.settings.EXPORT_attendance_settings.export_file_type
+            
+            self.file_manager.export(
+                export_type,
+                f"{self.FILE_EXTENSION_TO_NAME_MAPPING[export_file_type.upper()]} (*.{export_file_type.lower()})"
+            )
+        
         base_widget = BaseWidget(QHBoxLayout)
         base_widget.setProperty("class", "DarkenedBG1 BorderedTop")
         
@@ -538,7 +582,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         self.export_button = QPushButton("Export")
         self.export_button.setDisabled(True)
-        self.export_button.clicked.connect(lambda: self.file_manager.export(min(SCHOOL.settings.EXPORT_timetable_export_theme.export_mode, 1), f"{self.eft_cb.currentText().upper()} Files (*.{self.eft_cb.currentText().lower()})"))
+        self.export_button.clicked.connect(export_func)
         
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.close)
@@ -552,7 +596,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initSideBarWidget(self):
         side_bar_widget = BaseWidget()
-        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar BorderedRight")
+        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar BorderedRight BorderedTop")
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
         
@@ -753,7 +797,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         ep_widget = BaseWidget()
         
         self.attendance_eft_cb = QComboBox()
-        self.attendance_eft_cb.addItems(["CSV", "MSIX", "XLSX", "PDF"])
+        self.attendance_eft_cb.addItems(["CSV", "DOCX", "XLSX", "PDF"])
         self.attendance_eft_cb.setCurrentText(SCHOOL.settings.EXPORT_attendance_settings.export_file_type)
         self.attendance_eft_cb.currentTextChanged.connect(attendance_eft_func)
         
@@ -764,10 +808,10 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         ei_widget.addWidget(ei_sn_cb := QCheckBox("Use Abbreviation"))
         ei_widget.addWidget(ei_di_cb := QCheckBox("Duty Information"))
         ei_widget.addWidget(ei_ps_cb := QCheckBox("Punctuality Score"))
-        ei_widget.addWidget(ei_aa_cb := QCheckBox("Attendance Amount"))
-        ei_widget.addWidget(ei_as_cb := QCheckBox("Attendance Score"))
+        ei_widget.addWidget(ei_asn_cb := QCheckBox("Attendance Serial Number"))
+        ei_widget.addWidget(ei_ipi_cb := QCheckBox("Include Profile Image/Image Path"))
         
-        extra_info_cbs = [ei_id_cb, ei_sn_cb, ei_di_cb, ei_ps_cb, ei_aa_cb, ei_as_cb]
+        extra_info_cbs = [ei_id_cb, ei_sn_cb, ei_di_cb, ei_ps_cb, ei_asn_cb, ei_ipi_cb]
         
         for i, cb in enumerate(extra_info_cbs):
             cb.setChecked(SCHOOL.settings.EXPORT_attendance_settings.special_booleans[i])
@@ -934,216 +978,339 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         return c_widget
     
     def export_callback(self, path: str, file_type=None, a0=None):
-        self._set_timetable_export_theme()
-        
-        file_type = file_type or SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type
-        subject_count = str(max(cls_level.period_amount for cls_level in SCHOOL.class_levels.values()))
-        
-        html_style_replacements = dict(
-            cls_title_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme.stylesheet.replace(";", ";\n\t\t"),
-            ttbl_content_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme.stylesheet.replace(";", ";\n\t\t"),
-            weekday_text_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme.stylesheet.replace(";", ";\n\t\t"),
-            
-            ttbl_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color,
-            ttbl_content_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color,
-            ttbl_heading_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color,
-            break_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color,
-            border_color=SCHOOL.settings.EXPORT_timetable_export_theme.border_color,
-            
-            border_horizontal_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness),
-            border_vertical_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
-        )
-        
-        if file_type == "JPG":
-            for surface, p in self.export_callback(path, "PNG", True):
-                img = surface.image.convert("RGB")
+        match self._export_state:
+            case "TIMETABLE":
+                self._set_timetable_export_theme()
                 
-                img.save(p.strip().removesuffix(".png") + ".jpg", quality=100)
-        else:
-            _l: list[tuple[_Surface, str]] = []
-            internal = a0 is not None and a0 == True
-            
-            if SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 0:
-                if file_type == "HTML":
-                    body = ""
+                file_type = file_type or SCHOOL.settings.EXPORT_timetable_export_theme.export_file_type
+                subject_count = str(max(cls_level.period_amount for cls_level in SCHOOL.class_levels.values()))
+                
+                html_style_replacements = dict(
+                    cls_title_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.cls_title_text_theme.stylesheet.replace(";", ";\n\t\t"),
+                    ttbl_content_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_text_theme.stylesheet.replace(";", ";\n\t\t"),
+                    weekday_text_font_style=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_text_theme.stylesheet.replace(";", ";\n\t\t"),
                     
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
-                            body += get_export_html_text(cls).format(**html_style_replacements)
+                    ttbl_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_bg_color,
+                    ttbl_content_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_content_bg_color,
+                    ttbl_heading_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.ttbl_heading_bg_color,
+                    break_bg_color=SCHOOL.settings.EXPORT_timetable_export_theme.break_bg_color,
+                    border_color=SCHOOL.settings.EXPORT_timetable_export_theme.border_color,
+                    
+                    border_horizontal_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.horizontal_line_thickness),
+                    border_vertical_width=str(SCHOOL.settings.EXPORT_timetable_export_theme.vertical_line_thickness)
+                )
+                
+                if file_type == "JPG":
+                    for surface, p in self.export_callback(path, "PNG", True):
+                        img = surface.image.convert("RGB")
                         
-                    html = HTML_TEXT.format(title="School", body=body, subject_count=subject_count, **html_style_replacements)
+                        img.save(p.strip().removesuffix(".png") + ".jpg", quality=100)
+                else:
+                    _l: list[tuple[_Surface, str]] = []
+                    internal = a0 is not None and a0 == True
                     
-                    with open(path, "w") as file:
-                        file.write(html)
-                elif file_type == "PNG":
-                    surfs: list[_Surface] = []
-                    
-                    width = 0
-                    height = 0
-                    
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                    if SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 0:
+                        if file_type == "HTML":
+                            body = ""
                             
-                            cls_surf = get_export_surface(cls)
-                            
-                            width = max(width, cls_surf.width)
-                            height += cls_surf.height
-                            
-                            surfs.append(cls_surf)
-                    
-                    screen = _Surface((width, height))
-                    screen.fill("white")
-                    
-                    y = 0
-                    for surf in surfs:
-                        screen.blit(surf.image, (0, y))
-                        
-                        y += surf.height
-                    
-                    if internal:
-                        _l.append((screen, path))
-                    else:
-                        screen.save(path)
-                elif file_type == "CSV":
-                    output = StringIO()
-                    writer = csv.writer(output)
-                    
-                    _first_added = False
-                    
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
-                            
-                            if cls.id not in SCHOOL.settings.EXPORT_selected_classes:
-                                if _first_added:
-                                    writer.writerow([])
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    body += get_timetable_export_html_text(cls).format(**html_style_replacements)
                                 
-                                writer.writerow([f"{cls_level.name.full()} {cls.name}"])
-                                write_export_csv(writer, cls)
-                                
-                                _first_added = True
-                    
-                    with open(path, "w", newline="", encoding="utf-8") as file:
-                        file.write(output.getvalue().strip())
-            elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 1:
-                if file_type == "HTML":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        body = ""
-                        
-                        for cls_id in cls_ids:
-                            cls = cls_level.classes[cls_id]
-                            body += get_export_html_text(cls).format(**html_style_replacements)
-                        
-                        html = HTML_TEXT.format(title=cls_level.name.full(), body=body, subject_count=subject_count, **html_style_replacements)
-                        
-                        with open(path + f"/{cls_level.name.full()}.html", "w") as file:
-                            file.write(html)
-                elif file_type == "PNG":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        surfs: list[_Surface] = []
-                        
-                        width = 0
-                        height = 0
-                        
-                        for cls_id in cls_ids:
-                            cls = cls_level.classes[cls_id]
+                            html = HTML_TEXT.format(title="School", body=body, subject_count=subject_count, **html_style_replacements)
                             
-                            cls_surf = get_export_surface(cls)
-                            
-                            width = max(width, cls_surf.width)
-                            height += cls_surf.height
-                            
-                            surfs.append(cls_surf)
-                        
-                        screen = _Surface((width, height))
-                        screen.fill("white")
-                        
-                        y = 0
-                        for surf in surfs:
-                            screen.blit(surf.image, (0, y))
-                            
-                            y += surf.height
-                        
-                        p = path + f"/{cls_level.name.full()}.png"
-                        
-                        if internal:
-                            _l.append((screen, p))
-                        else:
-                            screen.save(p)
-                elif file_type == "CSV":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        output = StringIO()
-                        writer = csv.writer(output)
-                        
-                        _first_added = False
-                        
-                        for cls_id in cls_ids:
-                            cls = cls_level.classes[cls_id]
-                            
-                            if _first_added:
-                                writer.writerow([])
-                            
-                            writer.writerow([f"{cls_level.name.full()} {cls.name}"])
-                            write_export_csv(writer, cls)
-                            
-                            _first_added = True
-                        
-                        with open(f"{path}/{cls_level.name.full()}.csv", "w", newline="", encoding="utf-8") as file:
-                            file.write(output.getvalue().strip())
-            elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 2:
-                if file_type == "HTML":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
-                            
-                            body = get_export_html_text(cls).format(**html_style_replacements)
-                            html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body, subject_count=subject_count, **html_style_replacements)
-                            
-                            with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                            with open(path, "w") as file:
                                 file.write(html)
-                elif file_type == "PNG":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                        elif file_type == "PNG":
+                            surfs: list[_Surface] = []
                             
-                            p = path + f"/{cls_level.name.full()} {cls.name}.png"
-                            screen = get_export_surface(cls)
+                            width = 0
+                            height = 0
+                            
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    
+                                    cls_surf = get_timetable_export_surface(cls)
+                                    
+                                    width = max(width, cls_surf.width)
+                                    height += cls_surf.height
+                                    
+                                    surfs.append(cls_surf)
+                            
+                            screen = _Surface((width, height))
+                            screen.fill("white")
+                            
+                            y = 0
+                            for surf in surfs:
+                                screen.blit(surf.image, (0, y))
+                                
+                                y += surf.height
                             
                             if internal:
-                                _l.append((screen, p))
+                                _l.append((screen, path))
                             else:
-                                screen.save(p)
-                elif file_type == "CSV":
-                    for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
-                        cls_level = SCHOOL.class_levels[cls_level_id]
-                        
-                        for cls_id in cls_ids:
-                            cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
-                            
+                                screen.save(path)
+                        elif file_type == "CSV":
                             output = StringIO()
                             writer = csv.writer(output)
                             
-                            write_export_csv(writer, cls)
+                            _first_added = False
                             
-                            with open(f"{path}/{cls_level.name.full()} {cls.name}.csv", "w", newline="", encoding="utf-8") as file:
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    
+                                    if cls.id not in SCHOOL.settings.EXPORT_selected_classes:
+                                        if _first_added:
+                                            writer.writerow([])
+                                        
+                                        writer.writerow([f"{cls_level.name.full()} {cls.name}"])
+                                        write_timetable_export_csv(writer, cls)
+                                        
+                                        _first_added = True
+                            
+                            with open(path, "w", newline="", encoding="utf-8") as file:
                                 file.write(output.getvalue().strip())
-            
-            if internal:
-                return _l
+                    elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 1:
+                        if file_type == "HTML":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                body = ""
+                                
+                                for cls_id in cls_ids:
+                                    cls = cls_level.classes[cls_id]
+                                    body += get_timetable_export_html_text(cls).format(**html_style_replacements)
+                                
+                                html = HTML_TEXT.format(title=cls_level.name.full(), body=body, subject_count=subject_count, **html_style_replacements)
+                                
+                                with open(path + f"/{cls_level.name.full()}.html", "w") as file:
+                                    file.write(html)
+                        elif file_type == "PNG":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                surfs: list[_Surface] = []
+                                
+                                width = 0
+                                height = 0
+                                
+                                for cls_id in cls_ids:
+                                    cls = cls_level.classes[cls_id]
+                                    
+                                    cls_surf = get_timetable_export_surface(cls)
+                                    
+                                    width = max(width, cls_surf.width)
+                                    height += cls_surf.height
+                                    
+                                    surfs.append(cls_surf)
+                                
+                                screen = _Surface((width, height))
+                                screen.fill("white")
+                                
+                                y = 0
+                                for surf in surfs:
+                                    screen.blit(surf.image, (0, y))
+                                    
+                                    y += surf.height
+                                
+                                p = path + f"/{cls_level.name.full()}.png"
+                                
+                                if internal:
+                                    _l.append((screen, p))
+                                else:
+                                    screen.save(p)
+                        elif file_type == "CSV":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                output = StringIO()
+                                writer = csv.writer(output)
+                                
+                                _first_added = False
+                                
+                                for cls_id in cls_ids:
+                                    cls = cls_level.classes[cls_id]
+                                    
+                                    if _first_added:
+                                        writer.writerow([])
+                                    
+                                    writer.writerow([f"{cls_level.name.full()} {cls.name}"])
+                                    write_timetable_export_csv(writer, cls)
+                                    
+                                    _first_added = True
+                                
+                                with open(f"{path}/{cls_level.name.full()}.csv", "w", newline="", encoding="utf-8") as file:
+                                    file.write(output.getvalue().strip())
+                    elif SCHOOL.settings.EXPORT_timetable_export_theme.export_mode == 2:
+                        if file_type == "HTML":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    
+                                    body = get_timetable_export_html_text(cls).format(**html_style_replacements)
+                                    html = HTML_TEXT.format(title=f"{cls_level.name.full()} {cls.name}", body=body, subject_count=subject_count, **html_style_replacements)
+                                    
+                                    with open(path + f"/{cls_level.name.full()} {cls.name}.html", "w") as file:
+                                        file.write(html)
+                        elif file_type == "PNG":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    
+                                    p = path + f"/{cls_level.name.full()} {cls.name}.png"
+                                    screen = get_timetable_export_surface(cls)
+                                    
+                                    if internal:
+                                        _l.append((screen, p))
+                                    else:
+                                        screen.save(p)
+                        elif file_type == "CSV":
+                            for cls_level_id, cls_ids in SCHOOL.settings.EXPORT_selected_classes.items():
+                                cls_level = SCHOOL.class_levels[cls_level_id]
+                                
+                                for cls_id in cls_ids:
+                                    cls = SCHOOL.class_levels[cls_level_id].classes[cls_id]
+                                    
+                                    output = StringIO()
+                                    writer = csv.writer(output)
+                                    
+                                    write_timetable_export_csv(writer, cls)
+                                    
+                                    with open(f"{path}/{cls_level.name.full()} {cls.name}.csv", "w", newline="", encoding="utf-8") as file:
+                                        file.write(output.getvalue().strip())
+                    
+                    if internal:
+                        return _l
+            case "ATTENDANCE":
+                file_type = SCHOOL.settings.EXPORT_attendance_settings.export_file_type
+                export_attendance_header, all_export_attendance_data = get_export_attendance_data(SCHOOL.attendance.attendance_data)
+                
+                match file_type:
+                    case "CSV":
+                        output = StringIO()
+                        writer = csv.writer(output)
+                        
+                        writer.writerow(export_attendance_header)
+                        for export_attendance_data in all_export_attendance_data:
+                            writer.writerow([(data if not isinstance(data, tuple) else "||".join([(str(v) if not isinstance(value, list) else ",".join(value)) for v in data[1]])) for data in export_attendance_data])
+                        
+                        with open(path, "w", newline="", encoding="utf-8") as file:
+                            file.write(output.getvalue().strip())
+                    case "DOCX":
+                        doc = Document()
+                        doc.add_heading("Attendance Data", level=1)
+                        
+                        table = doc.add_table(rows=1, cols=len(export_attendance_header))
+                        table.style = "Table Grid"
+                        
+                        for i, header in enumerate(export_attendance_header):
+                            table.rows[0].cells[i].text = str(header)
+                        
+                        for row_data in all_export_attendance_data:
+                            cells = table.add_row().cells
+                            
+                            for i, value in enumerate(row_data):
+                                if not isinstance(value, tuple):
+                                    if not isinstance(value, Path):
+                                        cells[i].text = str(value)
+                                    else:
+                                        cells[i].paragraphs[0].add_run().add_picture(str(value), width=Inches(1.2), height=Inches(1.2))
+                                else:
+                                    headers, inner_values = value
+                                    
+                                    inner_table = cells[i].add_table(rows=1, cols=len(headers))
+                                    
+                                    for j, header in enumerate(headers):
+                                        inner_table.rows[0].cells[j] = header
+                                    
+                                    for sub_value in inner_values:
+                                        inner_cels = inner_table.add_row().cells
+                                        
+                                        if not isinstance(sub_value, list):
+                                            inner_cels[0].text = sub_value
+                                        else:
+                                            for j, sub_value_row_data in enumerate(sub_value):
+                                                inner_cels[j].text = sub_value_row_data
+                        
+                        doc.save(path)
+                    case "XLSX":
+                        df = pd.DataFrame(
+                            [
+                                [
+                                    (
+                                        sub_export_attendance_data
+                                        if not isinstance(sub_export_attendance_data, tuple) else
+                                        "\n".join([
+                                            (str(v) if not isinstance(v, list) else " | ".join(v))
+                                            for v in
+                                            sub_export_attendance_data[1]
+                                        ])
+                                    )
+                                    for sub_export_attendance_data in
+                                    export_attendance_data
+                                ]
+                                for export_attendance_data in
+                                all_export_attendance_data
+                            ],
+                            columns=export_attendance_header
+                        )
+                        
+                        df.to_excel(path, index=False)
+                    case "PDF":
+                        wrap_style = getSampleStyleSheet().styles["Normal"]
+                        wrap_style.fontSize = 9
+                        wrap_style.leading = 11
+                        
+                        def wrap(text: str):
+                            return Paragraph(str(text), wrap_style)
+                        
+                        processed_export_attendance_data = [export_attendance_header]
+                        
+                        for export_attendance_data in all_export_attendance_data:
+                            processed_export_attendance_data.append([])
+                            
+                            for sub_export_attendance_data in export_attendance_data:
+                                if not isinstance(sub_export_attendance_data, tuple):
+                                    processed_export_attendance_data[-1].append(
+                                        wrap(sub_export_attendance_data)
+                                        if not isinstance(sub_export_attendance_data, Path) else
+                                        Image(str(sub_export_attendance_data), width=80, height=80)
+                                    )
+                                else:
+                                    sub_header, sub_export_attendance_data = sub_export_attendance_data
+                                    
+                                    inner_table = Table([[wrap(v) for v in sub_header]] + [(wrap(l) if not isinstance(l, list) else [wrap(v) for v in l]) for l in sub_export_attendance_data], colWidths=[60, 40])
+                                    inner_table.setStyle(TableStyle([
+                                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                                        ("TEXTCOLOR", (0, 0), (-1, -1), 0.5, colors.black),
+                                        ("FONTSIZE", (0, 0), (-1, -1), 8),
+                                        ("GRID", (0, 0), (-1, -1), "CENTER")
+                                    ]))
+                                    
+                                    processed_export_attendance_data[-1].append(inner_table)
+                        
+                        pdf = SimpleDocTemplate(path, pagesize=letter)
+                        table = Table(processed_export_attendance_data, colWidths=[80, 40, 120])
+                        
+                        table.setStyle(TableStyle([
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("FONTSIZE", (0, 0), (-1, -1), 9)
+                        ]))
+                        
+                        pdf.build([table])
         
         QMessageBox.information(self, "Export", "Export Successful")
     
@@ -1185,8 +1352,9 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         
         return super().closeEvent(a0)
 
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def write_export_csv(writer, cls: Class):
+def write_timetable_export_csv(writer, cls: Class):
     timetable = cls.timetable.table
     timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
@@ -1267,7 +1435,7 @@ HTML_TEXT = f"""
 
 
 FONTS: dict[int, ImageFont.FreeTypeFont] = {}
-TTBL_X_MARGIN, TTBL_Y_MARGIN, TTBL_EXPORT_CELL_X_MARGIN, TTBL_EXPORT_CELL_Y_MARGIN = 100, 200, 10, 5
+TTBL_X_MARGIN, TTBL_Y_MARGIN, TTBL_EXPORT_CELL_X_MARGIN, TTBL_EXPORT_CELL_Y_MARGIN = 100, 200, 20, 5
 
 
 class _Rect:
@@ -1520,7 +1688,7 @@ def _draw_line(surface, color, start, end, width=1):
     )
 
 
-def get_export_surface(cls: Class):
+def get_timetable_export_surface(cls: Class):
     timetable = cls.timetable.table
     export_theme = SCHOOL.settings.EXPORT_timetable_export_theme
     
@@ -1703,7 +1871,7 @@ def get_export_surface(cls: Class):
     
     return screen
 
-def get_export_html_text(cls: Class):
+def get_timetable_export_html_text(cls: Class):
     timetable = cls.timetable.table
     timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
     
@@ -1748,5 +1916,102 @@ def get_export_html_text(cls: Class):
             {ttbl_text}
         </div>
     """
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def get_export_attendance_data(attendance_entries: list[AttendanceEntry]):
+    att_settings = SCHOOL.settings.EXPORT_attendance_settings
+    
+    start_window = att_settings.start_limit_period
+    end_window = att_settings.end_limit_period
+    
+    include_ID, use_abbreviation, duty_information, punctuality_score, attendance_sn, include_img_path = att_settings.special_booleans
+    
+    headers = ["Name", "Date", "Attendance State"]
+    
+    if include_img_path:
+        headers.insert(1, "Image")
+    
+    if attendance_sn:
+        headers.insert(0, "Attendance S/N")
+    
+    if include_ID:
+        headers.insert(0, "ID")
+    
+    if punctuality_score:
+        headers.insert(-1, "Punctuality Score")
+    
+    if duty_information:
+        headers.insert(-1, "Duties")
+    
+    export_entries = []
+    
+    for entry in attendance_entries:
+        if start_window and end_window:
+            valid = start_window.in_seconds() <= entry.period.in_seconds() <= end_window.in_seconds()
+        elif start_window:
+            valid = entry.period.in_seconds() >= start_window.in_seconds()
+        elif end_window:
+            valid = entry.period.in_seconds() <= end_window.in_seconds()
+        else:
+            valid = True
+        
+        if not valid:
+            continue
+        
+        data = [entry.staff.name.full() if not entry.staff.name.abbrev or not use_abbreviation else entry.staff.name.abbrev, str(entry.period), "Check In" if entry.is_check_in else "Check Out"]
+        
+        if include_img_path:
+            data.insert(1, Path(entry.staff.img_path))
+        
+        if attendance_sn:
+            data.insert(0, entry.staff.attendance.index(entry) + 1)
+        
+        if include_ID:
+            data.insert(0, entry.staff.id)
+        
+        if punctuality_score:
+            if isinstance(entry.staff, Prefect):
+                att_t_settings = SCHOOL.attendance.prefect_attendance_time_settings
+            elif isinstance(entry.staff, Teacher):
+                att_t_settings = SCHOOL.attendance.teacher_attendance_time_settings
+            
+            if entry.is_check_in:
+                c_time = att_t_settings.check_in_time
+                cbim = att_t_settings.check_in_border_interval_minutes
+            else:
+                c_time = att_t_settings.check_out_time
+                cbim = att_t_settings.check_out_border_interval_minutes
+            
+            data.insert(-1, round(((c_time.in_minutes() - entry.period.time.in_minutes()) / cbim) + 1, 4))
+        
+        if duty_information:
+            duties = []
+            
+            if isinstance(entry.staff, Prefect):
+                if entry.period.day in entry.staff.duties:
+                    duties.extend(entry.staff.duties[entry.period.day])
+            elif isinstance(entry.staff, Teacher):
+                for s_id, subject in entry.staff.subjects.items():
+                    for cls in subject.classes.values():
+                        if entry.period.day in cls.timetable.table:
+                            if s_id in cls.subjects and next((s for s in enumerate(cls.timetable.table[entry.period.day]) if s.id == s_id), None):
+                                if cls.subjects[s_id].teacher is not None and cls.subjects[s_id].teacher.id == entry.staff.id:
+                                    for i, s in enumerate(cls.timetable.table[entry.period.day]):
+                                        if s.id == s_id:
+                                            duties.append(f"{subject.name.full()}, {entry.period.day} {positionify(i + 1)}")
+                            else:
+                                for comb_s_id, comb_s in cls.subjects.items():
+                                    if isinstance(comb_s, CombinedSubject) and next((s for s in enumerate(cls.timetable.table[entry.period.day]) if s.id == comb_s_id), None) and s_id in comb_s.classes and next((s_s for s_s in s.subjects if s_s.id == s_id and s_s.teacher is not None and s_s.teacher.id == entry.staff.id), None):
+                                        for i, s in enumerate(cls.timetable.table[entry.period.day]):
+                                            if s.id == comb_s_id:
+                                                duties.append(f"{subject.name.full()}, {entry.period.day} {positionify(i + 1)}")
+            
+            data.insert(-1, duties)
+        
+        export_entries.append(data)
+    
+    return headers, export_entries
+
 
 
