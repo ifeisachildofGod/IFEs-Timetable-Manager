@@ -240,17 +240,28 @@ class Window(QMainWindow):
         self._open_file_type = arg
     
     def _get_cmd_actions(self):
-        cmd_actions = {
-            "NEW": self.file.new,
-            "OPEN": self.file.open,
-            "SAVE": self.file.save,
-            "SAVE-AS": self.file.save_as,
-            "QUIT": self.close,
+        def restart():
+            self.close()
             
-            "HELP": lambda: print("Not Implemented")
+            print()
+            
+            if getattr(sys, "frozen", False):
+                subprocess.run(f'"{sys.executable}" {" ".join(self.arguments)}', shell=True)
+            else:
+                subprocess.run(f'"{sys.executable}" {" ".join(self.arguments)}', shell=True)
+        
+        cmd_actions = {
+            "new": self.file.new,
+            "open": self.file.open,
+            "save": self.file.save,
+            "save_as": self.file.save_as,
+            "quit": self.close,
+            "restart": restart,
+            
+            "help": lambda: print("Not Implemented")
         }
         
-        cmd_actions.update({n.lower(): f for n, f in cmd_actions.items()})
+        cmd_actions.update(cmd_actions)
         
         return cmd_actions
     
@@ -332,8 +343,13 @@ class Window(QMainWindow):
         if cmd.strip():
             key, *values = cmd.split()
             
-            if key in self.CMD_ACTIONS:
-                self.CMD_ACTIONS[key](*[self._parse_string_arg(arg) for arg in values])
+            args = [self._parse_string_arg(arg) for arg in values]
+            
+            if (
+                (func := self.CMD_ACTIONS.get(key, None)) is not None or
+                (func := next((v for k, v in self.CMD_ACTIONS.items() if isinstance(k, tuple) and key in k), None)) is not None
+            ):
+                func(*args)
     
     def load(self):
         try:

@@ -26,8 +26,9 @@ class UnMouseableOverlay(BaseWidget):
         
         for cls, day, row, color, subject in self.rects:
             col = list(SCHOOL.class_levels[cls.level.id].weekdays).index(day)
+            ttbl_rect = self.get_class_timetable_rect(cls)
             
-            rect = self.get_class_timetable_cell_rect(cls, row, col)
+            rect = self.get_class_timetable_cell_rect(ttbl_rect, cls, row, col)
             
             painter.setBrush(color)
             painter.drawRoundedRect(rect, 3, 3)
@@ -45,21 +46,23 @@ class UnMouseableOverlay(BaseWidget):
             self.hide()
     
     def get_class_timetable_rect(self, cls: Class):
+        lvl_widg = self.editor.classes_widget[cls.level.id][0]
         widg = self.editor.classes_widget[cls.level.id][1][cls.id]
         cls_ttbl = self.editor.timetable_widgets[cls.level.id][cls.id]
         
-        return QRect(cls_ttbl.x() + 36 + 82, widg.y() + cls_ttbl.y() + 120 + 40, cls_ttbl.rect().width() - 82, cls_ttbl.rect().height() - 40)
-    
-    def get_class_timetable_cell_rect(self, cls: Class, row: int, col: int):
-        ttbl_rect = self.get_class_timetable_rect(cls)
+        calc_x = lvl_widg.x() + widg.x() + cls_ttbl.x() + self.editor.scroll_widget.x() + self.editor.central_widget.x() + cls_ttbl.verticalHeader().width()
+        calc_y = lvl_widg.y() + widg.y() + cls_ttbl.y() + self.editor.scroll_widget.y() + self.editor.central_widget.y() + cls_ttbl.horizontalHeader().height() + self.editor.settings_widget.rect().height()
         
+        return QRect(calc_x, calc_y - 22, cls_ttbl.rect().width() - cls_ttbl.verticalHeader().width(), cls_ttbl.rect().height() - cls_ttbl.horizontalHeader().height())
+    
+    def get_class_timetable_cell_rect(self, rect: QRect, cls: Class, row: int, col: int):
         x_max = len(SCHOOL.class_levels[cls.level.id].weekdays)
         y_max = cls.level.period_amount
         
-        cell_width = ttbl_rect.width() / x_max
-        cell_height = ttbl_rect.height() / y_max
-        cell_x = ttbl_rect.x() + col * cell_width
-        cell_y = ttbl_rect.y() + row * cell_height
+        cell_width = rect.width() / x_max
+        cell_height = rect.height() / y_max
+        cell_x = rect.x() + col * cell_width
+        cell_y = rect.y() + row * cell_height
         
         return QRectF(cell_x, cell_y, cell_width, cell_height)
 
@@ -83,10 +86,12 @@ class ClashOverlay(UnMouseableOverlay):
             clash_rects.append([None, []])
             
             for cls in classes:
+                ttbl_rect = self.get_class_timetable_rect(cls)
+                
                 col = list(SCHOOL.class_levels[cls.level.id].weekdays).index(day)
                 positions_connections_alignment_mappings[day] = 0
                 
-                clash_rects[-1][1].append((self.get_class_timetable_cell_rect(cls, row, col), SCHOOL.subjects[s_id], day))
+                clash_rects[-1][1].append((self.get_class_timetable_cell_rect(ttbl_rect, cls, row, col), SCHOOL.subjects[s_id], day))
             
             cls_index = list(classes[0].level.classes).index(classes[0].id)
             
@@ -134,11 +139,12 @@ class IslandOverlay(UnMouseableOverlay):
         
         for cls_id, (cls_level, islands) in SCHOOL.detect_islands().items():
             cls = cls_level.classes[cls_id]
+            ttbl_rect = self.get_class_timetable_rect(cls)
             
             for s_id, day, row in islands:
                 col = list(SCHOOL.class_levels[cls_level.id].weekdays).index(day)
                 
-                island_rect = self.get_class_timetable_cell_rect(cls, row, col)
+                island_rect = self.get_class_timetable_cell_rect(ttbl_rect, cls, row, col)
                 
                 painter.setBrush(QColor(THEME_MANAGER.process_stylesheet("{fg1}")))
                 painter.drawRoundedRect(island_rect, 5, 5)

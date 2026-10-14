@@ -316,7 +316,6 @@ class ColorComboBox(IconToolBarOption):
         
         self._color = str_color
 
-
 class ExportPreviewDialog(BaseDialogWidget):
     def __init__(
         self,
@@ -467,7 +466,6 @@ class ExportPreviewDialog(BaseDialogWidget):
         
         return super().exec()
 
-
 class ExportsEditorDialogWidget(BaseDialogWidget):
     def __init__(self, window: QMainWindow):
         self._window = window
@@ -478,7 +476,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             "HTML": "Hypertext Markup Language Files",
             "CSV": "Comma Separated Value Files",
             "DOCX": "Microsoft Documents",
-            "XLSX": "Microsoft Excel Spreadsheets",
             "PDF": "Pdf Files"
         }
         
@@ -797,7 +794,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         ep_widget = BaseWidget()
         
         self.attendance_eft_cb = QComboBox()
-        self.attendance_eft_cb.addItems(["CSV", "DOCX", "XLSX", "PDF"])
+        self.attendance_eft_cb.addItems(["CSV", "DOCX", "PDF"])
         self.attendance_eft_cb.setCurrentText(SCHOOL.settings.EXPORT_attendance_settings.export_file_type)
         self.attendance_eft_cb.currentTextChanged.connect(attendance_eft_func)
         
@@ -1201,7 +1198,17 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                         
                         writer.writerow(export_attendance_header)
                         for export_attendance_data in all_export_attendance_data:
-                            writer.writerow([(data if not isinstance(data, tuple) else "||".join([(str(v) if not isinstance(value, list) else ",".join(value)) for v in data[1]])) for data in export_attendance_data])
+                            exp_data = []
+                            
+                            for cell_value in export_attendance_data:
+                                if not isinstance(cell_value, tuple):
+                                    exp_data.append(cell_value)
+                                else:
+                                    _, cell_table = cell_value
+                                    
+                                    exp_data.append(" | ".join([f"({", ".join(v)})" for v in zip(*cell_table)]))
+                            
+                            writer.writerow(exp_data)
                         
                         with open(path, "w", newline="", encoding="utf-8") as file:
                             file.write(output.getvalue().strip())
@@ -1230,43 +1237,17 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                                     inner_table = cells[i].add_table(rows=1, cols=len(headers))
                                     
                                     for j, header in enumerate(headers):
-                                        inner_table.rows[0].cells[j] = header
+                                        inner_table.rows[0].cells[j].text = header
                                     
-                                    for sub_value in inner_values:
+                                    for sub_value in zip(*inner_values):
                                         inner_cels = inner_table.add_row().cells
                                         
-                                        if not isinstance(sub_value, list):
-                                            inner_cels[0].text = sub_value
-                                        else:
-                                            for j, sub_value_row_data in enumerate(sub_value):
-                                                inner_cels[j].text = sub_value_row_data
+                                        for j, sub_value_row_data in enumerate(sub_value):
+                                            inner_cels[j].text = sub_value_row_data
                         
                         doc.save(path)
-                    case "XLSX":
-                        df = pd.DataFrame(
-                            [
-                                [
-                                    (
-                                        sub_export_attendance_data
-                                        if not isinstance(sub_export_attendance_data, tuple) else
-                                        "\n".join([
-                                            (str(v) if not isinstance(v, list) else " | ".join(v))
-                                            for v in
-                                            sub_export_attendance_data[1]
-                                        ])
-                                    )
-                                    for sub_export_attendance_data in
-                                    export_attendance_data
-                                ]
-                                for export_attendance_data in
-                                all_export_attendance_data
-                            ],
-                            columns=export_attendance_header
-                        )
-                        
-                        df.to_excel(path, index=False)
                     case "PDF":
-                        wrap_style = getSampleStyleSheet().styles["Normal"]
+                        wrap_style = getSampleStyleSheet()["Normal"]
                         wrap_style.fontSize = 9
                         wrap_style.leading = 11
                         
@@ -1286,24 +1267,39 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
                                         Image(str(sub_export_attendance_data), width=80, height=80)
                                     )
                                 else:
-                                    sub_header, sub_export_attendance_data = sub_export_attendance_data
+                                    sub_header, sub_sub_export_attendance_data = sub_export_attendance_data
                                     
-                                    inner_table = Table([[wrap(v) for v in sub_header]] + [(wrap(l) if not isinstance(l, list) else [wrap(v) for v in l]) for l in sub_export_attendance_data], colWidths=[60, 40])
+                                    inner_sub_values = [[wrap(v) for v in value] for value in zip(*sub_sub_export_attendance_data)]
+                                    
+                                    inner_table = Table([[wrap(v) for v in sub_header]] + inner_sub_values)
                                     inner_table.setStyle(TableStyle([
-                                        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                                        ("TEXTCOLOR", (0, 0), (-1, -1), 0.5, colors.black),
+                                        ("BACKGROUND", (0, 0), (-1, 0), colors.darkgrey),
+                                        ("TEXTCOLOR", (0, 0), (-1, -1), 0.5, colors.white),
                                         ("FONTSIZE", (0, 0), (-1, -1), 8),
-                                        ("GRID", (0, 0), (-1, -1), "CENTER")
+                                        ("GRID", (0, 0), (-1, -1), 1, colors.black)
                                     ]))
                                     
                                     processed_export_attendance_data[-1].append(inner_table)
                         
-                        pdf = SimpleDocTemplate(path, pagesize=letter)
-                        table = Table(processed_export_attendance_data, colWidths=[80, 40, 120])
+                        temp_table = Table(processed_export_attendance_data)
+                        table_width, table_height = temp_table.wrap(0, 0)
+                        
+                        margin = 40
+                        page_width, page_height = table_width + margin * 2, table_height + margin * 2
+                        
+                        pdf = SimpleDocTemplate(
+                            path,
+                            pagesize=(page_width, page_height),
+                            leftMargin=margin,
+                            rightMargin=margin,
+                            topMargin=margin,
+                            bottomMargin=margin,
+                        )
+                        table = Table(processed_export_attendance_data)
                         
                         table.setStyle(TableStyle([
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.black),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                             ("GRID", (0, 0), (-1, -1), 1, colors.black),
                             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -1353,19 +1349,6 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         return super().closeEvent(a0)
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-def write_timetable_export_csv(writer, cls: Class):
-    timetable = cls.timetable.table
-    timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
-    
-    if "Everyday" in timings:
-        writer.writerow([""] + timings["Everyday"].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
-    
-    for day, periods in timetable.items():
-        if day in timings:
-            writer.writerow([""] + timings[day].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
-        
-        writer.writerow([day] + [(subject.name.full() if subject.id != FreePeriod.id else "") for subject in periods])
 
 HTML_EXPORT_STYLE = """
     body {{
@@ -1687,6 +1670,7 @@ def _draw_line(surface, color, start, end, width=1):
         width=max(1, int(round(width))),
     )
 
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def get_timetable_export_surface(cls: Class):
     timetable = cls.timetable.table
@@ -1917,6 +1901,19 @@ def get_timetable_export_html_text(cls: Class):
         </div>
     """
 
+def write_timetable_export_csv(writer, cls: Class):
+    timetable = cls.timetable.table
+    timings = SCHOOL.settings.TIMETABLE_time_settings[cls.level.id]
+    
+    if "Everyday" in timings:
+        writer.writerow([""] + timings["Everyday"].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
+    
+    for day, periods in timetable.items():
+        if day in timings:
+            writer.writerow([""] + timings[day].get_timetable_stamps(cls.level.period_amount, cls.level.break_period))
+        
+        writer.writerow([day] + [(subject.name.full() if subject.id != FreePeriod.id else "") for subject in periods])
+
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 def get_export_attendance_data(attendance_entries: list[AttendanceEntry]):
@@ -1927,7 +1924,7 @@ def get_export_attendance_data(attendance_entries: list[AttendanceEntry]):
     
     include_ID, use_abbreviation, duty_information, punctuality_score, attendance_sn, include_img_path = att_settings.special_booleans
     
-    headers = ["Name", "Date", "Attendance State"]
+    headers = ["Name" if not use_abbreviation else "Name (Abbreviation)", "Date", "Status"]
     
     if include_img_path:
         headers.insert(1, "Image")
@@ -1986,26 +1983,33 @@ def get_export_attendance_data(attendance_entries: list[AttendanceEntry]):
             data.insert(-1, round(((c_time.in_minutes() - entry.period.time.in_minutes()) / cbim) + 1, 4))
         
         if duty_information:
-            duties = []
-            
             if isinstance(entry.staff, Prefect):
-                if entry.period.day in entry.staff.duties:
-                    duties.extend(entry.staff.duties[entry.period.day])
+                duties = [entry.period.day], [entry.staff.duties.get(entry.period.day, [])]
             elif isinstance(entry.staff, Teacher):
+                duties = ["Class", "Subject", "Period"], [[], [], []]
+                
                 for s_id, subject in entry.staff.subjects.items():
                     for cls in subject.classes.values():
                         if entry.period.day in cls.timetable.table:
-                            if s_id in cls.subjects and next((s for s in enumerate(cls.timetable.table[entry.period.day]) if s.id == s_id), None):
+                            if s_id in cls.subjects and next((s for s in cls.timetable.table[entry.period.day] if s.id not in (FreePeriod.id, BreakPeriod.id) and s.id == s_id), None):
                                 if cls.subjects[s_id].teacher is not None and cls.subjects[s_id].teacher.id == entry.staff.id:
                                     for i, s in enumerate(cls.timetable.table[entry.period.day]):
-                                        if s.id == s_id:
-                                            duties.append(f"{subject.name.full()}, {entry.period.day} {positionify(i + 1)}")
+                                        if s.id not in (FreePeriod.id, BreakPeriod.id) and s.id == s_id:
+                                            class_category, subj_category, period_category = duties[1]
+                                            
+                                            class_category.append(f"{cls.level.name.full()} {cls.name}")
+                                            subj_category.append(subject.name.full())
+                                            period_category.append(f"{positionify(i + 1)} period")
                             else:
                                 for comb_s_id, comb_s in cls.subjects.items():
-                                    if isinstance(comb_s, CombinedSubject) and next((s for s in enumerate(cls.timetable.table[entry.period.day]) if s.id == comb_s_id), None) and s_id in comb_s.classes and next((s_s for s_s in s.subjects if s_s.id == s_id and s_s.teacher is not None and s_s.teacher.id == entry.staff.id), None):
+                                    if isinstance(comb_s, CombinedSubject) and next((s for s in cls.timetable.table[entry.period.day] if s.id not in (FreePeriod.id, BreakPeriod.id) and s.id == comb_s_id), None) and s_id in comb_s.classes and next((s_s for s_s in comb_s.subjects if s_s.id == s_id and s_s.teacher is not None and s_s.teacher.id == entry.staff.id), None):
                                         for i, s in enumerate(cls.timetable.table[entry.period.day]):
-                                            if s.id == comb_s_id:
-                                                duties.append(f"{subject.name.full()}, {entry.period.day} {positionify(i + 1)}")
+                                            if s.id not in (FreePeriod.id, BreakPeriod.id) and s.id == comb_s_id:
+                                                class_category, subj_category, period_category = duties[1]
+                                                
+                                                class_category.append(f"{cls.level.name.full()} {cls.name}")
+                                                subj_category.append(subject.name.full())
+                                                period_category.append(f"{positionify(i + 1)} period")
             
             data.insert(-1, duties)
         
@@ -2013,5 +2017,6 @@ def get_export_attendance_data(attendance_entries: list[AttendanceEntry]):
     
     return headers, export_entries
 
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 

@@ -1,5 +1,5 @@
 from imports import *
-
+import traceback
 
 ALL_EXTENSION_TYPE = "all"
 TABLE_EXTENSION_TYPE = "ttbl"
@@ -65,6 +65,7 @@ class FileManager:
                     self.open_callback(file_path, file_type)
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
+                traceback.print_exception(e)
 
     def save(self):
         if self.path:
@@ -87,6 +88,7 @@ class FileManager:
                     self.save_callback(self.path, file_type)
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
+                traceback.print_exception(e)
         
         if self._from_save:
             self._from_save = False
@@ -105,6 +107,7 @@ class FileManager:
                     self.export_callback(file_path)
             except Exception as e:
                 QMessageBox.critical(self.parent, type(e).__name__, str(e))
+                traceback.print_exception(e)
 
 
 def resource_path(rel_path: str):

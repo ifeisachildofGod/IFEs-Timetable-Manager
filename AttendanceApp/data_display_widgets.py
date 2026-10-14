@@ -53,9 +53,12 @@ class GraphCanvas(FigureCanvas):
             self.axes.plot(x, y, **kwargs)
         else:
             self.axes.plot(y, **kwargs)
-        
-        if y:
-            self.axes.legend()
+
+        # Create a legend only when the plotted line has a label.
+        handles, labels = self.axes.get_legend_handles_labels()
+        if labels:
+            self.axes.legend(loc="upper right")
+
         self.draw()
 
 
