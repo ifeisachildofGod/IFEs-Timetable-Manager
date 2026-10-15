@@ -80,8 +80,7 @@ class AttendanceWidget(BaseScrollListWidget):
             self.filter_views[comb] = [widget, len(SCHOOL.attendance.attendance_data)]
             self.scr_bar_values.append(0)
         
-        self.main_layout.addWidget(self.stack)
-        self.main_layout.addStretch()
+        self.addWidget(self.stack)
         
         self.comm_signal.connect(self.add_new_attendance_log)
         self.comm_system.set_data_point("IUD", self.comm_signal)
@@ -631,35 +630,7 @@ class StaffListWidget(BaseScrollListWidget):
         
         self.saved_state_changed = self.parent_widget.window().saved_state_changed
         
-        self.curr_filter = None
-        
-        prefects = lambda: sorted([(k, v) for k, v in SCHOOL.prefects.items()], key=lambda params: params[1].name.full())
-        teachers = lambda: sorted([(k, v) for k, v in SCHOOL.teachers.items()], key=lambda params: params[1].name.full())
-        boths = lambda: sorted(prefects() + teachers(), key=lambda params: params[1].name.full())
-        prefects_first = lambda: prefects() + teachers()
-        teachers_first = lambda: teachers() + prefects()
-        
-        self._filter_funcs: dict[str, Callable] = {}
-        self.widgets: dict[str, BaseWidget] = {}
-        self.all_staff_widgets: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
-        
-        both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
-        
-        self.get_filtered_widgets("Default", boths, both_func)
-        self.get_filtered_widgets("Prefects Only", prefects, lambda staff: StaffListPrefectEntryWidget if isinstance(staff, Prefect) else None)
-        self.get_filtered_widgets("Teachers Only", teachers, lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else None)
-        self.get_filtered_widgets("Prefects First", prefects_first, both_func)
-        self.get_filtered_widgets("Teachers First", teachers_first, both_func)
-        
-        for i, staff_widget in enumerate(self.widgets.copy().values()):
-            staff_widget.setVisible(i == 0)
-            self.main_layout.addWidget(staff_widget)
-        
-        self.filter_widget = BaseWidget(QHBoxLayout)
-        
-        self.filter_cb = QComboBox()
-        self.filter_cb.addItems(list(self.widgets))
-        self.filter_cb.currentIndexChanged.connect(self.filter)
+        time_settings_widget = BaseWidget(QHBoxLayout)
         
         teacher_time_settings_widget = BaseWidget(QHBoxLayout) ; teacher_time_settings_widget.setContentsMargins(0, 0, 0, 0)
         prefect_time_settings_widget = BaseWidget(QHBoxLayout) ; prefect_time_settings_widget.setContentsMargins(0, 0, 0, 0)
@@ -670,12 +641,46 @@ class StaffListWidget(BaseScrollListWidget):
         teacher_time_settings_widget.addWidget(main_teacher_tsw) ; teacher_time_settings_widget.addWidget(teacher_timeline_widget)
         prefect_time_settings_widget.addWidget(main_prefect_tsw) ; prefect_time_settings_widget.addWidget(prefect_timeline_widget)
         
-        self.filter_widget.addWidget(LabeledField("Teacher", teacher_time_settings_widget))
-        self.filter_widget.addWidget(LabeledField("Prefect", prefect_time_settings_widget))
+        time_settings_widget.addWidget(LabeledField("Teacher", teacher_time_settings_widget))
+        time_settings_widget.addWidget(LabeledField("Prefect", prefect_time_settings_widget))
+        
+        self.addWidget(time_settings_widget)
+        
+        self.curr_filter = None
+        
+        prefects = lambda: sorted([(k, v) for k, v in SCHOOL.prefects.items()], key=lambda params: params[1].name.full())
+        teachers = lambda: sorted([(k, v) for k, v in SCHOOL.teachers.items()], key=lambda params: params[1].name.full())
+        boths = lambda: sorted(prefects() + teachers(), key=lambda params: params[1].name.full())
+        prefects_first = lambda: prefects() + teachers()
+        teachers_first = lambda: teachers() + prefects()
+        
+        self._filter_funcs: dict[str, Callable] = {}
+        self.filter_widgets: dict[str, BaseWidget] = {}
+        self.all_staff_widgets: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
+        
+        both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
+        
+        self.get_filtered_widgets("Default", boths, both_func)
+        self.get_filtered_widgets("Prefects Only", prefects, lambda staff: StaffListPrefectEntryWidget if isinstance(staff, Prefect) else None)
+        self.get_filtered_widgets("Teachers Only", teachers, lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else None)
+        self.get_filtered_widgets("Prefects First", prefects_first, both_func)
+        self.get_filtered_widgets("Teachers First", teachers_first, both_func)
+        
+        for i, staff_widget in enumerate(self.filter_widgets.copy().values()):
+            staff_widget.setVisible(i == 0)
+            self.addWidget(staff_widget)
+        
+        self.filter_widget = BaseWidget(QHBoxLayout)
+        
+        self.filter_cb = QComboBox()
+        self.filter_cb.addItems(list(self.filter_widgets))
+        self.filter_cb.currentIndexChanged.connect(self.filter)
+        
         self.filter_widget.addStretch()
         self.filter_widget.addWidget(self.filter_cb)
         
         self._layout.insertWidget(0, self.filter_widget)
+        
         
         self.filter(0)
     
@@ -833,7 +838,7 @@ class StaffListWidget(BaseScrollListWidget):
         if filter_key not in self.all_staff_widgets:
             self.all_staff_widgets[filter_key] = {}
         
-        self.widgets[filter_key] = widget
+        self.filter_widgets[filter_key] = widget
     
     def search_goto(self, sw: StaffListPrefectEntryWidget | StaffListTeacherEntryWidget):
         self.scroll_to(sw)
@@ -873,7 +878,7 @@ class StaffListWidget(BaseScrollListWidget):
             )
     
     def filter(self, index: int):
-        for i, (f_type, staff_widget) in enumerate(self.widgets.items()):
+        for i, (f_type, staff_widget) in enumerate(self.filter_widgets.items()):
             staff_widget.setVisible(index == i)
             
             if index == i:
@@ -881,7 +886,7 @@ class StaffListWidget(BaseScrollListWidget):
     
     def add_staff(self, staff: Prefect | Teacher):
         for f_key, staff_maps in self.all_staff_widgets.items():
-            widget = self.widgets[f_key]
+            widget = self.filter_widgets[f_key]
             staff_list_callback, entry_type_callback = self._filter_funcs[f_key]
             
             entry_type = entry_type_callback(staff)
@@ -910,7 +915,7 @@ class StaffListWidget(BaseScrollListWidget):
             if staff.id in staff_maps:
                 widget = staff_maps.pop(staff.id)
                 
-                self.widgets[f_key].removeWidget(widget)
+                self.filter_widgets[f_key].removeWidget(widget)
                 widget.deleteLater()
 
 class AttendanceBarWidget(BaseDataDisplayWidget):
