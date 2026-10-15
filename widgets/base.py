@@ -1,7 +1,8 @@
 
-from enum import Enum
-import importlib
 from imports import *
+
+import importlib
+from enum import Enum
 
 # for use by other dependant files
 from theme import THEME_MANAGER

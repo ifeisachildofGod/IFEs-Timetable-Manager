@@ -1,11 +1,9 @@
 
 import csv
-import pandas as pd
 from docx import Document
 from docx.shared import Inches
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.pagesizes import letter
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle, Image
 
 from io import StringIO
@@ -261,6 +259,7 @@ class ColorComboBox(IconToolBarOption):
         
         wrapper_widget = BaseWidget(QHBoxLayout)
         wrapper_widget.setSpacing(5)
+        wrapper_widget.setProperty("class", "NoBackground")
         wrapper_widget.setContentsMargins(0, 0, 0, 0)
         
         self.selected_color_display = BaseWidget()
@@ -282,6 +281,7 @@ class ColorComboBox(IconToolBarOption):
         
         self.initialize(color_picker, title=wrapper_widget, font_size=10)
         
+        self.selected_color_display.getWidget().mousePressEvent = self._clicked
         wrapper_widget.getWidget().mousePressEvent = self._clicked
         self.getWidget().mousePressEvent = lambda _: None
         
