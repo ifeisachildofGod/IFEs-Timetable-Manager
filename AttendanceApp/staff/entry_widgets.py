@@ -11,20 +11,43 @@ class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget[Prefect]):
         super().__init__("Prefect", data)
         self.labeled_container.setProperty("class", "AttendancePrefectEntryWidget")
         
-        widget_2_2, layout_2_2 = create_widget(None, QHBoxLayout)
+        info_sub_widget = BaseWidget()
         
-        layout_2_2.addWidget(LabeledField("Class", (cls_label := QLabel()), height_policy=QSizePolicy.Policy.Maximum)) ; self.cls_label = cls_label
-        self.cls_label.setText(f"<b>{self.staff.cls.level.name.full()} {self.staff.cls.name}</b")
+        self.class_label = QLabel()
+        self.post_label = QLabel()
         
+        info_sub_widget.addWidget(LabeledField("Class", self.class_label, height_policy=QSizePolicy.Policy.Maximum))
+        info_sub_widget.addWidget(LabeledField("Post Name", self.post_label, height_policy=QSizePolicy.Policy.Maximum))
+        
+        sub_main_info_widget = BaseWidget(QHBoxLayout)
+        
+        sub_main_info_widget.addWidget(info_sub_widget)
         if data.is_check_in:
             widget_1_3_1 = BaseScrollWidget()
             
             for index, duty in enumerate(self.staff.duties.get(self.data.period.day, [])):
                 widget_1_3_1.addWidget(QLabel(f"<b>{index + 1}.</b> <span style='font-weight: bold'>{"<br>&nbsp;&nbsp;&nbsp;&nbsp;".join(wrapify_text(duty, 50))}</span>"))
             
-            layout_2_2.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            sub_main_info_widget.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
         
-        self.main_info_layout.addWidget(widget_2_2)
+        self.main_info_widget.addWidget(sub_main_info_widget)
+        
+        self.update_class()
+        self.update_post()
+    
+    def update_class(self):
+        self.class_label.setText(
+            f"<b>{self.staff.cls.level.name.full()} {self.staff.cls.name}</b"
+            if self.staff.cls is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
+    
+    def update_post(self):
+        self.post_label.setText(
+            f"<span style='font-weight: bold'>{"<br>".join(wrapify_text(SCHOOL.posts[self.staff.post_id], 30))}</span>"
+            if self.staff.post_id is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
 
 class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
     def __init__(self, data: AttendanceEntry):
@@ -32,7 +55,7 @@ class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
         self.labeled_container.setProperty("class", "AttendanceTeacherEntryWidget")
         
         if data.is_check_in:
-            self.main_info_layout.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            self.main_info_widget.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
             widget_2_2_2.setFixedHeight(180)
             
             periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}

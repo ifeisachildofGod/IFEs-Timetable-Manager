@@ -661,7 +661,7 @@ class EditableCancelableEntry(BaseWidget):
         self.text = initial_text if initial_text is not None else ""
         self.is_editing = False
         
-        self.setContentsMargins(4, 2, 4, 2)
+        self.setContentsMargins(4, 5, 4, 5)
         self.setSpacing(4)
         
         # Input mode widgets

@@ -4,9 +4,11 @@ from .extra_widgets import *
 from .communication import *
 from .functions_and_uncategorized import *
 
-from widgets.user_interface import IconToolBarOption
+from widgets.user_interface import IconToolBarOption, wrapify_text
+
 
 _T = TypeVar("_T")
+
 
 class BaseListWidget(QWidget):
     def __init__(self, scroll_area: QScrollArea) -> None:
@@ -353,7 +355,11 @@ class BaseStaffListEntryWidget[_T](QWidget):
         iud_lf.setMinimumWidth(120)
     
     def update_name(self):
-        self.name_label.setText(self.staff.name.full())
+        self.name_label.setText(
+            f"<span style='font-weight: bold'>{"<br>".join(wrapify_text(self.staff.name.full(), 30))}</span>"
+            if self.staff.name.full() else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
     
     def set_iud(self):
         self.options_widget.hide()
@@ -392,6 +398,7 @@ class BaseAttendanceEntryWidget[_T](QWidget):
         self.container.setLayout(self.main_layout)
         
         self.labeled_container = LabeledField(f"<span style='font-weight: bold;'>{name} - Check {"IN" if data.is_check_in else "OUT"}</span>", self.container, height_policy=QSizePolicy.Policy.Maximum)
+        self.labeled_container.setContentsMargins(10, 10, 10, 10)
         
         _layout.addWidget(self.labeled_container)
         
@@ -421,10 +428,10 @@ class BaseAttendanceEntryWidget[_T](QWidget):
         
         layout_1_2.addWidget(LabeledField("Time", widget_1_2_2, height_policy=QSizePolicy.Policy.Maximum))
         
-        _, self.main_info_layout = create_widget(self.main_layout, QVBoxLayout)
+        self.main_info_widget = BaseWidget()
+        self.main_info_widget.addWidget(_CharacterNameWidget(self.staff.name))
         
-        name_widget = _CharacterNameWidget(self.staff.name)
-        self.main_info_layout.addWidget(name_widget)
+        self.main_layout.addWidget(self.main_info_widget)
 
 
 

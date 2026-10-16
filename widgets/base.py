@@ -587,10 +587,10 @@ class BaseSettingEntry[_T](BaseWidget):
     
     def __init__(
             self,
-            i_parent: "BaseSettingWidget",
+            i_parent: "BaseSettingWidget[_T]",
             general_entry_name: str,
             extended_placeholders: list[str],
-            option_dialogs: dict[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]],
+            option_dialogs: list[tuple[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]] | QWidget],
             entry: Optional[_T]
         ):
         super().__init__()
@@ -616,7 +616,7 @@ class BaseSettingEntry[_T](BaseWidget):
         self.options_option = self.IconToolBarOption((options_widget := BaseWidget()), "☰")
         
         dialog_buttons_widget = BaseWidget(QHBoxLayout)
-        for button in self.get_dialog_buttons():
+        for button in self.get_dialog_sub_settings():
             dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         
         delete_button = QPushButton("×")
@@ -748,20 +748,25 @@ class BaseSettingEntry[_T](BaseWidget):
         self.i_parent.remove(self)
         self.i_parent.window().saved_state_changed.emit(True)
     
-    def get_dialog_buttons(self):
-        for name, dialog_info in self.option_dialogs.items():
-            if len(dialog_info) == 2:
-                title, cls = dialog_info
-                variables = ()
-            elif len(dialog_info) == 3:
-                title, cls, variables = dialog_info
+    def get_dialog_sub_settings(self):
+        for option_data in self.option_dialogs:
+            if isinstance(option_data, QWidget):
+                widget = option_data
             else:
-                raise TypeError(f"Expected dialog info of length 2 or 3 but got length: {len(dialog_info)}")
+                name, dialog_info = option_data
+                
+                if len(dialog_info) == 2:
+                    title, cls = dialog_info
+                    variables = ()
+                elif len(dialog_info) == 3:
+                    title, cls, variables = dialog_info
+                else:
+                    raise TypeError(f"Expected dialog info of length 2 or 3 but got length: {len(dialog_info)}")
+                
+                widget = QPushButton(name)
+                widget.clicked.connect(self.make_open_dialogs_func(title, cls, *variables))
             
-            button = QPushButton(name)
-            button.clicked.connect(self.make_open_dialogs_func(title, cls, *variables))
-            
-            yield button
+            yield widget
     
     def make_open_dialogs_func(self, title: str, cls: type[BaseSettingDialog], *args):
         def make_dialog():
@@ -821,8 +826,11 @@ class BaseSettingWidget[_T](BaseWidget):
         self.scroll_widget.setSpacing(20)
         self.scroll_widget.addStretch()
         
+        self.add_buttons_widget = BaseWidget(QHBoxLayout)
+        self.add_buttons_widget.addStretch()
+        
         self.addWidget(self.scroll_widget)
-        self.addWidget(add_buttons_widget := BaseWidget(QHBoxLayout)) ; add_buttons_widget.addStretch()
+        self.addWidget(self.add_buttons_widget)
         
         def _make_add_button_func(index: int):
             def func():
@@ -835,7 +843,7 @@ class BaseSettingWidget[_T](BaseWidget):
             add_button.setText(f"Add {name}")
             add_button.clicked.connect(_make_add_button_func(i))
             
-            add_buttons_widget.addWidget(add_button)
+            self.add_buttons_widget.addWidget(add_button)
         
         self.key_pressed.connect(self.enter_pressed)
         

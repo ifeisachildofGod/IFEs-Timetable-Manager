@@ -1180,25 +1180,10 @@ class Prefect_ClassSelector(BaseSettingDialog):
     def _make_select_func(self, cls: Class):
         def func():
             self.prefect.cls = cls
+            
+            self.attendance_manager.update_staff_list_prefect_class(self.prefect.id)
         
         return func
-
-class Prefect_PostAssigner(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
-        super().__init__(title)
-        
-        self.attendance_manager = attendance_manager
-        
-        self.id = id
-        self._parent = parent
-        self.prefect = SCHOOL.prefects[self.id]
-        
-        main_widget = BaseScrollWidget()
-        
-        add_new_pb = QPushButton("Add New")
-        
-        self.addWidget(main_widget)
-        self.addWidget(add_new_pb)
 
 class Prefect_DutyAssigner(BaseSettingDialog):
     def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):

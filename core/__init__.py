@@ -181,8 +181,7 @@ class School:
         self.gen_data.__dict__.update(school.gen_data.__dict__)
         self.attendance.__dict__.update(school.attendance.__dict__)
         
-        # if hasattr(school, "posts"):
-        #     self.posts.update(school.posts)
+        self.posts.update(school.posts)
     
     def detect_clashes(self):
         """

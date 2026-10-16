@@ -7,8 +7,108 @@ from .settings_options import *
 from AttendanceApp import AttendanceManager
 
 
+class _Prefect_PostEditor(BaseSettingDialog):
+    def __init__(self, parent: PrefectsMainWidget, title: str, attendance_manager: AttendanceManager):
+        super().__init__(title)
+        
+        self.setFixedSize(650, 450)
+        
+        self.__init = True
+        
+        self.attendance_manager = attendance_manager
+        
+        self.i_parent = parent
+        
+        self.post_widgets = []
+        
+        self.main_widget = BaseFlowGridWidget(4)
+        self.main_widget.setVerticalSpacing(4)
+        self.main_widget.setContentsMargins(0, 0, 0, 0)
+        self.main_widget.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
+        
+        add_new_pb = QPushButton("Add New")
+        add_new_pb.clicked.connect(lambda: self.add_post(None))
+        
+        self.addWidget(self.main_widget)
+        self.addWidget(add_new_pb, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        for post_id in SCHOOL.posts:
+            self.add_post(post_id)
+        
+        self.__init = False
+    
+    def _make_entry_action_funcs(self, entry: EditableCancelableEntry, id: ID):
+        def update():
+            SCHOOL.posts[id] = entry.get_text()
+            
+            for prefect_widget in self.i_parent.widgets.values():
+                itemIndex = next((i for i in range(prefect_widget.post_combobox.count()) if id == prefect_widget.post_combobox.itemData(i)), None)
+                
+                if itemIndex is not None:
+                    curr_index = prefect_widget.post_combobox.currentIndex()
+                    
+                    prefect_widget.post_combobox.removeItem(itemIndex)
+                    prefect_widget.post_combobox.insertItem(itemIndex, SCHOOL.posts[id], userData=id)
+                    
+                    if itemIndex == curr_index:
+                        prefect_widget.post_combobox.setCurrentIndex(next(i for i in range(prefect_widget.post_combobox.count()) if id == prefect_widget.post_combobox.itemData(i)))
+            
+            self.i_parent.window().saved_state_changed.emit(True)
+        
+        def remove():
+            SCHOOL.posts.pop(id)
+            
+            self.main_widget.removeWidget(entry)
+            entry.deleteLater()
+            
+            for prefect_id, prefect in SCHOOL.prefects.items():
+                if id == prefect.post_id:
+                    prefect.post_id = None
+                    self.attendance_manager.update_staff_list_prefect_post_name(prefect_id)
+            
+            for prefect_widget in self.i_parent.widgets.values():
+                curr_index = prefect_widget.post_combobox.currentIndex()
+                itemIndex = next((i for i in range(prefect_widget.post_combobox.count()) if id == prefect_widget.post_combobox.itemData(i)), None)
+                
+                if itemIndex is not None:
+                    prefect_widget.post_combobox.removeItem(itemIndex)
+                    
+                    if itemIndex == curr_index:
+                        prefect_widget.post_combobox.setCurrentIndex(next(i for i in range(prefect_widget.post_combobox.count()) if prefect_widget.post_combobox.itemData(i) == None))
+            
+            self.i_parent.window().saved_state_changed.emit(True)
+        
+        return update, remove
+    
+    def add_post(self, post_id: Optional[ID]):
+        p_id = post_id or NEW_ID()
+        
+        if p_id not in SCHOOL.posts:
+            SCHOOL.posts[p_id] = ""
+        
+        post_name = SCHOOL.posts[p_id]
+        
+        post_entry = EditableCancelableEntry(post_name)
+        
+        update_option, remove_option = self._make_entry_action_funcs(post_entry, p_id)
+        
+        post_entry.finished_editing_signal.connect(update_option)
+        post_entry.deleted.connect(remove_option)
+        
+        self.main_widget.addWidget(post_entry)
+        
+        if post_id is None:
+            for prefect_widget in self.i_parent.widgets.values():
+                prefect_widget.post_combobox.insertItem(prefect_widget.post_combobox.count() - 1, post_name, userData=p_id)
+            
+            post_entry.start_editing()
+        
+        if not self.__init:
+            self.i_parent.window().saved_state_changed.emit(True)
+
+
 class SubjectsSettingEntry(BaseSettingEntry[Subject]):
-    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -16,10 +116,10 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             parent,
             "Subject",
             ["Full Name", "Abbreviation"],
-            {
-                "Offering Classes": ("Classes offering {name}", Subject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, )),
-                "Assign Teachers": ("Teachers teaching {name}", Subject_SelectionList, (self.timetable_editor, self.attendance_manager))
-            },
+            [
+                ("Offering Classes", ("Classes offering {name}", Subject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, ))),
+                ("Assign Teachers", ("Teachers teaching {name}", Subject_SelectionList, (self.timetable_editor, self.attendance_manager)))
+            ],
             entry
         )
         
@@ -66,7 +166,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
 
 class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
-    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -74,10 +174,10 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             parent,
             "Subject",
             None,
-            {
-                "Offering Classes": ("Classes offering {name}", CombinedSubject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
-                "Child Subjects": ("Subjects under {name}", CombinedSubject_SelectionList, (self.timetable_editor, self.attendance_manager))
-            },
+            [
+                ("Offering Classes", ("Classes offering {name}", CombinedSubject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager))),
+                ("Child Subjects", ("Subjects under {name}", CombinedSubject_SelectionList, (self.timetable_editor, self.attendance_manager)))
+            ],
             entry
         )
         
@@ -110,7 +210,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             super().simple_name_empty(text)
 
 class TeachersSettingEntry(BaseSettingEntry[Teacher]):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, parent: TeachersMainWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -118,10 +218,10 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
             parent,
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
-            {
-                "Assign Classes": ("Classes taught by {name}", Teacher_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager)),
-                "Assign Subjects": ("Subjects {name} teaches", Teacher_SelectionList, (self.timetable_editor, self.attendance_manager))
-            },
+            [
+                ("Assign Classes", ("Classes taught by {name}", Teacher_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager))),
+                ("Assign Subjects", ("Subjects {name} teaches", Teacher_SelectionList, (self.timetable_editor, self.attendance_manager)))
+            ],
             entry
         )
         
@@ -191,7 +291,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
                     self.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
 class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
-    def __init__(self, parent: BaseSettingWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
@@ -199,10 +299,10 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
             parent,
             "Class Level",
             None,
-            {
-                "Create and Edit Classes": ("Classes under {name}", ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager)),
-                "Edit Subjects Occurences": ("Edit {name} subjects occurences", ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager))
-            },
+            [
+                ("Create and Edit Classes", ("Classes under {name}", ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager))),
+                ("Edit Subjects Occurences", ("Edit {name} subjects occurences", ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager)))
+            ],
             entry
         )
     
@@ -249,23 +349,60 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
 
 class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
-    def __init__(self, parent: BaseSettingWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager):
+    def __init__(self, parent: PrefectsMainWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager):
         self.attendance_manager = attendance_manager
+        
+        self.post_combobox = QComboBox()
         
         super().__init__(
             parent,
             "Prefect",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
-            {
-                "Select Class": ("Select {name}'s class", Prefect_ClassSelector, (self.attendance_manager, )),
-                "Select Post": ("Set the post of {name}", Prefect_PostAssigner, (self.attendance_manager, )),
-                "Set Duties": ("Set Duties done by {name}", Prefect_DutyAssigner, (self.attendance_manager, ))
-            },
+            [
+                ("Select Class", ("Select {name}'s class", Prefect_ClassSelector, (self.attendance_manager, ))),
+                self.post_combobox,
+                ("Set Duties", ("Set Duties done by {name}", Prefect_DutyAssigner, (self.attendance_manager, )))
+            ],
             entry
         )
         
+        other_prefect_post_ids = [prefect.post_id for prefect in SCHOOL.prefects.values() if prefect.id != self.entry.id]
+        
+        for p_id, post in SCHOOL.posts.items():
+            if p_id not in other_prefect_post_ids:
+                self.post_combobox.addItem(post, userData=p_id)
+        
+        self.post_combobox.addItem("None", userData=None)
+        
+        if self.entry.post_id is not None:
+            self.post_combobox.setCurrentText(SCHOOL.posts[self.entry.post_id])
+        else:
+            self.post_combobox.setCurrentIndex(self.post_combobox.count() - 1)
+        
+        self.post_combobox.currentIndexChanged.connect(self._post_changed)
+        
         if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
             self.toogle_name_format(False)
+    
+    def _post_changed(self, index: int):
+        prev_post_id = self.entry.post_id
+        curr_post_id = self.entry.post_id = next(self.post_combobox.itemData(i) for i in range(self.post_combobox.count()) if i == index)
+        
+        self.attendance_manager.update_staff_list_prefect_post_name(self.entry.id)
+        
+        for prefect_id, prefect_widget in self.i_parent.widgets.items():
+            if self.entry.id != prefect_id:
+                if curr_post_id is not None:
+                    item_index = next((i for i in range(prefect_widget.post_combobox.count()) if curr_post_id == prefect_widget.post_combobox.itemData(i)), None)
+                    
+                    if item_index is not None:
+                        prefect_widget.post_combobox.removeItem(item_index)
+                
+                if prev_post_id is not None:
+                    removed_item_index = next((i for i in range(prefect_widget.post_combobox.count()) if prev_post_id == prefect_widget.post_combobox.itemData(i)), None)
+                    
+                    if removed_item_index is None:
+                        prefect_widget.post_combobox.insertItem(prefect_widget.post_combobox.count() - 1, SCHOOL.posts[prev_post_id], userData=prev_post_id)
     
     def new(self):
         return Prefect(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], None, None, {})
@@ -449,6 +586,13 @@ class PrefectsMainWidget(BaseSettingWidget[Prefect]):
         self.attendance_manager = attendance_manager
         
         super().__init__(["Prefect"])
+        
+        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", self.attendance_manager)
+        
+        edit_posts_button = QPushButton("Edit Prefect Posts")
+        edit_posts_button.clicked.connect(lambda: post_editor.exec())
+        
+        self.add_buttons_widget.insertWidget(0, edit_posts_button)
     
     def get_global(self):
         return SCHOOL.prefects
