@@ -151,7 +151,7 @@ STYLESHEET = '''
         border-radius: 9px;
     }}
     
-    QWidget.DarkendBG {{
+    QWidget.DarkenedBG {{
         background-color: {bg};
     }}
     

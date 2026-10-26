@@ -2,7 +2,7 @@
 from .imports import *
 from .functions_and_uncategorized import *
 
-from widgets.base import BaseWidget
+from widgets.base import BaseWidget, Image
 
 
 class TabViewWidget(BaseWidget):
@@ -91,31 +91,6 @@ class TabViewWidget(BaseWidget):
                 self.tab_index = self.stack.currentIndex()
         
         return func
-
-class Image(QLabel):
-    def __init__(self, path: str, parent=None, width: int | None = None, height: int | None = None):
-        super().__init__(parent)
-        
-        pixmap = QPixmap(path)
-        
-        size = pixmap.size()
-        
-        if width is not None or height is not None:
-            if height is not None and width is None and size.height():
-                self.setFixedSize(int(height * size.width() / size.height()), height)
-            elif width is not None and height is None and size.width():
-                self.setFixedSize(width, int(width * size.height() / size.width()))
-            else:
-                self.setFixedSize(width, height)
-        
-        self.setScaledContents(True)  # Optional: scale image to fit self
-        scaled_pixmap = pixmap.scaled(
-            self.size(),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        self.setPixmap(scaled_pixmap)
-
 
 class DropdownLabeledField(QWidget):
     def __init__(

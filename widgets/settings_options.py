@@ -9,14 +9,14 @@ from AttendanceApp import AttendanceManager
 
 
 class Subject_SelectionList(BaseSelectionList[Teacher]):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.subject: Subject = SCHOOL.subjects[id]
         
         self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
         
         selected, scope = self._get_list_data(id)
         
-        super().__init__(parent, id, title, selected.items(), scope)
+        super().__init__(parent, id, selected.items(), scope)
         
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
@@ -75,83 +75,9 @@ class Subject_SelectionList(BaseSelectionList[Teacher]):
             if item_id not in selected_ids and item_id not in self.widgets:
                 self.insertWidget(len(self.widgets), SL_UnSelectedWidget(self, item_id, item.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        self.c_subject: CombinedSubject = SCHOOL.subjects[id]
-        
-        self.selected_items = {s.id: s for s in self.c_subject.subjects}
-        self.full_scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if self._scope_check(s)}
-        
-        super().__init__(parent, id, title, self.selected_items.items(), self.full_scope)
-        
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-    
-    def _scope_check(self, subject: Subject | CombinedSubject):
-        return isinstance(subject, Subject) and subject.classes
-    
-    def item_selected(self, id, _):
-        subject = SCHOOL.subjects[id]
-        assign_combined_subject_sub_subject(self.c_subject, subject, self._parent)
-        
-        for s_id, s in SCHOOL.subjects.items():
-            if not self._scope_check(s) and s_id in self.full_scope:
-                self.full_scope.pop(s_id)
-                self.removeWidget(self.widgets[s_id])
-    
-    def item_removed(self, id, _):
-        deassign_combined_subject_sub_subject(self.c_subject, id, self.timetable_editor, self.attendance_manager, self._parent)
-        
-        for s_id, s in SCHOOL.subjects.items():
-            if self._scope_check(s) and s_id not in self.full_scope and s_id not in self.selected_items:
-                self.full_scope[s_id] = s
-                self.insertWidget(len(self.full_scope) - 1, SL_UnSelectedWidget(self, s_id, s.name.full(), self.item_selected, self.item_removed, self._parent.window()))
-
-class Teacher_SelectionList(BaseSelectionList[Subject]):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        self.teacher = SCHOOL.teachers[id]
-        
-        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
-        scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(id, s)}
-        
-        super().__init__(parent, id, title, self.teacher.subjects.items(), scope)
-        
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-    
-    def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
-        if not isinstance(subject, Subject):
-            return False
-        
-        for cls in subject.classes.values():
-            if subject.id in cls.subjects and (cls.subjects[subject.id].teacher is None or cls.subjects[subject.id].teacher.id == teacher_id):
-                break
-        else:
-            for c_subject in self.combined_subjects:
-                if subject.id in c_subject.classes:
-                    for cls in c_subject.classes[subject.id].values():
-                        if next((s.teacher is None or s.teacher.id == teacher_id for s in cls.subjects[c_subject.id].subjects if s.id == subject.id), False):
-                            break
-                    else:
-                        continue
-                    
-                    break
-            else:
-                return False
-        
-        return True
-    
-    def item_selected(self, id, _):
-        assign_teacher(self.teacher, id, self.attendance_manager)
-    
-    def item_removed(self, id, _):
-        c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
-        
-        deassign_teacher(self.teacher, id, self.timetable_editor, self.attendance_manager, c_subjects)
-
-class Subject_DropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class Subject_DropdownCheckBoxes(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.__init = True
         
@@ -162,7 +88,7 @@ class Subject_DropdownCheckBoxes(BaseSettingDialog):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        self.setFixedSize(400, 300)
+        self.setFixedSize(400, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -205,7 +131,7 @@ class Subject_DropdownCheckBoxes(BaseSettingDialog):
         
         for lvl_id, cls_lvl in SCHOOL.class_levels.items():
             week_total = (cls_lvl.period_amount - 1) * len(cls_lvl.weekdays)
-            min_rem = min(week_total - sum(cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls_lvl.subjects_occurence) for cls in cls_lvl.classes.values())
+            min_rem = min(week_total - sum((cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls_lvl.subjects_occurence), 0) for cls in cls_lvl.classes.values())
             
             check_box = QCheckBox()
             check_box.clicked.connect(self.make_main_checkbox_func(lvl_id))
@@ -310,9 +236,41 @@ class Subject_DropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_subject_class(self.id, cls, self.timetable_editor, self.attendance_manager, self.c_subjects)
 
-class CombinedSubject_DropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        self.c_subject: CombinedSubject = SCHOOL.subjects[id]
+        
+        self.selected_items = {s.id: s for s in self.c_subject.subjects}
+        self.full_scope = {s_id: s for s_id, s in SCHOOL.subjects.items() if self._scope_check(s)}
+        
+        super().__init__(parent, id, self.selected_items.items(), self.full_scope)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
+    
+    def _scope_check(self, subject: Subject | CombinedSubject):
+        return isinstance(subject, Subject) and subject.classes
+    
+    def item_selected(self, id, _):
+        subject = SCHOOL.subjects[id]
+        assign_combined_subject_sub_subject(self.c_subject, subject, self._parent)
+        
+        for s_id, s in SCHOOL.subjects.items():
+            if not self._scope_check(s) and s_id in self.full_scope:
+                self.full_scope.pop(s_id)
+                self.removeWidget(self.widgets[s_id])
+    
+    def item_removed(self, id, _):
+        deassign_combined_subject_sub_subject(self.c_subject, id, self.timetable_editor, self.attendance_manager, self._parent)
+        
+        for s_id, s in SCHOOL.subjects.items():
+            if self._scope_check(s) and s_id not in self.full_scope and s_id not in self.selected_items:
+                self.full_scope[s_id] = s
+                self.insertWidget(len(self.full_scope) - 1, SL_UnSelectedWidget(self, s_id, s.name.full(), self.item_selected, self.item_removed, self._parent.window()))
+
+class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.__init = True
         
@@ -324,7 +282,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseSettingDialog):
         
         self.combined_subject: CombinedSubject = SCHOOL.subjects[self.id]
         
-        self.setFixedSize(400, 300)
+        self.setFixedSize(400, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -476,9 +434,51 @@ class CombinedSubject_DropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_combined_subject_sub_subject_class(self.combined_subject, subject.id, cls, self.timetable_editor, self.attendance_manager)
 
-class Teacher_DropdownCheckBoxes(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class Teacher_SelectionList(BaseSelectionList[Subject]):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        self.teacher = SCHOOL.teachers[id]
+        
+        self.combined_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject)]
+        scope = {s.id: s for s in SCHOOL.subjects.values() if self._scope_check(id, s)}
+        
+        super().__init__(parent, id, self.teacher.subjects.items(), scope)
+        
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
+    
+    def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
+        if not isinstance(subject, Subject):
+            return False
+        
+        for cls in subject.classes.values():
+            if subject.id in cls.subjects and (cls.subjects[subject.id].teacher is None or cls.subjects[subject.id].teacher.id == teacher_id):
+                break
+        else:
+            for c_subject in self.combined_subjects:
+                if subject.id in c_subject.classes:
+                    for cls in c_subject.classes[subject.id].values():
+                        if next((s.teacher is None or s.teacher.id == teacher_id for s in cls.subjects[c_subject.id].subjects if s.id == subject.id), False):
+                            break
+                    else:
+                        continue
+                    
+                    break
+            else:
+                return False
+        
+        return True
+    
+    def item_selected(self, id, _):
+        assign_teacher(self.teacher, id, self.attendance_manager)
+    
+    def item_removed(self, id, _):
+        c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
+        
+        deassign_teacher(self.teacher, id, self.timetable_editor, self.attendance_manager, c_subjects)
+
+class Teacher_DropdownCheckBoxes(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.__init = True
         
@@ -490,7 +490,7 @@ class Teacher_DropdownCheckBoxes(BaseSettingDialog):
         
         self.teacher = SCHOOL.teachers[self.id]
         
-        self.setFixedSize(400, 300)
+        self.setFixedSize(400, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -733,7 +733,7 @@ class Teacher_DropdownCheckBoxes(BaseSettingDialog):
                 
                 QTimer.singleShot(500, lambda: func2(widget.dialog_widget_funcs[0]))
             
-            def func2(d_func: Callable[[], BaseSettingDialog]):
+            def func2(d_func: Callable[[], BaseScrollWidget]):
                 w = d_func()
                 QTimer.singleShot(500, lambda: w.go_to(s_id, lvl_id, cls_id, c_s_id))
                 
@@ -895,12 +895,14 @@ class Teacher_DropdownCheckBoxes(BaseSettingDialog):
         else:
             deassign_combined_subject_class_teacher(c_subject.id, u_subject.id, cls, self.timetable_editor, self.attendance_manager)
 
-class ClassLevel_OccuranceEditor(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title, BaseWidget)
+class ClassLevel_OccuranceEditor(BaseWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.__init = True
         
+        self.setFixedHeight(400)
+
         self._parent = parent
         
         self.timetable_editor = timetable_editor
@@ -917,8 +919,6 @@ class ClassLevel_OccuranceEditor(BaseSettingDialog):
         
         self.id = id
         self.class_level = SCHOOL.class_levels[self.id]
-        
-        self.setFixedSize(600, 400)
         
         self.focuses_ids = {}
         self.week_total = (self.class_level.period_amount - 1) * len(self.class_level.weekdays)
@@ -1051,9 +1051,9 @@ class ClassLevel_OccuranceEditor(BaseSettingDialog):
         
         return text_changed_func
 
-class ClassLevel_ClassMaker(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class ClassLevel_ClassMaker(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
@@ -1138,9 +1138,9 @@ class ClassLevel_ClassMaker(BaseSettingDialog):
             
             self._parent.window().saved_state_changed.emit(True)
 
-class Prefect_ClassSelector(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class Prefect_ClassSelector(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.setFixedSize(250, 200)
         
@@ -1185,9 +1185,9 @@ class Prefect_ClassSelector(BaseSettingDialog):
         
         return func
 
-class Prefect_DutyAssigner(BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, attendance_manager: AttendanceManager):
-        super().__init__(title)
+class Prefect_DutyAssigner(BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, attendance_manager: AttendanceManager):
+        super().__init__()
         
         self.setFixedSize(650, 450)
         self.setContentsMargins(10, 10, 10, 10)

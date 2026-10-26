@@ -110,11 +110,11 @@ class Window(QMainWindow):
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
         self.prefects_widget = PrefectsMainWidget(self.attendance_manager)
         
-        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setDisabled(not v))
-        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_pb.setText(f"Search {v}") if v else self.title_bar.search_pb.setText(None))
+        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setDisabled(not v))
+        self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setPrompt(f"Search {v}") if v else self.title_bar.search_bar.setPrompt(None))
         
         # Title bar widget
-        self.title_bar = MainTitleBar(self, menu_bar, self._get_search_scope, self._goto_search, self.go_back, self.go_forward)
+        self.title_bar = MainTitleBar(menu_bar, self._get_search_scope, self._goto_search, self.go_back, self.go_forward)
         
         # Create viewing container
         viewing_container = BaseWidget(QHBoxLayout)
@@ -145,8 +145,8 @@ class Window(QMainWindow):
         timetable_btn = QPushButton("Timetable")
         
         def reset(name: str):
-            self.title_bar.search_pb.setDisabled(False)
-            self.title_bar.search_pb.setText(f"Search {name}")
+            self.title_bar.search_bar.setDisabled(False)
+            self.title_bar.search_bar.setPrompt(f"Search {name}")
         
         def on_att_widget_func(name):
             reset(name)
@@ -158,8 +158,8 @@ class Window(QMainWindow):
                     func(self.attendance_manager.tab_name_index_mapping[self.attendance_manager.current_tab])
         
         def on_ttbl_widget_func(_):
-            self.title_bar.search_pb.setDisabled(True)
-            self.title_bar.search_pb.setText(None)
+            self.title_bar.search_bar.setDisabled(True)
+            self.title_bar.search_bar.setPrompt(None)
         
         # Add widgets to stack
         self.is_option_sidebar_focused = True
@@ -192,6 +192,9 @@ class Window(QMainWindow):
                 
                 button.setCheckable(True)
                 button.clicked.connect(self.make_option_button_func(button.text(), index, custom_func))
+                
+                if index == 0:
+                    reset(button.text())
                 
                 self.stack.addWidget(widget)
                 self.sub_sidebar_widget.addWidget(button)
@@ -604,9 +607,16 @@ class Window(QMainWindow):
             
             for i, op_info in enumerate(self.option_buttons):
                 if op_info is not None:
-                    btn, _ = op_info
+                    btn, (central_widget, _) = op_info
                     
                     btn.setChecked(i == index)
+
+                    if i == index and isinstance(central_widget, BaseSettingWidget):
+                        for widget in central_widget.widgets.values():
+                            if widget.settings_screen:
+                                widget.settings_screen.go_back()
+
+                                break
         
         return func
     

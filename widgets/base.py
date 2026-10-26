@@ -1,13 +1,181 @@
 
 from imports import *
 
-import importlib
 from enum import Enum
+import xml.etree.ElementTree as ET
+from typing import Literal, TypeVar
 
 # for use by other dependant files
 from theme import THEME_MANAGER
 
+
 _T = TypeVar("_T")
+
+
+def wrapify_text(text: str, length: int):
+    if len(text) > length:
+        index = length
+        
+        if " " in text and (_temp_index := text[:length].rfind(" ")) != -1:
+            index = _temp_index
+        
+        return [text[:index]] + wrapify_text(text[index + (text[index] == " "):], length)
+    else:
+        return [text]
+
+
+class Image(QLabel):
+    def __init__(self, path: str, parent=None, width: int | None = None, height: int | None = None):
+        super().__init__(parent)
+
+        self.setImage(path, width, height)
+
+    def setImage(self, path: str, width: int | None = None, height: int | None = None):
+        pixmap = QPixmap(path)
+        
+        size = pixmap.size()
+        
+        if width is not None or height is not None:
+            if height is not None and width is None and size.height():
+                self.setFixedSize(int(height * size.width() / size.height()), height)
+            elif width is not None and height is None and size.width():
+                self.setFixedSize(width, int(width * size.height() / size.width()))
+            else:
+                self.setFixedSize(width, height)
+        
+        self.setScaledContents(True)  # Optional: scale image to fit self
+        scaled_pixmap = pixmap.scaled(
+            self.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        self.setPixmap(scaled_pixmap)
+
+class SvgWidget(QWidget):
+    """Display an SVG and dynamically edit its element colors."""
+
+    def __init__(self, svg_file, parent=None):
+        super().__init__(parent)
+
+        self.svg_file = svg_file
+
+        # Parse and retain the original SVG structure.
+        self.tree = ET.parse(svg_file)
+        self.root = self.tree.getroot()
+
+        # Keep a pristine copy for resetting colors.
+        self.original_xml = ET.tostring(
+            self.root, encoding="utf-8"
+        )
+
+        self.renderer = QSvgRenderer(self)
+        self._load_svg()
+
+        self.setMinimumSize(20, 20)
+
+    def _load_svg(self):
+        """Serialize the current SVG and reload the renderer."""
+        svg_bytes = ET.tostring(
+            self.root, encoding="utf-8",
+            xml_declaration=True
+        )
+
+        if not self.renderer.load(QByteArray(svg_bytes)):
+            raise ValueError("Could not render the SVG file.")
+
+        self.update()
+
+    def element_ids(self):
+        """Return IDs of SVG elements."""
+        return [
+            element.get("id")
+            for element in self.root.iter()
+            if element.get("id")
+        ]
+
+    def set_element_color(
+        self, element_id, color, attribute="fill"
+    ):
+        """Change fill or stroke for one element."""
+        if attribute not in ("fill", "stroke"):
+            raise ValueError(
+                "Attribute must be 'fill' or 'stroke'."
+            )
+
+        color = QColor(color)
+
+        if not color.isValid():
+            return
+
+        for element in self.root.iter():
+            if element.get("id") == element_id:
+                element.set(
+                    attribute, color.name(QColor.NameFormat.HexArgb)
+                    if color.alpha() < 255 else color.name()
+                )
+
+                self._load_svg()
+                return
+
+        raise ValueError(f"SVG element not found: {element_id}")
+
+    def set_all_colors(self, color):
+        """Recolor existing fills and strokes throughout the SVG."""
+        color = QColor(color)
+
+        if not color.isValid():
+            print("ife")
+            return
+
+        color_value = (
+            color.name(QColor.NameFormat.HexArgb)
+            if color.alpha() < 255 else color.name()
+        )
+
+        for element in self.root.iter():
+            for attribute in ("fill", "stroke"):
+                existing = element.get(attribute)
+
+                # Preserve explicitly transparent components.
+                if existing and existing.strip().lower() != "none":
+                    element.set(attribute, color_value)
+
+        self._load_svg()
+
+    def reset(self):
+        """Restore the original SVG."""
+        self.root = ET.fromstring(self.original_xml)
+        self._load_svg()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(
+            QPainter.RenderHint.Antialiasing
+        )
+        painter.setRenderHint(
+            QPainter.RenderHint.SmoothPixmapTransform
+        )
+
+        # Preserve the SVG aspect ratio and center it.
+        size = self.renderer.defaultSize()
+
+        if size.width() <= 0 or size.height() <= 0:
+            return
+
+        scale = min(
+            self.width() / size.width(),
+            self.height() / size.height()
+        )
+
+        width = size.width() * scale
+        height = size.height() * scale
+
+        x = (self.width() - width) / 2
+        y = (self.height() - height) / 2
+
+        self.renderer.render(
+            painter, QRectF(x, y, width, height)
+        )
 
 
 class Status(Enum):
@@ -503,6 +671,42 @@ class BaseFlowGridWidget(BaseScrollWidget):
                 row_widget.delete()
                 self.widgets.remove(row_widget)
 
+class LabeledField(BaseWidget):
+    def __init__(
+        self,
+        title: str,
+        inner_widget: BaseWidget,
+        width_policy: QSizePolicy.Policy | None = None,
+        height_policy: QSizePolicy.Policy | None = None,
+    ):
+        super().__init__()
+        
+        self.inner_widget = inner_widget
+
+        if width_policy or height_policy:
+            self.setSizePolicy(
+                width_policy or QSizePolicy.Policy.Preferred,
+                height_policy or QSizePolicy.Policy.Preferred,
+            )
+        
+        self.label = QLabel(title, self)
+        self.label.setProperty("class", "LabeledContainerTitle")
+        
+        self.title_area = BaseWidget(QHBoxLayout)
+        self.title_area.setContentsMargins(0, 0, 0, 0)
+        
+        self.title_area.addWidget(self.label)
+        self.title_area.addStretch()
+        
+        self.setProperty("class", "LabeledContainer")
+        self.setContentsMargins(8, 3, 8, 8)
+        self.setSpacing(6)
+        
+        self.addWidget(self.title_area)
+        self.addWidget(self.inner_widget)
+    
+    def setTitle(self, title: str):
+        self.label.setText(title)
 
 class StatusBar(BaseWidget):
     def __init__(self):
@@ -568,8 +772,6 @@ class StatusBar(BaseWidget):
             case Status.ERROR:
                 self._insertMessage(index, key, f"<b>{message}</b>", "#ff3030")
 
-
-
 class BaseSettingDialog(BaseDialogWidget):
     def __init__(self, title: str, widget_type: Optional[type[BaseWidget | BaseScrollWidget]] = None):
         super().__init__(title, widget_type or BaseScrollWidget)
@@ -582,16 +784,411 @@ class BaseSettingDialog(BaseDialogWidget):
     def getScrollWidget(self):
         return self.getWidget().getScrollWidget()
 
-class BaseSettingEntry[_T](BaseWidget):
-    IconToolBarOption = importlib.import_module("widgets.user_interface").IconToolBarOption
+class SearchEdit(QFrame):
+    class SearchEditOption(BaseWidget):
+        def __init__(self, se: "SearchEdit", data_point: _T, style: str | list | tuple, info: tuple[Optional[str], Optional[str], Optional[str], Optional[str]]):
+            super().__init__(QHBoxLayout)
+            
+            self.setProperty("class", "SearchOptions")
+            self.setContentsMargins(10, 10, 10, 10)
+            self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+            
+            self.se = se
+            self.data_point = data_point
+            self.main_text, self.right_text, self.bottom_text, self.end_text = info
+            
+            if isinstance(style, str):
+                self.m_style = self.b_style = self.r_style = self.e_style = style
+            elif isinstance(style, (list, tuple)):
+                for i, (x, s_name) in enumerate(((self.main_text, "m_style"), (self.bottom_text, "b_style"), (self.right_text, "r_style"), (self.end_text, "e_style"))):
+                    if x is not None:
+                        setattr(self, s_name, style[i])
+            else:
+                raise TypeError("Style is of type:", type(style))
+            
+            assert self.m_style is not None
+            
+            self.main_label = QLabel() ; self.main_label.setMinimumHeight(25)
+            self.bottom_label = QLabel() ; self.main_label.setMinimumHeight(17)
+            self.right_label = QLabel() ; self.main_label.setMinimumHeight(19)
+            self.end_label = QLabel() ; self.main_label.setMinimumHeight(15)
+            
+            self.metrics = QFontMetrics(self.main_label.font())
+            
+            w1 = BaseWidget()
+            w1.setContentsMargins(0, 0, 0, 0)
+            w1.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
+            
+            main_right_widget = BaseWidget(QHBoxLayout)
+            main_right_widget.setSpacing(10)
+            main_right_widget.setContentsMargins(0, 0, 0, 0)
+            
+            main_right_widget.addWidget(self.main_label)
+            main_right_widget.addWidget(self.right_label)
+            
+            w1.addWidget(main_right_widget)
+            w1.addWidget(self.bottom_label, alignment=Qt.AlignmentFlag.AlignBottom)
+            
+            self.addWidget(w1)
+            self.addWidget(self.end_label, alignment=Qt.AlignmentFlag.AlignRight)
+            
+            self.clicked.connect(self.selected)
+        
+        def update_highlights(self, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
+            score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
+            
+            if score != -1:
+                if not self.isVisible():
+                    self.setVisible(True)
+                
+                self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate("■".join(wrapify_text(self.main_text, 30)))]))
+                self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
+                self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
+                self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
+            else:
+                self.setVisible(False)
+        
+        def selected(self):
+            self.se.hide()
+            
+            self.se.search_le.blockSignals(True)
+            self.se.search_le.clear()
+            self.se.search_le.blockSignals(False)
+            
+            if self.se.goto_search_callback:
+                self.se.goto_search_callback(self.data_point)
+
+    DEBOUNCE_MS = 120
+    MAX_RESULTS = math.inf
+
+    def __init__(
+            self,
+            get_search_scope_callback: Callable[
+                [], list[tuple[_T, str, tuple[Optional[str], Optional[str], Optional[str]], list[Optional[str]]]]
+            ],
+            goto_search_callback: Optional[Callable[[_T], None]] = None
+        ):
+        super().__init__(None)
+
+        self.get_search_scope_callback = get_search_scope_callback
+        self.goto_search_callback = goto_search_callback
+
+        self.setWindowFlags(Qt.WindowType.Popup)
+        self.setFrameShape(QFrame.Shape.Box)
+        self.setProperty("class", "SearchEdit")
+        self.setFixedWidth(500)
+
+        self.ref_data = {}
+        self._updating = False
+
+        # ---------- Layout ----------
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(2, 2, 2, 2)
+        
+        self.search_le = QLineEdit()
+        self.search_le.setPlaceholderText("Search")
+        self.search_le.setFixedWidth(496)
+        self.search_le.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
+        
+        self.main_layout.addWidget(self.search_le, alignment=Qt.AlignmentFlag.AlignTop)
+        
+        self.options_widget_wrapper = BaseScrollWidget()
+        
+        self.options_widget = BaseWidget()
+        self.options_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        
+        self.options_widget_wrapper.addWidget(self.options_widget)
+        self.options_widget_wrapper.addStretch()
+        
+        self.options_widget_wrapper.setFixedWidth(496)
+        self.options_widget_wrapper.setFixedHeight(220)
+        self.options_widget_wrapper.setVisible(False)
+
+        self.main_layout.addWidget(self.options_widget_wrapper, alignment=Qt.AlignmentFlag.AlignTop)
+
+        # ---------- Debounce ----------
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self._run_search)
+        
+        self.search_le.textEdited.connect(self._on_text_edited)
     
+    def show(self):
+        self.search_le.blockSignals(True)
+        self.search_le.clear()
+        self.search_le.blockSignals(False)
+
+        self._run_search()
+        super().show()
+        self.search_le.setFocus()
+        
+    def _on_text_edited(self, _):
+        self._search_timer.start(self.DEBOUNCE_MS)
+
+    def _run_search(self):
+        if self._updating:
+            return
+        
+        self._updating = True
+        text = self.search_le.text().strip()
+        
+        if not text:
+            self.options_widget_wrapper.setVisible(False)
+            self._updating = False
+            
+            return
+        
+        score_data = sorted(
+            [
+                (
+                    data_point,
+                    (name, right, bottom, end),
+                    self._score(text, name, (right, bottom, end), bg)
+                )
+                for data_point, name, (right, bottom, end), bg
+                in self.get_search_scope_callback()
+            ],
+            key=lambda x: x[2][0],
+            reverse=True
+        )
+        
+        ref_data_copy = self.ref_data.copy()
+        l_ref_data = list(ref_data_copy)
+        
+        self.ref_data.clear()
+        
+        added = 0
+        for index, (data_point, info, score_highlight_data) in enumerate(score_data):
+            added += 1
+            
+            if data_point not in ref_data_copy:
+                widget = self.SearchEditOption(self, data_point, f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: 900;", info)
+                
+                self.options_widget.addWidget(widget)
+            else:
+                widget = ref_data_copy[data_point]
+                
+                if index != l_ref_data.index(data_point):
+                    self.options_widget.insertWidget(index, widget)
+            
+            widget.update_highlights(score_highlight_data)
+            self.ref_data[data_point] = widget
+            
+            if added >= self.MAX_RESULTS:
+                break
+        
+        for dp, widg in ref_data_copy.items():
+            if dp not in self.ref_data:
+                self.options_widget.removeWidget(widg)
+        
+        # added = 0
+        # for data_point, (name, right, bottom, end), (score, indices) in score_data:
+        #     if score == -1 or added >= self.MAX_RESULTS:
+        #         continue
+            
+        #     label = QLabel(
+        #         self._stylize_text_indices(
+        #             name,
+        #             f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;",
+        #             right,
+        #             bottom,
+        #             end,
+        #             indices
+        #         )
+        #     )
+        #     label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        #     label.setProperty("class", "SearchOptions")
+        #     label.mousePressEvent = self._make_option_clicked_func(data_point)
+            
+        #     self.options_widget.addWidget(label, alignment=Qt.AlignmentFlag.AlignTop)
+        #     added += 1
+        
+        self.options_widget_wrapper.setVisible(added > 0)
+        
+        self._updating = False
+    
+    def _score(
+        self,
+        text: str,
+        potential_match: str,
+        extra_text_data: Optional[tuple[Optional[str], Optional[str], Optional[str]]] = None,
+        backgrounds_texts: Optional[list[Optional[str]]] = None
+    ) -> tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]:
+        l_text = text.lower()
+        l_target = potential_match.lower()
+        
+        space_amt = 0
+        additions = 0
+        
+        text_len = len(l_text)
+        target_len = len(l_target)
+        
+        index = 0
+        
+        bg_data = []
+        
+        score_indices = []
+        right_indices = []
+        bottom_indices = []
+        end_indices = []
+        
+        right_score = -1
+        bottom_score = -1
+        end_score = -1
+        
+        if extra_text_data:
+            right_text, bottom_text, end_text = extra_text_data
+            
+            if right_text:
+                right_score, right_indices = self._score(text, right_text)
+                right_indices = right_indices[0]
+            if bottom_text:
+                bottom_score, bottom_indices = self._score(text, bottom_text)
+                bottom_indices = bottom_indices[0]
+            if end_text:
+                end_score, end_indices = self._score(text, end_text)
+                end_indices = end_indices[0]
+        
+        if backgrounds_texts:
+            bg_data = [self._score(text, bg_text)[0] for bg_text in backgrounds_texts if bg_text is not None]
+        
+        for i, c in enumerate(l_text):
+            f_index = l_target[index:].find(c)
+            
+            if f_index != -1 and text_len <= target_len:
+                space_amt += f_index
+                index += f_index + 1
+                
+                additions += text[i] == potential_match[index - 1]
+                additions += f_index == 0
+                
+                score_indices.append(index - 1)
+                
+                continue
+            break
+        else:
+            return (text_len / (target_len + space_amt)) + additions, (score_indices, [], [], [])
+        
+        if bottom_score == -1 and right_score != -1:
+            return right_score / 20, ([], right_indices, [], [])
+        elif right_score == -1 and bottom_score != -1:
+            return bottom_score / 20, ([], [], bottom_indices, [])
+        elif right_score != -1 and bottom_score != -1:
+            return (right_score + bottom_score) / 20, ([], right_indices, bottom_indices, [])
+        elif end_score != -1:
+            return end_score / 20, ([], [], [], end_indices)
+        elif bg_data:
+            for bg_score in bg_data:
+                if bg_score != -1:
+                    return bg_score / 20, ([], [], [], [])
+        
+        return -1, ([], [], [], [])
+
+
+class SearchBar(BaseWidget):
+    def __init__(self, get_search_scope_func: Callable, goto_search_func: Callable):
+        super().__init__()
+        
+        self.setContentsMargins(0, 0, 0, 0)
+        
+        self.search_edit = SearchEdit(get_search_scope_func, goto_search_func)
+        
+        self.search_pb = QPushButton()
+        self.search_pb.setFixedWidth(self.search_edit.width())
+        self.search_pb.setProperty("class", "SearchPB")
+        self.search_pb.clicked.connect(self._open_search_edit)
+        
+        self.addWidget(self.search_pb)
+    
+    def setPrompt(self, text: str):
+        self.search_pb.setText(text)
+    
+    def _open_search_edit(self):
+        self.search_edit.move(self.mapToGlobal(QPoint(self.search_pb.x(), self.search_pb.y())))
+        self.search_edit.search_le.setFocus()
+        
+        self.search_edit.show()
+
+
+class SettingsScreen[_T](BaseScrollWidget):
+    def __init__(
+            self,
+            entry: _T,
+            stack: QStackedWidget,
+            parent_entry: BaseSettingEntry,
+            i_parent: BaseSettingWidget[_T]
+        ):
+        super().__init__()
+
+        self.entry = entry
+        self.stack = stack
+        self._parent = parent_entry
+        self.i_parent = i_parent
+        
+        go_back_button = BaseWidget()
+        go_back_button.clicked.connect(lambda _: self.go_back())
+        go_back_button.setProperty("class", "DarkenedBG1 BorderRadiused")
+        go_back_button.setContentsMargins(10, 10, 10, 10)
+        go_back_button.addWidget(svg := SvgWidget("src/images/svg/direction.svg")) ; svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+
+        top_widget = BaseWidget(QHBoxLayout)
+        top_widget.addWidget(go_back_button)
+        top_widget.addStretch()
+        top_widget.addWidget(search_bar := SearchBar(lambda: [], lambda: None))
+        top_widget.addStretch()
+
+        body_widget = BaseWidget()
+        body_widget.setSpacing(10)
+        body_widget.setContentsMargins(5, 10, 5, 10)
+
+        for name, widget, alignment in self.get_dialog_sub_settings():
+            widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
+            body_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
+
+        self.addWidget(top_widget)
+        self.addWidget(body_widget)
+        self.addStretch()
+
+        search_bar.setPrompt("Search")
+        self.i_parent.add_buttons_widget.setVisible(False)
+    
+    def get_dialog_sub_settings(self):
+        for name, option_data in self._parent.option_dialogs:
+            if len(option_data) == 2:
+                widget_info, alignment = option_data
+
+                widget = widget_info()
+            else:
+                *widget_info, alignment = option_data
+
+                if len(widget_info) == 2:
+                    cls, variables = widget_info
+                else:
+                    raise TypeError(f"Expected dialog info of length 2 but got length: {len(widget_info)}")
+                
+                widget = cls(self._parent, self.entry.id, *variables)
+            
+            yield (name.format(name=self.entry.name.full()), widget, alignment)
+    
+    def go_back(self):
+        self.i_parent.add_buttons_widget.setVisible(True)
+
+        self.stack.setCurrentWidget(self.i_parent.scroll_widget)
+        self.stack.removeWidget(self)
+        self.deleteLater()
+
+        self._parent.settings_screen = None
+
+
+class BaseSettingEntry[_T](BaseWidget):
     def __init__(
             self,
             i_parent: "BaseSettingWidget[_T]",
             general_entry_name: str,
             extended_placeholders: list[str],
-            option_dialogs: list[tuple[str, tuple[str, type[BaseSettingDialog]] | tuple[str, type[BaseSettingDialog], tuple]] | QWidget],
-            entry: Optional[_T]
+            option_dialogs: list[tuple[str, tuple[type[BaseWidget], tuple, Qt.AlignmentFlag] | tuple[QWidget, Qt.AlignmentFlag]]],
+            entry: Optional[_T],
+            stack: QStackedWidget
         ):
         super().__init__()
         
@@ -604,6 +1201,9 @@ class BaseSettingEntry[_T](BaseWidget):
         self.i_parent = i_parent
         self.option_dialogs = option_dialogs
         self.general_entry_name = general_entry_name
+        self.stack = stack
+
+        self.settings_screen = None
         
         self.simple_placeholder = f"Enter {self.general_entry_name} Name"
         
@@ -612,21 +1212,32 @@ class BaseSettingEntry[_T](BaseWidget):
         # ----------------------------------------------------------------------------------------
         menu_area = BaseWidget(QHBoxLayout)
         menu_area.setContentsMargins(0, 0, 0, 0)
-        
-        self.options_option = self.IconToolBarOption((options_widget := BaseWidget()), "☰")
-        
-        dialog_buttons_widget = BaseWidget(QHBoxLayout)
-        for button in self.get_dialog_sub_settings():
-            dialog_buttons_widget.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
-        
+
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
+
+        self.simple_display_widget = None
+        self.extended_display_widget = None
         
-        menu_area.addWidget(self.options_option, alignment=Qt.AlignmentFlag.AlignLeft)
-        menu_area.addWidget(dialog_buttons_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        if extended_placeholders:
+            self.options_option = BaseWidget()
+            self.options_option.setProperty("class", "DarkenedBG1 BorderRadiused")
+            self.options_option.setContentsMargins(10, 10, 10, 10)
+            
+            self.options_option.addWidget(simple_display_widget := SvgWidget("src/images/svg/text-cursor-input.svg")) ; simple_display_widget.setVisible(False)
+            self.options_option.addWidget(extended_display_widget := SvgWidget("src/images/svg/list.svg"))
+
+            simple_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+            extended_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+
+            self.simple_display_widget = simple_display_widget
+            self.extended_display_widget = extended_display_widget
+
+            menu_area.addWidget(self.options_option, alignment=Qt.AlignmentFlag.AlignLeft)
+        
         menu_area.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignRight)
-                
+        
         # ----------------------------------------------------------------------------------------
         
         simple, extended = self.get_init_text()
@@ -677,28 +1288,21 @@ class BaseSettingEntry[_T](BaseWidget):
         # ----------------------------------------------------------------------------------------
         
         if self.extended_line_edits:
-            sn_rb = QRadioButton("Short Name")
-            ln_rb = QRadioButton("Long Name")
-            
-            options_widget.addWidget(sn_rb)
-            options_widget.addWidget(ln_rb)
-            
-            sn_rb.setChecked(True)
-            
-            sn_rb.clicked.connect(lambda s: self.toogle_name_format(s))
-            ln_rb.clicked.connect(lambda s: self.toogle_name_format(not s))
-            
+            self.options_option.clicked.connect(lambda _: self.toogle_name_format())
+
             for i, line_edit in enumerate(self.extended_line_edits):
                 line_edit.textChanged.connect(self._make_ext_name_empty(i))
                 line_edit.setText(extended[i])
-        else:
-            self.options_option.setDisabled(True)
         
         self.addWidget(menu_area)
         self.addWidget(edits_area)
         self.addWidget(self.status_widget)
         
         self.simple_name_empty(self.simple_line_edit.text())
+
+        menu_area.clicked.connect(lambda _: self.open_settings())
+        edits_area.clicked.connect(lambda _: self.open_settings())
+        self.status_widget.clicked.connect(lambda _: self.open_settings())
         
         self.__init = False
     
@@ -743,50 +1347,28 @@ class BaseSettingEntry[_T](BaseWidget):
     
     def focusInput(self):
         QTimer.singleShot(100, self._focusInput)
-    
+
+    def open_settings(self):
+        self.settings_screen = SettingsScreen(self.entry, self.stack, self, self.i_parent)
+
+        self.stack.addWidget(self.settings_screen)
+        self.stack.setCurrentWidget(self.settings_screen)
+
     def remove(self):
         self.i_parent.remove(self)
         self.i_parent.window().saved_state_changed.emit(True)
     
-    def get_dialog_sub_settings(self):
-        for option_data in self.option_dialogs:
-            if isinstance(option_data, QWidget):
-                widget = option_data
-            else:
-                name, dialog_info = option_data
-                
-                if len(dialog_info) == 2:
-                    title, cls = dialog_info
-                    variables = ()
-                elif len(dialog_info) == 3:
-                    title, cls, variables = dialog_info
-                else:
-                    raise TypeError(f"Expected dialog info of length 2 or 3 but got length: {len(dialog_info)}")
-                
-                widget = QPushButton(name)
-                widget.clicked.connect(self.make_open_dialogs_func(title, cls, *variables))
-            
-            yield widget
-    
-    def make_open_dialogs_func(self, title: str, cls: type[BaseSettingDialog], *args):
-        def make_dialog():
-            return cls(self, self.entry.id, title.format(name=self.entry.name.full()), *args)
-        
-        self.dialog_widget_funcs.append(make_dialog)
-        
-        return lambda: make_dialog().exec()
-    
     def get_init_text(self):
         raise NotImplementedError()
     
-    def toogle_name_format(self, s: bool):
+    def toogle_name_format(self):
         if self.extended_line_edits:
-            self.simple_line_edit.setVisible(s)
-            self.extended_edits_widget.setVisible(not s)
+            for c in self.options_option.getChildren() + [self.simple_line_edit, self.extended_edits_widget]:
+                c.setVisible(not c.isVisible())
             
-            self.options_option.disappear()
+            is_simple = self.simple_line_edit.isVisible()
             
-            if s:
+            if is_simple:
                 self.simple_line_edit.setFocus()
                 
                 for i in range(len(self.extended_line_edits)):
@@ -821,15 +1403,19 @@ class BaseSettingWidget[_T](BaseWidget):
         super().__init__()
         
         self.widgets: dict[ID, BaseSettingEntry[_T]] = {}
+
+        self.stack = QStackedWidget()
         
         self.scroll_widget = BaseScrollWidget()
         self.scroll_widget.setSpacing(20)
         self.scroll_widget.addStretch()
+
+        self.stack.addWidget(self.scroll_widget)
         
         self.add_buttons_widget = BaseWidget(QHBoxLayout)
         self.add_buttons_widget.addStretch()
         
-        self.addWidget(self.scroll_widget)
+        self.addWidget(self.stack)
         self.addWidget(self.add_buttons_widget)
         
         def _make_add_button_func(index: int):
@@ -883,7 +1469,7 @@ class BaseSettingWidget[_T](BaseWidget):
             widget_type = widget_data
             variables = []
         
-        widget = widget_type(self, entry, *variables)
+        widget = widget_type(self, entry, *variables, stack=self.stack)
         
         if index is None:
             self.scroll_widget.insertWidget(len(self.widgets), widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
@@ -918,13 +1504,13 @@ class BaseSettingWidget[_T](BaseWidget):
         return widget.entry.id
 
 
-class BaseSelectionList[_T](BaseSettingDialog):
-    def __init__(self, parent: BaseSettingEntry, id: ID, title: str, selected_items: list[tuple[ID, _T | tuple[_T, int]]], content_scope: dict[ID, _T | tuple[_T, int]]):
-        super().__init__(title)
+class BaseSelectionList[_T](BaseScrollWidget):
+    def __init__(self, parent: BaseSettingEntry, id: ID, selected_items: list[tuple[ID, _T | tuple[_T, int]]], content_scope: dict[ID, _T | tuple[_T, int]]):
+        super().__init__()
         
         self.id = id
         self._parent = parent
-        self.setFixedSize(400, 300)
+        self.setFixedHeight(400)
         
         self.widgets: dict[ID, _BaseSelectObjectWidget] = {}
         
@@ -1071,14 +1657,16 @@ class SL_UnSelectedWidget(_BaseSelectObjectWidget):
 
 
 
-class BaseDayOfTheWeekEditor(BaseSelectionList):
+class BaseDayOfTheWeekEditor(BaseSettingDialog):
     def __init__(self, parent: BaseWidget, title: str, weekdays: list[str], selected_scope: Optional[list[tuple[str, tuple[Entry, int]]]] = None):
         self.weekdays = weekdays
         
         self.full_scope = self._get_sl_tokens(DAYS_OF_THE_WEEK)
         self.selected_scope = selected_scope or self._get_sl_tokens(self.weekdays)
         
-        super().__init__(parent, None, title, self.selected_scope, dict(self.full_scope))
+        super().__init__(title)
+
+        self.addWidget(central_widget := BaseSelectionList(parent, None, self.selected_scope, dict(self.full_scope)))
     
     def _get_sl_tokens(self, weekdays: list[str]):
         return [(day, (Entry(day, Name(day)), i)) for i, day in enumerate(weekdays)]

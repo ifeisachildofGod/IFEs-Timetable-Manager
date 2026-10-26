@@ -765,7 +765,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         start_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         start_period_widget.addWidget(start_gpe_widget)
         start_period_widget.addWidget(start_point_enabled_cb)
-        start_period_widget.setProperty("class", "DarkendBG")
+        start_period_widget.setProperty("class", "DarkenedBG")
         
         end_period_widget = BaseWidget()
         end_point_enabled_cb = QCheckBox("Enabled") ; end_point_enabled_cb.clicked.connect(ep_en_func)
@@ -773,7 +773,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         end_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         end_period_widget.addWidget(end_gpe_widget)
         end_period_widget.addWidget(end_point_enabled_cb)
-        end_period_widget.setProperty("class", "DarkendBG")
+        end_period_widget.setProperty("class", "DarkenedBG")
         
         if SCHOOL.settings.EXPORT_attendance_settings.start_limit_period:
             start_point_enabled_cb.click()

@@ -23,8 +23,9 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,
     QPoint, QPointF, QObject, QRect, QRectF, QRegularExpression,
-    pyqtBoundSignal as pyBoundSignal, pyqtSignal as pySignal
+    QByteArray, pyqtBoundSignal as pyBoundSignal, pyqtSignal as pySignal
 )
+from PyQt6.QtSvg import QSvgRenderer
 
 from core import *
 

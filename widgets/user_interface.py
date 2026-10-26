@@ -7,21 +7,6 @@ from imports import *
 from .base import *
 
 import math
-from typing import Literal, TypeVar
-
-T = TypeVar("T")
-
-
-def wrapify_text(text: str, length: int):
-    if len(text) > length:
-        index = length
-        
-        if " " in text and (_temp_index := text[:length].rfind(" ")) != -1:
-            index = _temp_index
-        
-        return [text[:index]] + wrapify_text(text[index + (text[index] == " "):], length)
-    else:
-        return [text]
 
 
 class ProgressBar(QProgressBar):
@@ -222,312 +207,13 @@ class MenuFrame(QFrame):
             self.move(self._pos)
             self.show()
 
-class _SearchEditOption(BaseWidget):
-    def __init__(self, se: "SearchEdit", data_point: T, style: str | list | tuple, info: tuple[Optional[str], Optional[str], Optional[str], Optional[str]]):
-        super().__init__(QHBoxLayout)
-        
-        self.setProperty("class", "SearchOptions")
-        self.setContentsMargins(10, 10, 10, 10)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-        
-        self.se = se
-        self.data_point = data_point
-        self.main_text, self.right_text, self.bottom_text, self.end_text = info
-        
-        if isinstance(style, str):
-            self.m_style = self.b_style = self.r_style = self.e_style = style
-        elif isinstance(style, (list, tuple)):
-            for i, (x, s_name) in enumerate(((self.main_text, "m_style"), (self.bottom_text, "b_style"), (self.right_text, "r_style"), (self.end_text, "e_style"))):
-                if x is not None:
-                    setattr(self, s_name, style[i])
-        else:
-            raise TypeError("Style is of type:", type(style))
-        
-        assert self.m_style is not None
-        
-        self.main_label = QLabel() ; self.main_label.setMinimumHeight(25)
-        self.bottom_label = QLabel() ; self.main_label.setMinimumHeight(17)
-        self.right_label = QLabel() ; self.main_label.setMinimumHeight(19)
-        self.end_label = QLabel() ; self.main_label.setMinimumHeight(15)
-        
-        self.metrics = QFontMetrics(self.main_label.font())
-        
-        w1 = BaseWidget()
-        w1.setContentsMargins(0, 0, 0, 0)
-        w1.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Minimum)
-        
-        main_right_widget = BaseWidget(QHBoxLayout)
-        main_right_widget.setSpacing(10)
-        main_right_widget.setContentsMargins(0, 0, 0, 0)
-        
-        main_right_widget.addWidget(self.main_label)
-        main_right_widget.addWidget(self.right_label)
-        
-        w1.addWidget(main_right_widget)
-        w1.addWidget(self.bottom_label, alignment=Qt.AlignmentFlag.AlignBottom)
-        
-        self.addWidget(w1)
-        self.addWidget(self.end_label, alignment=Qt.AlignmentFlag.AlignRight)
-        
-        self.clicked.connect(self.selected)
-    
-    def update_highlights(self, score_highlight_data: tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]):
-        score, (main_hi, right_hi, bottom_hi, end_hi) = score_highlight_data
-        
-        if score != -1:
-            if not self.isVisible():
-                self.setVisible(True)
-            
-            self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate("■".join(wrapify_text(self.main_text, 30)))]))
-            self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
-            self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
-            self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
-        else:
-            self.setVisible(False)
-    
-    def selected(self):
-        self.se.hide()
-        
-        self.se.search_le.blockSignals(True)
-        self.se.search_le.clear()
-        self.se.search_le.blockSignals(False)
-        
-        if self.se.goto_search_callback:
-            self.se.goto_search_callback(self.data_point)
 
-class SearchEdit(QFrame):
-    DEBOUNCE_MS = 120
-    MAX_RESULTS = math.inf
 
-    def __init__(
-            self,
-            get_search_scope_callback: Callable[
-                [], list[tuple[T, str, tuple[Optional[str], Optional[str], Optional[str]], list[Optional[str]]]]
-            ],
-            goto_search_callback: Optional[Callable[[T], None]] = None
-        ):
-        super().__init__(None)
-
-        self.get_search_scope_callback = get_search_scope_callback
-        self.goto_search_callback = goto_search_callback
-
-        self.setWindowFlags(Qt.WindowType.Popup)
-        self.setFrameShape(QFrame.Shape.Box)
-        self.setProperty("class", "SearchEdit")
-        self.setFixedWidth(500)
-
-        self.ref_data = {}
-        self._updating = False
-
-        # ---------- Layout ----------
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(2, 2, 2, 2)
-        
-        self.search_le = QLineEdit()
-        self.search_le.setPlaceholderText("Search")
-        self.search_le.setFixedWidth(496)
-        self.search_le.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-        
-        self.main_layout.addWidget(self.search_le, alignment=Qt.AlignmentFlag.AlignTop)
-        
-        self.options_widget_wrapper = BaseScrollWidget()
-        
-        self.options_widget = BaseWidget()
-        self.options_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        
-        self.options_widget_wrapper.addWidget(self.options_widget)
-        self.options_widget_wrapper.addStretch()
-        
-        self.options_widget_wrapper.setFixedWidth(496)
-        self.options_widget_wrapper.setFixedHeight(220)
-        self.options_widget_wrapper.setVisible(False)
-
-        self.main_layout.addWidget(self.options_widget_wrapper, alignment=Qt.AlignmentFlag.AlignTop)
-
-        # ---------- Debounce ----------
-        self._search_timer = QTimer(self)
-        self._search_timer.setSingleShot(True)
-        self._search_timer.timeout.connect(self._run_search)
-        
-        self.search_le.textEdited.connect(self._on_text_edited)
-    
-    def show(self):
-        self.search_le.blockSignals(True)
-        self.search_le.clear()
-        self.search_le.blockSignals(False)
-
-        self._run_search()
-        super().show()
-        self.search_le.setFocus()
-        
-    def _on_text_edited(self, _):
-        self._search_timer.start(self.DEBOUNCE_MS)
-
-    def _run_search(self):
-        if self._updating:
-            return
-        
-        self._updating = True
-        text = self.search_le.text().strip()
-        
-        if not text:
-            self.options_widget_wrapper.setVisible(False)
-            self._updating = False
-            
-            return
-        
-        score_data = sorted(
-            [
-                (
-                    data_point,
-                    (name, right, bottom, end),
-                    self._score(text, name, (right, bottom, end), bg)
-                )
-                for data_point, name, (right, bottom, end), bg
-                in self.get_search_scope_callback()
-            ],
-            key=lambda x: x[2][0],
-            reverse=True
-        )
-        
-        ref_data_copy = self.ref_data.copy()
-        l_ref_data = list(ref_data_copy)
-        
-        self.ref_data.clear()
-        
-        added = 0
-        for index, (data_point, info, score_highlight_data) in enumerate(score_data):
-            added += 1
-            
-            if data_point not in ref_data_copy:
-                widget = _SearchEditOption(self, data_point, f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: 900;", info)
-                
-                self.options_widget.addWidget(widget)
-            else:
-                widget = ref_data_copy[data_point]
-                
-                if index != l_ref_data.index(data_point):
-                    self.options_widget.insertWidget(index, widget)
-            
-            widget.update_highlights(score_highlight_data)
-            self.ref_data[data_point] = widget
-            
-            if added >= self.MAX_RESULTS:
-                break
-        
-        for dp, widg in ref_data_copy.items():
-            if dp not in self.ref_data:
-                self.options_widget.removeWidget(widg)
-        
-        # added = 0
-        # for data_point, (name, right, bottom, end), (score, indices) in score_data:
-        #     if score == -1 or added >= self.MAX_RESULTS:
-        #         continue
-            
-        #     label = QLabel(
-        #         self._stylize_text_indices(
-        #             name,
-        #             f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;",
-        #             right,
-        #             bottom,
-        #             end,
-        #             indices
-        #         )
-        #     )
-        #     label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        #     label.setProperty("class", "SearchOptions")
-        #     label.mousePressEvent = self._make_option_clicked_func(data_point)
-            
-        #     self.options_widget.addWidget(label, alignment=Qt.AlignmentFlag.AlignTop)
-        #     added += 1
-        
-        self.options_widget_wrapper.setVisible(added > 0)
-        
-        self._updating = False
-    
-    def _score(
-        self,
-        text: str,
-        potential_match: str,
-        extra_text_data: Optional[tuple[Optional[str], Optional[str], Optional[str]]] = None,
-        backgrounds_texts: Optional[list[Optional[str]]] = None
-    ) -> tuple[float | Literal[-1], tuple[list[int], list[int], list[int], list[int]]]:
-        l_text = text.lower()
-        l_target = potential_match.lower()
-        
-        space_amt = 0
-        additions = 0
-        
-        text_len = len(l_text)
-        target_len = len(l_target)
-        
-        index = 0
-        
-        bg_data = []
-        
-        score_indices = []
-        right_indices = []
-        bottom_indices = []
-        end_indices = []
-        
-        right_score = -1
-        bottom_score = -1
-        end_score = -1
-        
-        if extra_text_data:
-            right_text, bottom_text, end_text = extra_text_data
-            
-            if right_text:
-                right_score, right_indices = self._score(text, right_text)
-                right_indices = right_indices[0]
-            if bottom_text:
-                bottom_score, bottom_indices = self._score(text, bottom_text)
-                bottom_indices = bottom_indices[0]
-            if end_text:
-                end_score, end_indices = self._score(text, end_text)
-                end_indices = end_indices[0]
-        
-        if backgrounds_texts:
-            bg_data = [self._score(text, bg_text)[0] for bg_text in backgrounds_texts if bg_text is not None]
-        
-        for i, c in enumerate(l_text):
-            f_index = l_target[index:].find(c)
-            
-            if f_index != -1 and text_len <= target_len:
-                space_amt += f_index
-                index += f_index + 1
-                
-                additions += text[i] == potential_match[index - 1]
-                additions += f_index == 0
-                
-                score_indices.append(index - 1)
-                
-                continue
-            break
-        else:
-            return (text_len / (target_len + space_amt)) + additions, (score_indices, [], [], [])
-        
-        if bottom_score == -1 and right_score != -1:
-            return right_score / 20, ([], right_indices, [], [])
-        elif right_score == -1 and bottom_score != -1:
-            return bottom_score / 20, ([], [], bottom_indices, [])
-        elif right_score != -1 and bottom_score != -1:
-            return (right_score + bottom_score) / 20, ([], right_indices, bottom_indices, [])
-        elif end_score != -1:
-            return end_score / 20, ([], [], [], end_indices)
-        elif bg_data:
-            for bg_score in bg_data:
-                if bg_score != -1:
-                    return bg_score / 20, ([], [], [], [])
-        
-        return -1, ([], [], [], [])
 
 class CustomTitleBar(BaseWidget):
-    def __init__(self, parent: QWidget, get_search_scope_func: Callable, goto_search_func: Callable):
+    def __init__(self, get_search_scope_func: Callable, goto_search_func: Callable):
         super().__init__(QHBoxLayout)
-        
-        self.master = parent
-        
+
         self.setFixedHeight(40)
         self.setProperty("class", "TitleBar")
         self.setContentsMargins(0, 0, 0, 0)
@@ -548,14 +234,8 @@ class CustomTitleBar(BaseWidget):
         right_widget.setSpacing(0)
         
         # Center widget
-        self.search_edit = SearchEdit(get_search_scope_func, goto_search_func)
-        
-        self.search_pb = QPushButton("Search Subjects")
-        self.search_pb.setFixedWidth(self.search_edit.width())
-        self.search_pb.setProperty("class", "SearchPB")
-        self.search_pb.clicked.connect(self._open_search_edit)
-        
-        self.center_widget.addWidget(self.search_pb)
+        self.search_bar = SearchBar(get_search_scope_func, goto_search_func)
+        self.center_widget.addWidget(self.search_bar)
         
         # Right widget
         # Nothing here
@@ -563,16 +243,10 @@ class CustomTitleBar(BaseWidget):
         self.addWidget(self.left_widget, alignment=Qt.AlignmentFlag.AlignLeft)
         self.addWidget(self.center_widget)
         self.addWidget(right_widget, alignment=Qt.AlignmentFlag.AlignRight)
-    
-    def _open_search_edit(self):
-        self.search_edit.move(self.center_widget.mapToGlobal(QPoint(self.search_pb.x(), self.search_pb.y())))
-        self.search_edit.search_le.setFocus()
-        
-        self.search_edit.show()
 
 class MainTitleBar(CustomTitleBar):
-    def __init__(self, parent, menu_bar: QMenuBar, get_search_scope_func: Callable, goto_search_func: Callable, go_back_func: Callable, go_forward_func: Callable):
-        super().__init__(parent, get_search_scope_func, goto_search_func)
+    def __init__(self, menu_bar: QMenuBar, get_search_scope_func: Callable, goto_search_func: Callable, go_back_func: Callable, go_forward_func: Callable):
+        super().__init__(get_search_scope_func, goto_search_func)
         
         menu_bar.setFixedHeight(40)
         menu_bar.setContentsMargins(0, 0, 0, 0)
@@ -1012,42 +686,6 @@ class LabeledWidget(BaseWidget):
         self.addSpacing(10)
         self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignRight)
 
-class LabeledField(BaseWidget):
-    def __init__(
-        self,
-        title: str,
-        inner_widget: BaseWidget,
-        width_policy: QSizePolicy.Policy | None = None,
-        height_policy: QSizePolicy.Policy | None = None,
-    ):
-        super().__init__()
-        
-        self.inner_widget = inner_widget
-
-        if width_policy or height_policy:
-            self.setSizePolicy(
-                width_policy or QSizePolicy.Policy.Preferred,
-                height_policy or QSizePolicy.Policy.Preferred,
-            )
-        
-        self.label = QLabel(title, self)
-        self.label.setProperty("class", "LabeledContainerTitle")
-        
-        self.title_area = BaseWidget(QHBoxLayout)
-        self.title_area.setContentsMargins(0, 0, 0, 0)
-        
-        self.title_area.addWidget(self.label)
-        self.title_area.addStretch()
-        
-        self.setProperty("class", "LabeledContainer")
-        self.setContentsMargins(8, 3, 8, 8)
-        self.setSpacing(6)
-        
-        self.addWidget(self.title_area)
-        self.addWidget(self.inner_widget)
-    
-    def setTitle(self, title: str):
-        self.label.setText(title)
 
 class IconToolBarOption(BaseWidget):
     def __init__(self, *args, **kwargs):
@@ -1153,33 +791,33 @@ class IconToolBarOption(BaseWidget):
     def _clicked(self, a0):
         if isinstance(self.content, Callable):
             return self.content()
-        else:
-            self.setStyleSheet(self.STYLESHEET.replace(self.HOVER_STYLESHEET, "") + THEME_MANAGER.process_stylesheet("QWidget.IconToolBarOption {{ background-color: {hover__bg3} }}"))
+        
+        self.setStyleSheet(self.STYLESHEET.replace(self.HOVER_STYLESHEET, "") + THEME_MANAGER.process_stylesheet("QWidget.IconToolBarOption {{ background-color: {hover__bg3} }}"))
+        self.update()
+        
+        if self.arrow:
+            self.arrow.setAngle(0)
+        
+        if isinstance(self.content, list):
+            menu = self._getMenu(self, self.content)
+            
+            menu.adjustSize()
+            menu.exec(self.getMenuPosition(menu))
+            
+            self.setStyleSheet(self.STYLESHEET)
             self.update()
+        elif isinstance(self.content, QWidget):
+            self.content.setWindowFlags(Qt.WindowType.Popup)
             
-            if self.arrow:
-                self.arrow.setAngle(0)
+            if not self._first_press:
+                self.content.move(self.getMenuPosition(self.content))
             
-            if isinstance(self.content, list):
-                menu = self._getMenu(self, self.content)
+            self.content.show()
+            
+            if self._first_press:
+                QTimer.singleShot(0, lambda: self.content.move(self.getMenuPosition(self.content)))
                 
-                menu.adjustSize()
-                menu.exec(self.getMenuPosition(menu))
-                
-                self.setStyleSheet(self.STYLESHEET)
-                self.update()
-            elif isinstance(self.content, QWidget):
-                self.content.setWindowFlags(Qt.WindowType.Popup)
-                
-                if not self._first_press:
-                    self.content.move(self.getMenuPosition(self.content))
-                
-                self.content.show()
-                
-                if self._first_press:
-                    QTimer.singleShot(0, lambda: self.content.move(self.getMenuPosition(self.content)))
-                    
-                    self._first_press = False
+                self._first_press = False
     
     def _getMenu(self, parent: QMenu | BaseWidget, content: list | None, name: Optional[str] = None):
         args = [parent]
