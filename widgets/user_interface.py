@@ -667,7 +667,7 @@ class SeparatorLabel(BaseWidget):
         label = QLabel(text)
         label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         label.setContentsMargins(0, 0, 5, 0)
-        self.setStyleProperty(label, "font-weight", "bold")
+        self.static_setStyleProperty(label, "font-weight", "bold")
         
         sep_widget = SeperatorWidget(Qt.Orientation.Horizontal, 0, None, 1)
         sep_widget.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Maximum)

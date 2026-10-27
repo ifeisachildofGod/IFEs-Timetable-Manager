@@ -7,6 +7,7 @@ from .user_interface import *
 
 from AttendanceApp import AttendanceManager
 
+# dialog_widget_funcs no longer exists, remove all references to it
 
 class Subject_SelectionList(BaseSelectionList[Teacher]):
     def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
@@ -88,7 +89,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        self.setFixedSize(400, 400)
+        self.setFixedSize(550, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -131,7 +132,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
         
         for lvl_id, cls_lvl in SCHOOL.class_levels.items():
             week_total = (cls_lvl.period_amount - 1) * len(cls_lvl.weekdays)
-            min_rem = min(week_total - sum((cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls_lvl.subjects_occurence), 0) for cls in cls_lvl.classes.values())
+            min_rem = min((week_total - sum((cls_lvl.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls_lvl.subjects_occurence), start=0) for cls in cls_lvl.classes.values()), default=week_total)
             
             check_box = QCheckBox()
             check_box.clicked.connect(self.make_main_checkbox_func(lvl_id))
@@ -282,7 +283,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
         
         self.combined_subject: CombinedSubject = SCHOOL.subjects[self.id]
         
-        self.setFixedSize(400, 400)
+        self.setFixedSize(550, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -490,7 +491,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         
         self.teacher = SCHOOL.teachers[self.id]
         
-        self.setFixedSize(400, 400)
+        self.setFixedSize(550, 400)
         
         self.main_guy_is_clicked = False
         self.mini_guy_is_clicked = False
@@ -901,7 +902,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         
         self.__init = True
         
-        self.setFixedHeight(400)
+        self.setFixedSize(600, 400)
 
         self._parent = parent
         
@@ -1397,7 +1398,7 @@ def deassign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subj
             per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
             
             week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
-            min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+            min_rem = min((week_total - sum((cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence), start=0) for cls in cls.level.classes.values()), default=week_total)
             
             cls.level.subjects_occurence[subjectID] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
     
@@ -1442,7 +1443,7 @@ def assign_subject_class(subject: Subject, cls: Class, timetable_editor: SchoolT
         per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
         
         week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
-        min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+        min_rem = min((week_total - sum((cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence), start=0) for cls in cls.level.classes.values()), default=week_total)
         
         cls.level.subjects_occurence[subject.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
     
@@ -1492,7 +1493,7 @@ def assign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subjec
         per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
         
         week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
-        min_rem = min(week_total - sum(cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence) for cls in cls.level.classes.values())
+        min_rem = min((week_total - sum((cls.level.subjects_occurence[s.id].week_max for s in cls.subjects.values() if s.id in cls.level.subjects_occurence), start=0) for cls in cls.level.classes.values()), default=week_total)
         
         cls.level.subjects_occurence[c_subject.id] = SubjectOccurrance(min(per_day, min_rem), min(per_week, min_rem))
 

@@ -106,7 +106,7 @@ class TextThemeEditor(IconToolBarOption):
             # label.setText(font_family)
             
             font.setFamily(font_family)
-            self.setStyleProperty(label, "font-family", f"'{font_family}'")
+            self.static_setStyleProperty(label, "font-family", f"'{font_family}'")
     
     def _fontSizeChanged(self, size: int):
         self._unsaved()
@@ -116,13 +116,13 @@ class TextThemeEditor(IconToolBarOption):
             
             font.setPointSize(size)
             
-            self.setStyleProperty(label, "font-size", f"{size}pt")
+            self.static_setStyleProperty(label, "font-size", f"{size}pt")
     
     def _fontOpacityChanged(self, opacity: int):
         self._unsaved()
         
         for label in self.cast_labels:
-            self.setStyleProperty(label, "opacity", str(opacity))
+            self.static_setStyleProperty(label, "opacity", str(opacity))
     
     def _fontWeightChanged(self, bold: bool):
         self._unsaved()
@@ -131,7 +131,7 @@ class TextThemeEditor(IconToolBarOption):
             font = label.font()
             
             font.setBold(bold)
-            self.setStyleProperty(label, "font-weight", "bold" if bold else "normal")
+            self.static_setStyleProperty(label, "font-weight", "bold" if bold else "normal")
     
     def _fontStyleChanged(self, italic: bool):
         self._unsaved()
@@ -140,7 +140,7 @@ class TextThemeEditor(IconToolBarOption):
             font = label.font()
             
             font.setItalic(italic)
-            self.setStyleProperty(label, "font-style", "italic" if italic else "normal")
+            self.static_setStyleProperty(label, "font-style", "italic" if italic else "normal")
     
     def _fontLineStyleChanged(self, underline: bool, overline: bool):
         self._unsaved()
@@ -151,7 +151,7 @@ class TextThemeEditor(IconToolBarOption):
             font.setOverline(overline)
             font.setUnderline(underline)
             
-            self.setStyleProperty(label, "text-decoration", "underline" if underline else ("overline" if overline else "none"))
+            self.static_setStyleProperty(label, "text-decoration", "underline" if underline else ("overline" if overline else "none"))
             
             if underline:
                 self.ol_cb.blockSignals(True)
@@ -166,7 +166,7 @@ class TextThemeEditor(IconToolBarOption):
         self._unsaved()
         
         for label in self.cast_labels:
-            self.setStyleProperty(label, "color", color)
+            self.static_setStyleProperty(label, "color", color)
     
     def _fontLetterSpacingChanged(self, spacing: float):
         self._unsaved()
@@ -175,13 +175,13 @@ class TextThemeEditor(IconToolBarOption):
             font = label.font()
             
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing)
-            self.setStyleProperty(label, "letter-spacing", f"{spacing}px")
+            self.static_setStyleProperty(label, "letter-spacing", f"{spacing}px")
     
     def _textAlignment(self, alignment: str):
         self._unsaved()
         
         for label in self.cast_labels:
-            self.setStyleProperty(label, "text-align", alignment.lower())
+            self.static_setStyleProperty(label, "text-align", alignment.lower())
     
     def _getFontSection(self):
         font_section = BaseWidget()
@@ -432,37 +432,37 @@ class ExportPreviewDialog(BaseDialogWidget):
         
         heading_start = heading + (f"{self.vertical_thickness.value()}px solid {self.border_color.currentColor()}", )
         
-        BaseWidget.setStyleProperty(self.row1.indexWidget(1), ("background-color", "border-bottom", "border-right", "border-top", "border-left",), heading_start)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(2), ("background-color", "border-bottom", "border-right", "border-top"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(3), ("background-color", "border-bottom", "border-right", "border-top"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(4), ("background-color", "border-bottom", "border-right", "border-top"), heading)
-        BaseWidget.setStyleProperty(self.row1.indexWidget(5), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.static_setStyleProperty(self.row1.indexWidget(1), ("background-color", "border-bottom", "border-right", "border-top", "border-left",), heading_start)
+        BaseWidget.static_setStyleProperty(self.row1.indexWidget(2), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.static_setStyleProperty(self.row1.indexWidget(3), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.static_setStyleProperty(self.row1.indexWidget(4), ("background-color", "border-bottom", "border-right", "border-top"), heading)
+        BaseWidget.static_setStyleProperty(self.row1.indexWidget(5), ("background-color", "border-bottom", "border-right", "border-top"), heading)
         
-        BaseWidget.setStyleProperty(self.row2.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading_start)
-        BaseWidget.setStyleProperty(self.row2.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row2.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row2.indexWidget(3), ("background-color", "border-right"), break_time)
-        BaseWidget.setStyleProperty(self.row2.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row2.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading_start)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(3), ("background-color", "border-right"), break_time)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row2.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
         
-        BaseWidget.setStyleProperty(self.row3.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading + border_left)
-        BaseWidget.setStyleProperty(self.row3.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row3.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row3.indexWidget(3), ("background-color", "border-right", "border-bottom"), break_time + border_bottom)
-        BaseWidget.setStyleProperty(self.row3.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
-        BaseWidget.setStyleProperty(self.row3.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(0), ("background-color", "border-bottom", "border-right", "border-top", "border-left"), heading + border_left)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(1), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(2), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(3), ("background-color", "border-right", "border-bottom"), break_time + border_bottom)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(4), ("background-color", "border-bottom", "border-right"), content)
+        BaseWidget.static_setStyleProperty(self.row3.indexWidget(5), ("background-color", "border-bottom", "border-right"), content)
         
-        curr_max_font_size = max(float(BaseWidget.getStyleProperty(l, "font-size")[:-2]) for l in self.labels if l.text())
+        curr_max_font_size = max(float(BaseWidget.static_getStyleProperty(l, "font-size")[:-2]) for l in self.labels if l.text())
         
         for l in self.labels:
             if l.text():
-                alignment = BaseWidget.getStyleProperty(l, "text-align")
-                font_size = int(BaseWidget.getStyleProperty(l, "font-size")[:-2])
+                alignment = BaseWidget.static_getStyleProperty(l, "text-align")
+                font_size = int(BaseWidget.static_getStyleProperty(l, "font-size")[:-2])
                 
-                BaseWidget.setStyleProperty(l, "font-size", f"{int(font_size / curr_max_font_size * self.FONT_SIZE)}px")
+                BaseWidget.static_setStyleProperty(l, "font-size", f"{int(font_size / curr_max_font_size * self.FONT_SIZE)}px")
                 l.setAlignment((Qt.AlignmentFlag.AlignRight if alignment == "right" else (Qt.AlignmentFlag.AlignLeft if alignment == "left" else (Qt.AlignmentFlag.AlignCenter if alignment == "center" else -1))) | Qt.AlignmentFlag.AlignVCenter)
             
-            BaseWidget.setStyleProperty(l, "border", "none")
+            BaseWidget.static_setStyleProperty(l, "border", "none")
         
         return super().exec()
 

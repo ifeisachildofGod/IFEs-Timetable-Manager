@@ -106,9 +106,8 @@ class Window(QMainWindow):
         self.timetable_widget = SchoolTimetableEditor()
         
         self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager)
-        self.teachers_widget = TeachersMainWidget(self.timetable_widget, self.attendance_manager)
+        self.staff_widget = StaffMainWidget(self.timetable_widget, self.attendance_manager)
         self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
-        self.prefects_widget = PrefectsMainWidget(self.attendance_manager)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setDisabled(not v))
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setPrompt(f"Search {v}") if v else self.title_bar.search_bar.setPrompt(None))
@@ -136,7 +135,7 @@ class Window(QMainWindow):
         
         # Create navigation buttons
         subjects_btn = QPushButton("Subjects")
-        teachers_btn = QPushButton("Teachers")
+        teachers_btn = QPushButton("Staff")
         classes_btn = QPushButton("Class Levels")
         
         prefects_btn = QPushButton("Prefects")
@@ -165,15 +164,8 @@ class Window(QMainWindow):
         self.is_option_sidebar_focused = True
         self.option_buttons: list[Optional[tuple[QPushButton, tuple[BaseSettingWidget | SchoolTimetableEditor | AttendanceManager, Callable]]]] = [
             (subjects_btn, (self.subjects_widget, reset)),
-            (teachers_btn, (self.teachers_widget, reset)),
+            (teachers_btn, (self.staff_widget, reset)),
             (classes_btn, (self.classes_widget, reset)),
-            None,
-            (prefects_btn, (self.prefects_widget, reset)),
-            None,
-            None,
-            None,
-            None,
-            None,
             None,
             (attendance_btn, (self.attendance_manager, on_att_widget_func)),
             (timetable_btn, (self.timetable_widget, on_ttbl_widget_func))

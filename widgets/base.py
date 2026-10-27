@@ -193,6 +193,7 @@ class BaseWidget(QWidget):
         
         self.layout_type = layout_type or QVBoxLayout
         self._children: list[QObject] = []
+        self._property: dict[str, list[str]] = {}
         
         self._init()
     
@@ -219,7 +220,7 @@ class BaseWidget(QWidget):
         self.key_pressed.emit(ev.key())
     
     @staticmethod
-    def static_clear_layout(layout: QHBoxLayout | QVBoxLayout):
+    def static_clearLayout(layout: QHBoxLayout | QVBoxLayout):
         while layout.count():
             item = layout.takeAt(0)
             
@@ -231,10 +232,10 @@ class BaseWidget(QWidget):
                 widget.deleteLater()
 
             elif layout_item is not None:
-                BaseWidget.static_clear_layout(layout_item)
+                BaseWidget.static_clearLayout(layout_item)
     
     @staticmethod
-    def setStyleProperty(obj: QWidget, name: str | tuple[str] | set[str] | list[str], value: str | tuple[str] | set[str] | list[str]):
+    def static_setStyleProperty(obj: QWidget, name: str | tuple[str] | set[str] | list[str], value: str | tuple[str] | set[str] | list[str]):
         assert type(name) == type(value)
         
         if isinstance(name, (tuple, set, list)):
@@ -266,7 +267,7 @@ class BaseWidget(QWidget):
             obj.setStyleSheet(new_stylesheet)
     
     @staticmethod
-    def getStyleProperty(obj: QWidget, name: str | tuple[str] | set[str] | list[str]):
+    def static_getStyleProperty(obj: QWidget, name: str | tuple[str] | set[str] | list[str]):
         if isinstance(name, (tuple, set, list)):
             names = name
         elif isinstance(name, str):
@@ -306,7 +307,7 @@ class BaseWidget(QWidget):
         self.deleteLater()
     
     def clearLayout(self):
-        self.static_clear_layout(self.getLayout())
+        self.static_clearLayout(self.getLayout())
     
     def deleteLater(self):
         self.clearLayout()
@@ -329,12 +330,6 @@ class BaseWidget(QWidget):
         for widget in self.getWidgets():
             widget.setStyleSheet(stylesheet)
     
-    def setProperty(self, name: str | None, value: str):
-        self.getWidget().setProperty(name, value)
-
-        for widget in self.getWidgets():
-            widget.setProperty(name, value)
-    
     def setFixedWidth(self, width: int):
         self.getWidget().setFixedWidth(width)
 
@@ -346,7 +341,35 @@ class BaseWidget(QWidget):
 
         for widget in self.getWidgets():
             widget.setFixedHeight(height)
+
+    def setStyleProperty(self, name: str | tuple[str] | set[str] | list[str], value: str | tuple[str] | set[str] | list[str]):
+        self.static_setStyleProperty(self, name, value)
     
+    def getStyleProperty(self, name: str | tuple[str] | set[str] | list[str]):
+        self.static_getStyleProperty(self, name)
+    
+    def setProperty(self, name: str | None, value: str):
+        self.getWidget().setProperty(name, value)
+
+        self._property[name] = value.split()
+
+        for widget in self.getWidgets():
+            widget.setProperty(name, value)
+    
+    def addProperty(self, name: str, value: str):
+        if name not in self._property:
+            self._property[name] = []
+        
+        self.setProperty(name, " ".join(self._property[name] + value.split()))
+    
+    def removeProperty(self, name: str, value: str):
+        assert name in self._property
+        
+        for sub_value in value.split():
+            self._property[name].remove(sub_value)
+        
+        self.setProperty(name, " ".join(self._property[name]))
+
     def indexWidget(self, index: int):
         return self.getChildren()[index]
     
@@ -1120,11 +1143,14 @@ class SettingsScreen[_T](BaseScrollWidget):
         ):
         super().__init__()
 
+        self.__init = True
+
         self.entry = entry
         self.stack = stack
         self._parent = parent_entry
         self.i_parent = i_parent
-        
+
+        # Heading section
         go_back_button = BaseWidget()
         go_back_button.clicked.connect(lambda _: self.go_back())
         go_back_button.setProperty("class", "DarkenedBG1 BorderRadiused")
@@ -1137,23 +1163,189 @@ class SettingsScreen[_T](BaseScrollWidget):
         top_widget.addWidget(search_bar := SearchBar(lambda: [], lambda: None))
         top_widget.addStretch()
 
-        body_widget = BaseWidget()
-        body_widget.setSpacing(10)
-        body_widget.setContentsMargins(5, 10, 5, 10)
+        # Name Inputs
+        simple, extended = self._parent.get_init_text()
+        
+        edits_area = BaseWidget(QHBoxLayout)
+        edits_area.setProperty("class", "NoBackground")
+        edits_area.setContentsMargins(0, 0, 0, 0)
+        
+        validator = QRegularExpressionValidator(QRegularExpression("[^■]+"))
+        
+        self.simple_line_edit = QLineEdit()
+        self.simple_line_edit.setProperty("class", "SettingEntryNameEdit")
+        self.simple_line_edit.setText(simple)
+        self.simple_line_edit.setValidator(validator)
+        self.simple_line_edit.setPlaceholderText(self._parent.simple_placeholder)
+        
+        self.extended_line_edits: list[QLineEdit] = []
+        
+        self.extended_edits_widget = BaseWidget()
+        self.extended_edits_widget.setContentsMargins(0, 0, 0, 0)
+        self.extended_edits_widget.setVisible(False)
+        
+        edits_area.addWidget(self.simple_line_edit)
+        
+        if self._parent.extended_placeholders:
+            for i, placeholder in enumerate(self._parent.extended_placeholders):
+                line_edit = QLineEdit()
+                line_edit.setProperty("class", "SettingEntryNameEdit")
+                line_edit.setValidator(validator)
+                line_edit.textChanged.connect(self._make_ext_name_changed(i, self.simple_line_edit))
+                line_edit.returnPressed.connect(self._make_extended_return_pressed_func(i))
+                line_edit.setPlaceholderText(placeholder)
+                
+                self.extended_edits_widget.addWidget(line_edit)
+                self.extended_line_edits.append(line_edit)
+            
+            edits_area.addWidget(self.extended_edits_widget)
+        
+        # ----------------------------------------------------------------------------------------
+        
+        self.status_widget = StatusBar()
+        
+        self.simple_line_edit.textChanged.connect(self.simple_name_empty)
+        self.simple_line_edit.textChanged.connect(self._simple_name_changed)
+        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
+        
+        # ----------------------------------------------------------------------------------------
+        self.simple_display_widget = None
+        self.extended_display_widget = None
+        self.toogle_name_format_button_widget = None
+        
+        if self.extended_line_edits:
+            self.toogle_name_format_button_widget = BaseWidget()
+            self.toogle_name_format_button_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
+            self.toogle_name_format_button_widget.setContentsMargins(10, 10, 10, 10)
+            
+            self.toogle_name_format_button_widget.addWidget(simple_display_widget := SvgWidget("src/images/svg/text-cursor-input.svg")) ; simple_display_widget.setVisible(False)
+            self.toogle_name_format_button_widget.addWidget(extended_display_widget := SvgWidget("src/images/svg/list.svg"))
 
-        for name, widget, alignment in self.get_dialog_sub_settings():
+            simple_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+            extended_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+
+            self.simple_display_widget = simple_display_widget
+            self.extended_display_widget = extended_display_widget
+            
+            self.toogle_name_format_button_widget.clicked.connect(lambda _: self.toogle_name_format())
+
+            for i, line_edit in enumerate(self.extended_line_edits):
+                line_edit.textChanged.connect(self._make_ext_name_empty(i))
+                line_edit.setText(extended[i])
+        
+        self.simple_name_empty(self.simple_line_edit.text())
+
+        name_widget = BaseWidget()
+        name_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
+        name_widget.setContentsMargins(15, 15, 15, 15)
+        
+        info_area_widget = BaseWidget(QHBoxLayout)
+        info_area_widget.setProperty("class", "NoBackground")
+
+        info_area_widget.addWidget(QLabel(f"<b>Edit {self._parent.general_entry_name} Name</b>"), alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
+        info_area_widget.addWidget(self.status_widget, alignment=Qt.AlignmentFlag.AlignCenter)
+        if self.toogle_name_format_button_widget:
+            info_area_widget.addWidget(self.toogle_name_format_button_widget, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignRight)
+
+        name_widget.addWidget(info_area_widget)
+        name_widget.addWidget(edits_area)
+
+        # Custom Settings
+        custom_settings_widget = BaseWidget()
+        custom_settings_widget.setSpacing(10)
+        custom_settings_widget.setContentsMargins(5, 10, 5, 10)
+
+        custom_settings_data = list(self.get_custom_settings_data())
+        
+        for name, widget, alignment in custom_settings_data:
             widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
-            body_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
+            custom_settings_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
 
-        self.addWidget(top_widget)
-        self.addWidget(body_widget)
+        self.addWidget(top_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.addWidget(name_widget)
+        self.addWidget(custom_settings_widget)
         self.addStretch()
 
         search_bar.setPrompt("Search")
         self.i_parent.add_buttons_widget.setVisible(False)
+        
+        self.focusInput()
+
+        self._parent.on_open_settings([(n, w) for n, w, _ in custom_settings_data])
+        
+        self.__init = False
     
-    def get_dialog_sub_settings(self):
-        for name, option_data in self._parent.option_dialogs:
+    def _simple_name_changed(self, text: str):
+        self._parent.simple_name_changed(text, self.extended_line_edits)
+        self._parent.set_name_text()
+
+        if not self.__init:
+            self.window().saved_state_changed.emit(True)
+
+    def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
+        def func(text: str):
+            self._parent.extended_name_changed(index, text, simple_line_edit)
+            self._parent.set_name_text()
+
+            if not self.__init:
+                self.window().saved_state_changed.emit(True)
+
+        return func
+
+    def _make_ext_name_empty(self, index: int):
+        def func(text: str):
+            self._parent.extended_name_empty(index, text)
+
+        return func
+
+    def _make_extended_return_pressed_func(self, index):
+        def func():
+            if index + 1 < len(self.extended_line_edits):
+                self.extended_line_edits[index + 1].setFocus()
+            else:
+                self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
+
+        return func
+    
+    def _focusInput(self):
+        if self.simple_line_edit.isVisible():
+            self.simple_line_edit.setFocus()
+        else:
+            self.extended_line_edits[0].setFocus()
+    
+    def simple_name_empty(self, text: str):
+        if text:
+            self.status_widget.removeLinient("EmptyNameWarning")
+        else:
+            self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{self._parent.general_entry_name} has no name")
+    
+    def focusInput(self):
+        QTimer.singleShot(100, self._focusInput)
+    
+    def toogle_name_format(self):
+        if self.extended_line_edits:
+            for c in self.toogle_name_format_button_widget.getChildren() + [self.simple_line_edit, self.extended_edits_widget]:
+                c.setVisible(not c.isVisible())
+            
+            is_simple = self.simple_line_edit.isVisible()
+            
+            if is_simple:
+                self.simple_line_edit.setFocus()
+                
+                for i in range(len(self.extended_line_edits)):
+                    self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
+                
+                self.simple_line_edit.setText(self.simple_line_edit.text())
+                self._simple_name_changed(self.simple_line_edit.text())
+            elif self.extended_line_edits:
+                self.extended_line_edits[0].setFocus()
+                
+                for i, le in enumerate(self.extended_line_edits):
+                    le.setText(le.text())
+                    self._parent.extended_name_empty(i, le.text())
+    
+    def get_custom_settings_data(self):
+        for name, option_data in self._parent.custom_settings_format:
             if len(option_data) == 2:
                 widget_info, alignment = option_data
 
@@ -1179,14 +1371,13 @@ class SettingsScreen[_T](BaseScrollWidget):
 
         self._parent.settings_screen = None
 
-
 class BaseSettingEntry[_T](BaseWidget):
     def __init__(
             self,
             i_parent: "BaseSettingWidget[_T]",
             general_entry_name: str,
             extended_placeholders: list[str],
-            option_dialogs: list[tuple[str, tuple[type[BaseWidget], tuple, Qt.AlignmentFlag] | tuple[QWidget, Qt.AlignmentFlag]]],
+            custom_settings_format: list[tuple[str, tuple[type[BaseWidget], tuple, Qt.AlignmentFlag] | tuple[QWidget, Qt.AlignmentFlag]]],
             entry: Optional[_T],
             stack: QStackedWidget
         ):
@@ -1199,111 +1390,63 @@ class BaseSettingEntry[_T](BaseWidget):
         self.entry = entry or self.new()
         self.id = self.entry.id
         self.i_parent = i_parent
-        self.option_dialogs = option_dialogs
-        self.general_entry_name = general_entry_name
         self.stack = stack
 
         self.settings_screen = None
-        
+
+        # These variables are not referenced in this class but are used in the settings screen
+        self.general_entry_name = general_entry_name
+        self.extended_placeholders = extended_placeholders
+        self.custom_settings_format = custom_settings_format
         self.simple_placeholder = f"Enter {self.general_entry_name} Name"
-        
-        self.dialog_widget_funcs = []
-        
+
         # ----------------------------------------------------------------------------------------
+        
         menu_area = BaseWidget(QHBoxLayout)
         menu_area.setContentsMargins(0, 0, 0, 0)
+        menu_area.setProperty("class", "NoBackground")
 
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
-
-        self.simple_display_widget = None
-        self.extended_display_widget = None
-        
-        if extended_placeholders:
-            self.options_option = BaseWidget()
-            self.options_option.setProperty("class", "DarkenedBG1 BorderRadiused")
-            self.options_option.setContentsMargins(10, 10, 10, 10)
-            
-            self.options_option.addWidget(simple_display_widget := SvgWidget("src/images/svg/text-cursor-input.svg")) ; simple_display_widget.setVisible(False)
-            self.options_option.addWidget(extended_display_widget := SvgWidget("src/images/svg/list.svg"))
-
-            simple_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
-            extended_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
-
-            self.simple_display_widget = simple_display_widget
-            self.extended_display_widget = extended_display_widget
-
-            menu_area.addWidget(self.options_option, alignment=Qt.AlignmentFlag.AlignLeft)
         
         menu_area.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignRight)
         
         # ----------------------------------------------------------------------------------------
         
-        simple, extended = self.get_init_text()
-        
-        edits_area = BaseWidget(QHBoxLayout)
-        edits_area.setContentsMargins(0, 0, 0, 0)
-        
-        validator = QRegularExpressionValidator(QRegularExpression("[^■]+"))
-        
-        self.simple_line_edit = QLineEdit()
-        self.simple_line_edit.setText(simple)
-        self.simple_line_edit.setValidator(validator)
-        self.simple_line_edit.setPlaceholderText(self.simple_placeholder)
-        
-        self.extended_line_edits: list[QLineEdit] = []
-        
-        self.extended_edits_widget = BaseWidget()
-        self.extended_edits_widget.setContentsMargins(0, 0, 0, 0)
-        self.extended_edits_widget.setVisible(False)
-        
-        if extended_placeholders:
-            for i, placeholder in enumerate(extended_placeholders):
-                line_edit = QLineEdit()
-                line_edit.setValidator(validator)
-                line_edit.textChanged.connect(self._make_ext_name_changed(i, self.simple_line_edit))
-                line_edit.returnPressed.connect(self._make_extended_return_pressed_func(i))
-                line_edit.setPlaceholderText(placeholder)
-                
-                self.extended_edits_widget.addWidget(line_edit)
-                self.extended_line_edits.append(line_edit)
-            
-            edits_area.addWidget(self.extended_edits_widget)
-        
-        edits_area.addWidget(self.simple_line_edit)
-        
-        self.nominal_info_widget = BaseWidget()
-        
-        edits_area.addWidget(self.nominal_info_widget)
+        info_area = BaseWidget(QHBoxLayout)
+        info_area.setSpacing(15)
+        info_area.setProperty("class", "NoBackground")
+
+        self.name_label = QLabel()
+
+        name_widget = BaseWidget() ; name_widget.addWidget(self.name_label)
+        name_widget.setProperty("class", "NoBackground")
+
+        info_widget = BaseWidget()
+        info_widget.setProperty("class", "NoBackground")
+
+        info_area.addWidget(name_widget, stretch=55)
+        info_area.addWidget(info_widget, stretch=45)
         
         # ----------------------------------------------------------------------------------------
         
-        self.status_widget = StatusBar()
-        
-        self.simple_line_edit.textChanged.connect(self.simple_name_empty)
-        self.simple_line_edit.textChanged.connect(self._simple_name_changed)
-        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
-        
+        self.status_bar = StatusBar()
+        self.status_bar.setProperty("class", "NoBackground")
+
         # ----------------------------------------------------------------------------------------
-        
-        if self.extended_line_edits:
-            self.options_option.clicked.connect(lambda _: self.toogle_name_format())
 
-            for i, line_edit in enumerate(self.extended_line_edits):
-                line_edit.textChanged.connect(self._make_ext_name_empty(i))
-                line_edit.setText(extended[i])
+        self.addWidget(menu_area, alignment=Qt.AlignmentFlag.AlignTop)
+        self.addWidget(info_area)
+        self.addWidget(self.status_bar)
         
-        self.addWidget(menu_area)
-        self.addWidget(edits_area)
-        self.addWidget(self.status_widget)
-        
-        self.simple_name_empty(self.simple_line_edit.text())
-
         menu_area.clicked.connect(lambda _: self.open_settings())
-        edits_area.clicked.connect(lambda _: self.open_settings())
-        self.status_widget.clicked.connect(lambda _: self.open_settings())
-        
+        name_widget.clicked.connect(lambda _: self.open_settings())
+        info_widget.clicked.connect(lambda _: self.open_settings())
+        self.status_bar.clicked.connect(lambda _: self.open_settings())
+
+        self.set_name_text()
+
         self.__init = False
     
     def _focusInput(self):
@@ -1342,6 +1485,13 @@ class BaseSettingEntry[_T](BaseWidget):
         
         return func
     
+    def set_name_text(self):
+        self.name_label.setText(
+            f"<span style='font-weight: bold; font-size: 20px;'>{"<br>".join(wrapify_text(self.get_repr_text(), 50))}</span>"
+            if self.get_repr_text() else
+            "<i><b style='font-size: 20px'>NO NAME</b></i>"
+        )
+    
     def new(self) -> _T:
         raise NotImplementedError()
     
@@ -1353,17 +1503,23 @@ class BaseSettingEntry[_T](BaseWidget):
 
         self.stack.addWidget(self.settings_screen)
         self.stack.setCurrentWidget(self.settings_screen)
+    
+    def on_open_settings(self, widgets_data: list[tuple[str, BaseWidget | QWidget]]):
+        pass
 
     def remove(self):
         self.i_parent.remove(self)
         self.i_parent.window().saved_state_changed.emit(True)
     
-    def get_init_text(self):
+    def get_init_text(self) -> tuple[str, list[str]]:
         raise NotImplementedError()
-    
+
+    def get_repr_text(self) -> str:
+        raise NotImplementedError()
+
     def toogle_name_format(self):
         if self.extended_line_edits:
-            for c in self.options_option.getChildren() + [self.simple_line_edit, self.extended_edits_widget]:
+            for c in self.toogle_name_format_button_widget.getChildren() + [self.simple_line_edit, self.extended_edits_widget]:
                 c.setVisible(not c.isVisible())
             
             is_simple = self.simple_line_edit.isVisible()
@@ -1384,10 +1540,8 @@ class BaseSettingEntry[_T](BaseWidget):
                     self.extended_name_empty(i, le.text())
     
     def simple_name_empty(self, text: str):
-        if text:
-            self.status_widget.removeLinient("EmptyNameWarning")
-        else:
-            self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{self.general_entry_name} has no name")
+        if self.settings_screen:
+            self.settings_screen.simple_name_empty(text)
     
     def simple_name_changed(self, text: str, extended_line_edits: tuple[QLineEdit, ...]):
         raise NotImplementedError()
@@ -1401,7 +1555,9 @@ class BaseSettingEntry[_T](BaseWidget):
 class BaseSettingWidget[_T](BaseWidget):
     def __init__(self, names: list[str]):
         super().__init__()
-        
+
+        self.names = names
+
         self.widgets: dict[ID, BaseSettingEntry[_T]] = {}
 
         self.stack = QStackedWidget()
@@ -1484,9 +1640,9 @@ class BaseSettingWidget[_T](BaseWidget):
             self.scroll_widget.insertWidget(index, widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
         
         if focus is not None and focus:
-            widget.focusInput()
+            widget.setFocus()
         
-        if entry is None:
+        elif entry is None:
             QTimer.singleShot(
                 100,
                 lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())

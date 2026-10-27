@@ -4,7 +4,13 @@ from imports import *
 
 
 PALETTES = {
-    "general-palette": {},
+    "general-palette": {
+        "subject_bg": "#d20852",
+        "combinedsubject_bg": "#73011f",
+        "teacher_bg": "#0248B0",
+        "prefect_bg": "#040167",
+        "classlevel_bg": "#007920"
+    },
 
     "main-palette":{
         "dark": {
@@ -761,17 +767,43 @@ STYLESHEET = '''
     }}
     
     QWidget.SettingEntry {{
-        background-color: {bg5};
-        border-radius: 8px;
+        border-radius: 10px;
     }}
-    QWidget.SettingEntry QWidget.BaseWidget {{
-        background: none;
+    QWidget.SubjectSettingsEntry {{
+        background-color: {subject_bg};
+    }}
+    QWidget.SubjectSettingsEntry:hover {{
+        background-color: {hover__subject_bg};
+    }}
+    QWidget.CombinedSubjectSettingsEntry {{
+        background-color: {combinedsubject_bg};
+    }}
+    QWidget.CombinedSubjectSettingsEntry:hover {{
+        background-color: {hover__combinedsubject_bg};
+    }}
+    QWidget.TeacherSettingsEntry {{
+        background-color: {teacher_bg};
+    }}
+    QWidget.TeacherSettingsEntry:hover {{
+        background-color: {hover__teacher_bg};
+    }}
+    QWidget.PrefectSettingsEntry {{
+        background-color: {prefect_bg};
+    }}
+    QWidget.PrefectSettingsEntry:hover {{
+        background-color: {hover__prefect_bg};
+    }}
+    QWidget.ClassLevelSettingsEntry {{
+        background-color: {classlevel_bg};
+    }}
+    QWidget.ClassLevelSettingsEntry:hover {{
+        background-color: {hover__classlevel_bg};
     }}
     QPushButton.SettingEntryClose {{
         font-size: 30px;
         border-radius: 15px;
     }}
-    QWidget.SettingEntry QLineEdit {{
+    QWidget.SettingEntryNameEdit {{
         background-color: {bg4};
         color: {text};
         border: 1px solid {border1};
