@@ -12,13 +12,14 @@ from AttendanceApp import AttendanceManager
 
 
 class _Prefect_PostEditor(BaseSettingDialog):
-    def __init__(self, parent: StaffMainWidget, title: str, attendance_manager: AttendanceManager):
+    def __init__(self, parent: StaffMainWidget, title: str, attendance_manager: AttendanceManager, post_cb: QComboBox):
         super().__init__(title)
         
         self.setFixedSize(650, 450)
         
         self.__init = True
         
+        self.post_cb = post_cb
         self.attendance_manager = attendance_manager
         
         self.i_parent = parent
@@ -43,7 +44,23 @@ class _Prefect_PostEditor(BaseSettingDialog):
     
     def _make_entry_action_funcs(self, entry: EditableCancelableEntry, id: ID):
         def update():
-            SCHOOL.posts[id] = entry.get_text()
+            post = SCHOOL.posts[id] = entry.get_text()
+            
+            index = self.post_cb.count() - 1
+            curr_index = self.post_cb.currentIndex()
+            
+            for i in range(self.post_cb.count()):
+                if self.post_cb.itemData(i) == id:
+                    self.post_cb.removeItem(i)
+                    
+                    index = i
+                    
+                    break
+            
+            self.post_cb.insertItem(index, post, userData=id)
+            
+            if index == curr_index:
+                self.post_cb.setCurrentIndex(index)
             
             self.i_parent.window().saved_state_changed.emit(True)
         
@@ -57,6 +74,17 @@ class _Prefect_PostEditor(BaseSettingDialog):
                 if id == prefect.post_id:
                     prefect.post_id = None
                     self.attendance_manager.update_staff_list_prefect_post_name(prefect_id)
+            
+            curr_index = self.post_cb.currentIndex()
+            
+            for i in range(self.post_cb.count()):
+                if self.post_cb.itemData(i) == id:
+                    self.post_cb.removeItem(i)
+                    
+                    if i == curr_index:
+                        self.post_cb.setCurrentIndex(self.post_cb.count() - 1)
+                    
+                    break
             
             self.i_parent.window().saved_state_changed.emit(True)
         
@@ -104,9 +132,14 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         )
 
         self.addProperty("class", "SubjectSettingsEntry")
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
         
         if self.entry.name.abbrev:
-            self.toogle_name_format(False)
+            settings_screen.toogle_name_format()
+        
+        return settings_screen
     
     def new(self):
         return Subject(NEW_ID(), SubjectName("", ""), None, {})
@@ -169,9 +202,14 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         )
         
         self.addProperty("class", "CombinedSubjectSettingsEntry")
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
         
         if self.entry.subjects:
-            self.simple_name_changed(self.simple_line_edit.text(), None)
+            settings_screen.simple_name_changed(settings_screen.simple_line_edit.text())
+        
+        return settings_screen
     
     def new(self):
         return CombinedSubject(NEW_ID(), CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
@@ -206,9 +244,6 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        self.attendance_widget = BarWidget("Monthly Attendance Chart", "Time (Weeks)", "Attendance (%)")
-        self.punctuality_widget = GraphWidget("Monthly Punctuality Graph", "Scan Interval", "Punctuality (Minutes)")
-        
         super().__init__(
             parent,
             "Teacher",
@@ -224,11 +259,14 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         )
         
         self.addProperty("class", "TeacherSettingsEntry")
-        
-        self.attendance_widget.bar_canvas.axes.set_ylim(0, 110)
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
         
         if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
-            self.toogle_name_format(False)
+            settings_screen.toogle_name_format()
+        
+        return settings_screen
     
     def get_staff_attendance_data(self):
         weeks_data = {}
@@ -438,7 +476,7 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
     
     def get_repr_text(self):
-        return f"{self.entry.name.full().strip()}{" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
+        return f"{self.entry.name.full().strip()}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
         full_name_e = extended_line_edits[0]
@@ -502,16 +540,30 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             [
                 ("Select Class", (Prefect_ClassSelector, (self.attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
-                ("Select Post", (self.get_post_cb, Qt.AlignmentFlag.AlignLeft)),
+                ("Select Post", (self.get_post_cb, None)),
                 ("Set Duties", (Prefect_DutyAssigner, (self.attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
-                ("General Information and Statistics", (self.new_stats_widgets, None)),
-                ("Attendance and Punctuality", (self.new_charts_widgets, None))
+                ("Attendane and Punctuality Statistics", (self.new_stats_widgets, Qt.AlignmentFlag.AlignCenter)),
+                ("Attendance Chart and Punctuality Graph", (self.new_charts_widgets, None))
             ],
             entry,
             stack
         )
         
         self.addProperty("class", "PrefectSettingsEntry")
+    
+    def _post_changed_func(self, post_id: ID):
+        self.entry.post_id = post_id
+        self.attendance_manager.update_staff_list_prefect_post_name(self.entry.id)
+        
+        self.i_parent.window().saved_state_changed.emit(True)
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
+        
+        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
+            settings_screen.toogle_name_format()
+        
+        return settings_screen
     
     def get_staff_attendance_data(self):
         timeline_dates = SCHOOL.attendance.prefect_attendance_time_settings.timeline_dates
@@ -564,12 +616,6 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         return full_y_plot_points
     
     def new_stats_widgets(self):
-        stats_widget = BaseScrollWidget(QHBoxLayout)
-        
-        stats_widget.setContentsMargins(50, 20, 50, 20)
-        stats_widget.setMinimumHeight(200)
-        stats_widget.setSpacing(150)
-
         weeks_data, plot_data = self.get_staff_attendance_data()
         
         full_y_plot_points = self.get_staff_punctuality_data()
@@ -638,20 +684,7 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
             <br>
             """)
 
-        duties_widget = BaseWidget()
-        
-        for day, duties in self.entry.duties.items():
-            duties_content = ""
-            
-            for duty in duties:
-                duties_content += f"<span><span style='font-weight: bold; font-size: 15px;'>•</span>  {duty}</span><br>"
-            
-            duties_widget.addWidget(LabeledField(day, QLabel(duties_content)))
-        
-        stats_widget.addWidget(LabeledField("Duties", duties_widget), alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
-        stats_widget.addWidget(attendance_amt_widget, alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
-
-        return stats_widget
+        return attendance_amt_widget
     
     def new_charts_widgets(self):
         attendance_widget = BarWidget("Monthly Attendance Chart", "Time (Weeks)", "Attendance (%)") ; attendance_widget.bar_canvas.axes.set_ylim(0, 110)
@@ -680,9 +713,11 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         return chart_widget
     
     def get_post_cb(self):
-        post_combobox = QComboBox()
+        widget = BaseWidget(QHBoxLayout)
         
-        other_prefect_post_ids = [prefect.post_id for prefect in SCHOOL.prefects.values() if prefect.id != self.entry.id]
+        other_prefect_post_ids = [prefect.post_id for prefect in SCHOOL.prefects.values() if prefect.id != self.entry.id and prefect.post_id is not None]
+        
+        post_combobox = QComboBox()
         
         for p_id, post in SCHOOL.posts.items():
             if p_id not in other_prefect_post_ids:
@@ -690,17 +725,25 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         
         post_combobox.addItem("None", userData=None)
         
+        post_combobox.setCurrentIndex(next(i for i in range(post_combobox.count()) if self.entry.post_id == post_combobox.itemData(i)))
+        
+        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", self.attendance_manager, post_combobox)
+        
+        edit_posts_button = QPushButton("Edit Prefect Posts")
+        edit_posts_button.clicked.connect(lambda: post_editor.exec())
+        
         if self.entry.post_id is not None:
             post_combobox.setCurrentText(SCHOOL.posts[self.entry.post_id])
         else:
             post_combobox.setCurrentIndex(post_combobox.count() - 1)
         
-        post_combobox.currentIndexChanged.connect(lambda: self.attendance_manager.update_staff_list_prefect_post_name(self.entry.id))
+        post_combobox.currentIndexChanged.connect(lambda i: self._post_changed_func(post_combobox.itemData(i)))
         
-        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
-            self.toogle_name_format(False)
+        widget.addWidget(post_combobox)
+        widget.addStretch()
+        widget.addWidget(edit_posts_button)
         
-        return post_combobox
+        return widget
     
     def new(self):
         return Prefect(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], None, None, {})
@@ -714,7 +757,7 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
     
     def get_repr_text(self):
-        return f"{self.entry.name.full().strip()}{" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
+        return f"{self.entry.name.full().strip()}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
     
     def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
         full_name_e = extended_line_edits[0]
@@ -808,7 +851,6 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
 
 
 
-
 class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
     def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
         self.timetable_editor = timetable_editor
@@ -841,11 +883,12 @@ class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
             else:
                 choice_prompt = QMessageBox(self)
                 choice_prompt.setWindowTitle("Staff Type")
-                choice_prompt.setText("Which staff do you want to create?")
+                choice_prompt.setText("          Which staff do you want to create?          ")
                 choice_prompt.setIcon(QMessageBox.Icon.Question)
 
+                choice_prompt.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
                 subject_btn = choice_prompt.addButton("Subject", QMessageBox.ButtonRole.AcceptRole)
-                c_subject_btn = choice_prompt.addButton("Combined Subject", QMessageBox.ButtonRole.AcceptRole)
+                c_subject_btn = choice_prompt.addButton("   Combined Subject   ", QMessageBox.ButtonRole.AcceptRole)
 
                 choice_prompt.exec()
                 
@@ -893,13 +936,6 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
         self.attendance_manager = attendance_manager
         
         super().__init__(["Teacher", "Prefect"])
-        
-        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", self.attendance_manager)
-        
-        edit_posts_button = QPushButton("Edit Prefect Posts")
-        edit_posts_button.clicked.connect(lambda: post_editor.exec())
-        
-        self.add_buttons_widget.insertWidget(0, edit_posts_button)
     
     def enter_pressed(self, key: int, id: Optional[ID] = None):
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -916,6 +952,7 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
                 choice_prompt.setText("Which staff do you want to create?")
                 choice_prompt.setIcon(QMessageBox.Icon.Question)
 
+                choice_prompt.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
                 teacher_btn = choice_prompt.addButton("Teacher", QMessageBox.ButtonRole.AcceptRole)
                 prefect_btn = choice_prompt.addButton("Prefect", QMessageBox.ButtonRole.AcceptRole)
 
@@ -931,7 +968,7 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
             self.add(focus=True, index=list(self.widgets).index(id) + 1 if id is not None else None, button_index=b_index)
     
     def get_global(self):
-        return SCHOOL.teachers
+        return SCHOOL.teachers, SCHOOL.prefects
     
     def get_widget_type(self, button_index):
         widget_type = None

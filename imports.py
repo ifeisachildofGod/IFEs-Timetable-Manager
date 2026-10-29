@@ -18,7 +18,7 @@ from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon, QPixmap, QFont, QPen,
     QFontMetrics, QIntValidator, QPainter, QColor, QDrag, QCursor,
     QDragMoveEvent, QDragEnterEvent, QDropEvent, QEnterEvent, QMouseEvent,
-    QRegularExpressionValidator
+    QRegularExpressionValidator, QShortcut, QKeySequence
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,

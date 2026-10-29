@@ -562,7 +562,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
             )
         
         base_widget = BaseWidget(QHBoxLayout)
-        base_widget.setProperty("class", "DarkenedBG1 BorderedTop")
+        base_widget.setProperty("class", "BG3 BorderedTop")
         
         export_dialog = ExportPreviewDialog(
             *(self.t_labels + self.p_labels + self.c_labels),
@@ -593,7 +593,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
     
     def _initSideBarWidget(self):
         side_bar_widget = BaseWidget()
-        side_bar_widget.setProperty("class", "DarkenedBG1 ExportEditorSideBar BorderedRight BorderedTop")
+        side_bar_widget.setProperty("class", "BG3 ExportEditorSideBar BorderedRight BorderedTop")
         
         self.select_cb_dict: dict[ID, tuple[QCheckBox, dict[ID, QCheckBox]]] = {}
         
@@ -765,7 +765,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         start_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         start_period_widget.addWidget(start_gpe_widget)
         start_period_widget.addWidget(start_point_enabled_cb)
-        start_period_widget.setProperty("class", "DarkenedBG")
+        start_period_widget.setProperty("class", "BorderRadiused BG3")
         
         end_period_widget = BaseWidget()
         end_point_enabled_cb = QCheckBox("Enabled") ; end_point_enabled_cb.clicked.connect(ep_en_func)
@@ -773,7 +773,7 @@ class ExportsEditorDialogWidget(BaseDialogWidget):
         end_gpe_widget.periodChanged.connect(lambda: self._unsaved())
         end_period_widget.addWidget(end_gpe_widget)
         end_period_widget.addWidget(end_point_enabled_cb)
-        end_period_widget.setProperty("class", "DarkenedBG")
+        end_period_widget.setProperty("class", "BorderRadiused BG3")
         
         if SCHOOL.settings.EXPORT_attendance_settings.start_limit_period:
             start_point_enabled_cb.click()

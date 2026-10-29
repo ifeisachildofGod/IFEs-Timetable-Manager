@@ -17,11 +17,11 @@ PALETTES = {
     "main-palette":{
         "dark": {
             "bg": "#1e1e1e",
-            "bg2": "#2a2a2a",
-            "bg3": "#4b4b4b",
+            "bg2": "#3D3D3D",
+            "bg3": "#353535",
             "text": "#f0f0f0",
             "mute-bg": "#404040",
-            "secondary": "#3a3a3d",
+            "secondary": "#262626",
             "border": "#B6B6B6",
             "input_bg": "#2d2d2d",
             "input_border": "#555",
@@ -30,7 +30,7 @@ PALETTES = {
             "tooltip_text": "#eee",
             "disabled": "#777777",
             "hover2": "#353536",
-            "hover3": "#47474b"
+            "hover3": "#303030"
         },
         
         "light":{
@@ -151,11 +151,11 @@ STYLESHEET = '''
         border-radius: 9px;
     }}
     
-    QWidget.DarkenedBG {{
+    QWidget.SpecialBG1 {{
         background-color: {bg};
     }}
     
-    QWidget.DarkenedBG1 {{
+    QWidget.SpecialBG2 {{
         background-color: {tooltip_bg};
     }}
     

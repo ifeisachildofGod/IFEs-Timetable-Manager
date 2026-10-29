@@ -206,15 +206,25 @@ class BaseWidget(QWidget):
         self.container = QWidget()
         self.container.setProperty("class", "BaseWidget")
         
-        self.container.mousePressEvent = self._mouseClicked
+        self.container.mousePressEvent = self._mousePressed
+        self.container.mouseReleaseEvent = self._mouseRelesed
         self.container.keyPressEvent = self._keyPressed
         
         self.main_layout = self.layout_type(self.container)
         
         layout.addWidget(self.container)
     
-    def _mouseClicked(self, ev):
+    def _mousePressed(self, ev):
+        self.container.setProperty("pressed", True)
+        self.container.style().unpolish(self.container)
+        self.container.style().polish(self.container)
+        
         self.clicked.emit(ev)
+    
+    def _mouseRelesed(self, ev):
+        self.container.setProperty("pressed", False)
+        self.container.style().unpolish(self.container)
+        self.container.style().polish(self.container)
     
     def _keyPressed(self, ev):
         self.key_pressed.emit(ev.key())
@@ -317,6 +327,9 @@ class BaseWidget(QWidget):
     
     def styleSheet(self):
         return self.getWidget().styleSheet()
+    
+    def setFocus(self):
+        self.container.setFocus()
     
     def setSpacing(self, spacing: int):
         self.getLayout().setSpacing(spacing)
@@ -865,9 +878,9 @@ class SearchEdit(QFrame):
                     self.setVisible(True)
                 
                 self.main_label.setText("".join([(f"<span style='font-size: 27px; font-weight: 500; {f"{self.m_style}" if i in main_hi else ""}'>{c}</span>" if c != "■" else "<br>") for i, c in enumerate("■".join(wrapify_text(self.main_text, 30)))]))
-                self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
-                self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-150__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
-                self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-100__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
+                self.right_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-black-0.588__minimum}")}; font-size: 19px; font-weight: 300; {f"{self.r_style}" if i in right_hi else ""}'>{c}</span>" for i, c in enumerate(self.right_text)]) if self.right_text else "")
+                self.bottom_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-black-0.588__minimum}")}; font-size: 15px; font-weight: 500; {f"{self.b_style}" if i in bottom_hi else ""}'>{c}</span>" for i, c in enumerate(self.bottom_text)]) if self.bottom_text else "")
+                self.end_label.setText("".join([f"<span style='color: {THEME_MANAGER.process_stylesheet("{interpolate-black-0.392__minimum}")}; font-size: 13px; font-weight: 300; {f"{self.e_style}" if i in end_hi else ""}'>{c}</span>" for i, c in enumerate(self.end_text)]) if self.end_text else "")
             else:
                 self.setVisible(False)
         
@@ -1133,7 +1146,7 @@ class SearchBar(BaseWidget):
         self.search_edit.show()
 
 
-class SettingsScreen[_T](BaseScrollWidget):
+class SettingsScreen[_T](BaseWidget):
     def __init__(
             self,
             entry: _T,
@@ -1144,7 +1157,7 @@ class SettingsScreen[_T](BaseScrollWidget):
         super().__init__()
 
         self.__init = True
-
+        
         self.entry = entry
         self.stack = stack
         self._parent = parent_entry
@@ -1153,15 +1166,12 @@ class SettingsScreen[_T](BaseScrollWidget):
         # Heading section
         go_back_button = BaseWidget()
         go_back_button.clicked.connect(lambda _: self.go_back())
-        go_back_button.setProperty("class", "DarkenedBG1 BorderRadiused")
+        go_back_button.setProperty("class", "SpecialBG2Hover BorderRadiused")
         go_back_button.setContentsMargins(10, 10, 10, 10)
         go_back_button.addWidget(svg := SvgWidget("src/images/svg/direction.svg")) ; svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
 
         top_widget = BaseWidget(QHBoxLayout)
         top_widget.addWidget(go_back_button)
-        top_widget.addStretch()
-        top_widget.addWidget(search_bar := SearchBar(lambda: [], lambda: None))
-        top_widget.addStretch()
 
         # Name Inputs
         simple, extended = self._parent.get_init_text()
@@ -1186,6 +1196,20 @@ class SettingsScreen[_T](BaseScrollWidget):
         
         edits_area.addWidget(self.simple_line_edit)
         
+        # ----------------------------------------------------------------------------------------
+        
+        self.status_widget = StatusBar()
+        
+        self.simple_line_edit.textChanged.connect(self._parent.simple_name_empty)
+        self.simple_line_edit.textChanged.connect(self.simple_name_changed)
+        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
+        
+        # ----------------------------------------------------------------------------------------
+        self.edit_fmt_state = False
+        self.simple_display_widget = None
+        self.extended_display_widget = None
+        self.toogle_name_format_button_widget = None
+        
         if self._parent.extended_placeholders:
             for i, placeholder in enumerate(self._parent.extended_placeholders):
                 line_edit = QLineEdit()
@@ -1199,33 +1223,19 @@ class SettingsScreen[_T](BaseScrollWidget):
                 self.extended_line_edits.append(line_edit)
             
             edits_area.addWidget(self.extended_edits_widget)
-        
-        # ----------------------------------------------------------------------------------------
-        
-        self.status_widget = StatusBar()
-        
-        self.simple_line_edit.textChanged.connect(self.simple_name_empty)
-        self.simple_line_edit.textChanged.connect(self._simple_name_changed)
-        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
-        
-        # ----------------------------------------------------------------------------------------
-        self.simple_display_widget = None
-        self.extended_display_widget = None
-        self.toogle_name_format_button_widget = None
-        
-        if self.extended_line_edits:
+            
             self.toogle_name_format_button_widget = BaseWidget()
-            self.toogle_name_format_button_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
+            self.toogle_name_format_button_widget.setProperty("class", "SpecialBG2Hover BorderRadiused")
             self.toogle_name_format_button_widget.setContentsMargins(10, 10, 10, 10)
             
-            self.toogle_name_format_button_widget.addWidget(simple_display_widget := SvgWidget("src/images/svg/text-cursor-input.svg")) ; simple_display_widget.setVisible(False)
-            self.toogle_name_format_button_widget.addWidget(extended_display_widget := SvgWidget("src/images/svg/list.svg"))
-
-            simple_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
-            extended_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
-
-            self.simple_display_widget = simple_display_widget
-            self.extended_display_widget = extended_display_widget
+            self.simple_display_widget = SvgWidget("src/images/svg/text-cursor-input.svg")
+            self.extended_display_widget = SvgWidget("src/images/svg/list.svg")
+            
+            self.simple_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+            self.extended_display_widget.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+            
+            self.toogle_name_format_button_widget.addWidget(self.simple_display_widget)
+            self.toogle_name_format_button_widget.addWidget(self.extended_display_widget)
             
             self.toogle_name_format_button_widget.clicked.connect(lambda _: self.toogle_name_format())
 
@@ -1233,10 +1243,8 @@ class SettingsScreen[_T](BaseScrollWidget):
                 line_edit.textChanged.connect(self._make_ext_name_empty(i))
                 line_edit.setText(extended[i])
         
-        self.simple_name_empty(self.simple_line_edit.text())
-
         name_widget = BaseWidget()
-        name_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
+        name_widget.setProperty("class", "BG1 BorderRadiused")
         name_widget.setContentsMargins(15, 15, 15, 15)
         
         info_area_widget = BaseWidget(QHBoxLayout)
@@ -1253,35 +1261,45 @@ class SettingsScreen[_T](BaseScrollWidget):
         # Custom Settings
         custom_settings_widget = BaseWidget()
         custom_settings_widget.setSpacing(10)
-        custom_settings_widget.setContentsMargins(5, 10, 5, 10)
+        custom_settings_widget.setContentsMargins(0, 0, 0, 0)
 
         custom_settings_data = list(self.get_custom_settings_data())
         
         for name, widget, alignment in custom_settings_data:
             widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
             custom_settings_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
-
-        self.addWidget(top_widget, alignment=Qt.AlignmentFlag.AlignTop)
-        self.addWidget(name_widget)
-        self.addWidget(custom_settings_widget)
-        self.addStretch()
-
-        search_bar.setPrompt("Search")
+        
+        _body_widget = BaseWidget()
+        _body_widget.setSpacing(10)
+        _body_widget.setContentsMargins(0, 0, 0, 0)
+        
+        _body_widget.addWidget(name_widget)
+        _body_widget.addWidget(custom_settings_widget)
+        _body_widget.addStretch()
+        
+        body_widget = BaseScrollWidget() ; body_widget.addWidget(_body_widget)
+        body_widget.setContentsMargins(0, 0, 15, 0)
+        body_widget.setProperty("class", "Borderless")
+        
         self.i_parent.add_buttons_widget.setVisible(False)
         
         self.focusInput()
 
-        self._parent.on_open_settings([(n, w) for n, w, _ in custom_settings_data])
+        self.custom_settings_widgets = {n: w for n, w, _ in custom_settings_data}
+        
+        self.addWidget(top_widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.addWidget(body_widget)
+        
+        self.toogle_name_format()
+        
+        self._parent.on_settings_open(self)
         
         self.__init = False
+        
+        shortcut = QShortcut(QKeySequence("Esc"), self)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(self.go_back)
     
-    def _simple_name_changed(self, text: str):
-        self._parent.simple_name_changed(text, self.extended_line_edits)
-        self._parent.set_name_text()
-
-        if not self.__init:
-            self.window().saved_state_changed.emit(True)
-
     def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
         def func(text: str):
             self._parent.extended_name_changed(index, text, simple_line_edit)
@@ -1300,10 +1318,7 @@ class SettingsScreen[_T](BaseScrollWidget):
 
     def _make_extended_return_pressed_func(self, index):
         def func():
-            if index + 1 < len(self.extended_line_edits):
-                self.extended_line_edits[index + 1].setFocus()
-            else:
-                self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
+            self.extended_line_edits[(index + 1) % len(self.extended_line_edits)].setFocus()
 
         return func
     
@@ -1313,36 +1328,43 @@ class SettingsScreen[_T](BaseScrollWidget):
         else:
             self.extended_line_edits[0].setFocus()
     
+    def simple_name_changed(self, text: str):
+        self._parent.simple_name_changed(text, self.extended_line_edits)
+        self._parent.set_name_text()
+
+        if not self.__init:
+            self.i_parent.window().saved_state_changed.emit(True)
+    
     def simple_name_empty(self, text: str):
-        if text:
-            self.status_widget.removeLinient("EmptyNameWarning")
-        else:
-            self.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{self._parent.general_entry_name} has no name")
+        self._parent.simple_name_empty(text)
     
     def focusInput(self):
         QTimer.singleShot(100, self._focusInput)
     
-    def toogle_name_format(self):
+    def toogle_name_format(self, update: bool = True):
         if self.extended_line_edits:
-            for c in self.toogle_name_format_button_widget.getChildren() + [self.simple_line_edit, self.extended_edits_widget]:
-                c.setVisible(not c.isVisible())
+            self.edit_fmt_state = not self.edit_fmt_state
             
-            is_simple = self.simple_line_edit.isVisible()
+            self.simple_line_edit.setVisible(self.edit_fmt_state)
+            self.simple_display_widget.setVisible(not self.edit_fmt_state)
+            self.extended_edits_widget.setVisible(not self.edit_fmt_state)
+            self.extended_display_widget.setVisible(self.edit_fmt_state)
             
-            if is_simple:
-                self.simple_line_edit.setFocus()
-                
-                for i in range(len(self.extended_line_edits)):
-                    self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
-                
-                self.simple_line_edit.setText(self.simple_line_edit.text())
-                self._simple_name_changed(self.simple_line_edit.text())
-            elif self.extended_line_edits:
-                self.extended_line_edits[0].setFocus()
-                
-                for i, le in enumerate(self.extended_line_edits):
-                    le.setText(le.text())
-                    self._parent.extended_name_empty(i, le.text())
+            if not self.__init:
+                if self.edit_fmt_state:
+                    self.simple_line_edit.setFocus()
+                    
+                    for i in range(len(self.extended_line_edits)):
+                        self.status_widget.removeLinient(f"E{i}EmptyNameWarning")
+                    
+                    self.simple_line_edit.setText(self.simple_line_edit.text())
+                    self.simple_name_changed(self.simple_line_edit.text())
+                else:
+                    self.extended_line_edits[0].setFocus()
+                    
+                    for i, le in enumerate(self.extended_line_edits):
+                        le.setText(le.text())
+                        self._parent.extended_name_empty(i, le.text())
     
     def get_custom_settings_data(self):
         for name, option_data in self._parent.custom_settings_format:
@@ -1361,6 +1383,9 @@ class SettingsScreen[_T](BaseScrollWidget):
                 widget = cls(self._parent, self.entry.id, *variables)
             
             yield (name.format(name=self.entry.name.full()), widget, alignment)
+    
+    def get_setting_widget(self, widget_type: type):
+        return next(w for w in self.custom_settings_widgets.values() if isinstance(w, widget_type))
     
     def go_back(self):
         self.i_parent.add_buttons_widget.setVisible(True)
@@ -1386,6 +1411,7 @@ class BaseSettingEntry[_T](BaseWidget):
         self.__init = True
         
         self.setProperty("class", "SettingEntry")
+        self.setContentsMargins(10, 10, 10, 10)
         
         self.entry = entry or self.new()
         self.id = self.entry.id
@@ -1402,25 +1428,21 @@ class BaseSettingEntry[_T](BaseWidget):
 
         # ----------------------------------------------------------------------------------------
         
-        menu_area = BaseWidget(QHBoxLayout)
-        menu_area.setContentsMargins(0, 0, 0, 0)
-        menu_area.setProperty("class", "NoBackground")
-
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
-        
-        menu_area.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignRight)
         
         # ----------------------------------------------------------------------------------------
         
         info_area = BaseWidget(QHBoxLayout)
         info_area.setSpacing(15)
+        info_area.setContentsMargins(0, 0, 0, 0)
+        info_area.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         info_area.setProperty("class", "NoBackground")
 
         self.name_label = QLabel()
 
-        name_widget = BaseWidget() ; name_widget.addWidget(self.name_label)
+        name_widget = BaseWidget() ; name_widget.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignCenter)
         name_widget.setProperty("class", "NoBackground")
 
         info_widget = BaseWidget()
@@ -1435,16 +1457,16 @@ class BaseSettingEntry[_T](BaseWidget):
         self.status_bar.setProperty("class", "NoBackground")
 
         # ----------------------------------------------------------------------------------------
-
-        self.addWidget(menu_area, alignment=Qt.AlignmentFlag.AlignTop)
-        self.addWidget(info_area)
-        self.addWidget(self.status_bar)
         
-        menu_area.clicked.connect(lambda _: self.open_settings())
-        name_widget.clicked.connect(lambda _: self.open_settings())
-        info_widget.clicked.connect(lambda _: self.open_settings())
-        self.status_bar.clicked.connect(lambda _: self.open_settings())
-
+        self.setFixedHeight(200)
+        self.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        self.addWidget(info_area, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self.addWidget(self.status_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
+        
+        info_area.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        
+        self.clicked.connect(lambda _: self.open_settings())
+        
         self.set_name_text()
 
         self.__init = False
@@ -1456,10 +1478,8 @@ class BaseSettingEntry[_T](BaseWidget):
             self.extended_line_edits[0].setFocus()
     
     def _simple_name_changed(self, text: str):
-        self.simple_name_changed(text, self.extended_line_edits)
-        
-        if not self.__init:
-            self.window().saved_state_changed.emit(True)
+        if self.settings_screen:
+            self.settings_screen.simple_name_changed(text)
     
     def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
         def func(text: str):
@@ -1485,11 +1505,14 @@ class BaseSettingEntry[_T](BaseWidget):
         
         return func
     
+    def on_settings_open(self, settings_screen: SettingsScreen):
+        pass
+    
     def set_name_text(self):
         self.name_label.setText(
-            f"<span style='font-weight: bold; font-size: 20px;'>{"<br>".join(wrapify_text(self.get_repr_text(), 50))}</span>"
+            f"<span style='font-weight: bold; font-size: 55px;'>{"<br>".join(wrapify_text(self.get_repr_text(), 50))}</span>"
             if self.get_repr_text() else
-            "<i><b style='font-size: 20px'>NO NAME</b></i>"
+            "<i style='font-size: 55px'>NO NAME</i>"
         )
     
     def new(self) -> _T:
@@ -1500,13 +1523,12 @@ class BaseSettingEntry[_T](BaseWidget):
 
     def open_settings(self):
         self.settings_screen = SettingsScreen(self.entry, self.stack, self, self.i_parent)
-
+        
         self.stack.addWidget(self.settings_screen)
         self.stack.setCurrentWidget(self.settings_screen)
+        
+        return self.settings_screen
     
-    def on_open_settings(self, widgets_data: list[tuple[str, BaseWidget | QWidget]]):
-        pass
-
     def remove(self):
         self.i_parent.remove(self)
         self.i_parent.window().saved_state_changed.emit(True)
@@ -1541,7 +1563,10 @@ class BaseSettingEntry[_T](BaseWidget):
     
     def simple_name_empty(self, text: str):
         if self.settings_screen:
-            self.settings_screen.simple_name_empty(text)
+            if text:
+                self.settings_screen.status_widget.removeLinient("EmptyNameWarning")
+            else:
+                self.settings_screen.status_widget.insertMessage(Status.WARN, 0, "EmptyNameWarning", f"{self.general_entry_name} has no name")
     
     def simple_name_changed(self, text: str, extended_line_edits: tuple[QLineEdit, ...]):
         raise NotImplementedError()
@@ -1592,10 +1617,17 @@ class BaseSettingWidget[_T](BaseWidget):
         self.init_saved_variables()
     
     def init_saved_variables(self):
-        for entry in self.get_global().values():
-            self.add(entry)
+        global_variables = self.get_global()
+        
+        if isinstance(global_variables, Global):
+            for entry in global_variables.values():
+                self.add(entry)
+        elif isinstance(global_variables, tuple):
+            for i, gv in enumerate(global_variables):
+                for entry in gv.values():
+                    self.add(entry, button_index=i)
     
-    def get_global(self) -> Global:
+    def get_global(self) -> Global | tuple[Global, ...]:
         raise NotImplementedError()
     
     def get_widget_type(self, *args) -> type[BaseSettingEntry[_T]]:  # It's variable is *args because in implementation it has a variable amount of arguments (one or None)
@@ -1655,7 +1687,16 @@ class BaseSettingWidget[_T](BaseWidget):
         widget.deleteLater()
         
         self.widgets.pop(widget.entry.id)
-        self.get_global().remove(widget.entry.id)
+        
+        global_variables = self.get_global()
+        
+        if isinstance(global_variables, Global):
+            global_variables.remove(widget.entry.id)
+        elif isinstance(global_variables, tuple):
+            for gv in global_variables:
+                if widget.entry.id in gv:
+                    gv.remove(widget.entry.id)
+                    break
         
         return widget.entry.id
 

@@ -5,11 +5,17 @@ from imports import *
 
 PALETTES = {
     "general-palette": {
-        "subject_bg": "#d20852",
-        "combinedsubject_bg": "#73011f",
+        "sl_selected": "#1ba53b",
+        "sl_unselected": "#ce1919",
+        
+        "light_text": "#ffffff",
+        "dark_text": "#000000",
+        
+        "subject_bg": "#026fb8",
+        "combinedsubject_bg": "#530173",
         "teacher_bg": "#0248B0",
-        "prefect_bg": "#040167",
-        "classlevel_bg": "#007920"
+        "prefect_bg": "#050088",
+        "classlevel_bg": "#ffffff"
     },
 
     "main-palette":{
@@ -21,7 +27,7 @@ PALETTES = {
             "bg5": "#313131",
             "mute-bg": "#404040",
             "border1": "#505050",
-            "bg6-border2": "#808080",
+            "bg6_border2": "#808080",
             "text": "#f0f0f0",
             "secondary": "#3a3a3a",
             "scrollbar": "#505050",
@@ -43,7 +49,7 @@ PALETTES = {
             "bg5": "#cfcfcf",
             "mute-bg": "#bfbfbf",
             "border1": "#afafaf",
-            "bg6-border2": "#7e7e7e",
+            "bg6_border2": "#7e7e7e",
             "text": "#0f0f0f",
             "secondary": "#c5c5c5",
             "scrollbar": "#afafaf",
@@ -65,7 +71,7 @@ PALETTES = {
             "bg5": "#350000",
             "mute-bg": "#150000",
             "border1": "#505050",
-            "bg6-border2": "#612121",
+            "bg6_border2": "#612121",
             "text": "#f0f0f0",
             "secondary": "#7e0000",
             "scrollbar": "#505050",
@@ -87,7 +93,7 @@ PALETTES = {
             "bg5": "#004200",
             "mute-bg": "#001500",
             "border1": "#505050",
-            "bg6-border2": "#236121",
+            "bg6_border2": "#236121",
             "text": "#f0f0f0",
             "secondary": "#00660e",
             "scrollbar": "#505050",
@@ -109,7 +115,7 @@ PALETTES = {
             "bg5": "#110031",
             "mute-bg": "#0a001f",
             "border1": "#505050",
-            "bg6-border2": "#252161",
+            "bg6_border2": "#252161",
             "text": "#f0f0f0",
             "secondary": "#020066",
             "scrollbar": "#505050",
@@ -172,27 +178,50 @@ STYLESHEET = '''
     }}
     
     QWidget.Bordered {{
-        border: 1px solid {bg6-border2};
+        border: 1px solid {bg6_border2};
     }}
-    
+    QWidget.Borderless {{
+        border: none;
+    }}
     QWidget.BorderedTop {{
-        border-top: 1px solid {bg6-border2};
+        border-top: 1px solid {bg6_border2};
     }}
-    
     QWidget.BorderedRight {{
-        border-right: 1px solid {bg6-border2};
+        border-right: 1px solid {bg6_border2};
     }}
-    
     QWidget.BorderRadiused {{
-        border-radius: 9px;
+        border-radius: 10px;
     }}
     
-    QWidget.DarkenedBG {{
-        background-color: {hover__bg5};
+    QWidget.BG1 {{
+        background-color: {bg1};
+    }}
+    QWidget.BG2 {{
+        background-color: {bg2};
+    }}
+    QWidget.BG3 {{
+        background-color: {bg3};
+    }}
+    QWidget.BG4 {{
+        background-color: {bg4};
+    }}
+    QWidget.BG5 {{
+        background-color: {bg5};
+    }}
+    QWidget.SpecialBG1, QWidget.SpecialBG1Hover {{
+        background-color: {interpolate-darkgrey-10__bg5};
     }}
     
-    QWidget.DarkenedBG1 {{
-        background-color: {hover__bg2};
+    QWidget.SpecialBG2, QWidget.SpecialBG2Hover {{
+        background-color: {interpolate-#aaaaaa-10__bg2};
+    }}
+    
+    QWidget.SpecialBG1Hover:hover {{
+        background-color: {interpolate-darkgrey-5__bg5};
+    }}
+    
+    QWidget.SpecialBG2Hover:hover {{
+        background-color: {interpolate-#aaaaaa-5__bg2};
     }}
     
     QWidget.NoBG {{
@@ -210,7 +239,7 @@ STYLESHEET = '''
     }}
     
     QFrame.DPMenu {{
-        border: 1px solid {bg6-border2};
+        border: 1px solid {bg6_border2};
     }}
     
     QScrollArea {{
@@ -343,7 +372,7 @@ STYLESHEET = '''
     QLabel.Link2:hover {{
         color: {fg1};
         font-weight: bold;
-        text-decoration-color: red;
+        text-decoration-color: {fg1};
     }}
     QLabel.StatusBarSeperator {{
         color: {pressed__text};
@@ -457,7 +486,7 @@ STYLESHEET = '''
     QComboBox {{
         background-color: {bg3};
         color: {text};
-        border: 1px solid {bg6-border2};
+        border: 1px solid {bg6_border2};
         border-radius: 8px;
         padding: 6px;
         min-width: 120px;
@@ -551,7 +580,7 @@ STYLESHEET = '''
         color: {text};
         padding: 5px;
         background-color: {bg3};
-        border: 1px solid {bg6-border2};
+        border: 1px solid {bg6_border2};
         border-radius: 5px;
     }}
     QMenu::item, QMenu::item:disabled {{
@@ -570,7 +599,7 @@ STYLESHEET = '''
     QTableView {{
         background-color: {bg1};
         color: {text};
-        gridline-color: {bg6-border2};
+        gridline-color: {bg6_border2};
         selection-background-color: {fg2};
     }}
     
@@ -680,10 +709,16 @@ STYLESHEET = '''
         background: none;
     }}
     QWidget.SelectedSelectionListEntry {{
-        background-color: green;
+        background-color: {sl_selected};
     }}
     QWidget.UnselectedSelectionListEntry {{
-        background-color: red;
+        background-color: {sl_unselected};
+    }}
+    QWidget.SelectedSelectionListEntry:hover {{
+        background-color: {hover__sl_selected};
+    }}
+    QWidget.UnselectedSelectionListEntry:hover {{
+        background-color: {hover__sl_unselected};
     }}
     QWidget.SelectedSelectionListEntry QPushButton, QWidget.UnselectedSelectionListEntry QPushButton {{
         font-size: 20px;
@@ -711,7 +746,7 @@ STYLESHEET = '''
     QWidget.SubjectClassViewEntryEdits QLineEdit {{
         min-width: 60px;
         background-color: {mute-bg};
-        border: 1px solid {bg6-border2};
+        border: 1px solid {bg6_border2};
         border-radius: 10px;
         padding: 6px;
         color: {text};
@@ -767,37 +802,82 @@ STYLESHEET = '''
     }}
     
     QWidget.SettingEntry {{
-        border-radius: 10px;
+        border-radius: 20px;
     }}
     QWidget.SubjectSettingsEntry {{
         background-color: {subject_bg};
     }}
+    QWidget.SubjectSettingsEntry * {{
+        color: {light_text};
+    }}
     QWidget.SubjectSettingsEntry:hover {{
         background-color: {hover__subject_bg};
+    }}
+    QWidget.SubjectSettingsEntry[pressed="true"] {{
+        background-color: {pressed__subject_bg};
+    }}
+    QWidget.SubjectSettingsEntry * QPushButton.SettingEntryClose:hover {{
+        color: {hover__light_text};
     }}
     QWidget.CombinedSubjectSettingsEntry {{
         background-color: {combinedsubject_bg};
     }}
+    QWidget.CombinedSubjectSettingsEntry * {{
+        color: {light_text};
+    }}
     QWidget.CombinedSubjectSettingsEntry:hover {{
         background-color: {hover__combinedsubject_bg};
+    }}
+    QWidget.CombinedSubjectSettingsEntry[pressed="true"] {{
+        background-color: {pressed__combinedsubject_bg};
+    }}
+    QWidget.CombinedSubjectSettingsEntry * QPushButton.SettingEntryClose:hover {{
+        color: {hover__light_text};
     }}
     QWidget.TeacherSettingsEntry {{
         background-color: {teacher_bg};
     }}
+    QWidget.TeacherSettingsEntry * {{
+        color: {light_text};
+    }}
     QWidget.TeacherSettingsEntry:hover {{
         background-color: {hover__teacher_bg};
+    }}
+    QWidget.TeacherSettingsEntry[pressed="true"] {{
+        background-color: {pressed__teacher_bg};
+    }}
+    QWidget.TeacherSettingsEntry * QPushButton.SettingEntryClose:hover {{
+        color: {hover__light_text};
     }}
     QWidget.PrefectSettingsEntry {{
         background-color: {prefect_bg};
     }}
+    QWidget.PrefectSettingsEntry * {{
+        color: {light_text};
+    }}
     QWidget.PrefectSettingsEntry:hover {{
         background-color: {hover__prefect_bg};
+    }}
+    QWidget.PrefectSettingsEntry[pressed="true"] {{
+        background-color: {pressed__prefect_bg};
+    }}
+    QWidget.PrefectSettingsEntry * QPushButton.SettingEntryClose:hover {{
+        color: {hover__light_text};
     }}
     QWidget.ClassLevelSettingsEntry {{
         background-color: {classlevel_bg};
     }}
+    QWidget.ClassLevelSettingsEntry * {{
+        color: {dark_text};
+    }}
     QWidget.ClassLevelSettingsEntry:hover {{
         background-color: {hover__classlevel_bg};
+    }}
+    QWidget.ClassLevelSettingsEntry[pressed="true"] {{
+        background-color: {pressed__classlevel_bg};
+    }}
+    QWidget.ClassLevelSettingsEntry * QPushButton.SettingEntryClose:hover {{
+        color: {hover__dark_text};
     }}
     QPushButton.SettingEntryClose {{
         font-size: 30px;
@@ -841,7 +921,7 @@ STYLESHEET = '''
         background-color: {fg5};
         color: {primary_text};
         padding: 8px;
-        gridline-color: {bg6-border2};
+        gridline-color: {bg6_border2};
     }}
     QLabel.RemSubjectItem {{
         color: {text};
@@ -910,12 +990,18 @@ STYLESHEET = '''
     }}
     
     QColorDialog, QDialog, QWidget.ExportEditorSection {{
-        background-color: {bg6-border2}
+        background-color: {bg6_border2}
     }}
 '''
 
 
 class ThemeManager:
+    """
+    *Anything in parenthesis is optional*
+    
+    {RegisteredFunctionName(-ExtraParameters-...)__MainParameter}
+    """
+    
     def __init__(self):
         self.themes: dict[str, dict[str, dict[str, str] | str]] = {}
         
@@ -941,7 +1027,7 @@ class ThemeManager:
             "hover": self.get_hover_color,
             "pressed": self.get_pressed_color,
             "disabled": self.get_disabled_color,
-            "interpolate": self.interpolate_brightness
+            "interpolate": self.mix_colors
         }
     
     @staticmethod
@@ -980,29 +1066,39 @@ class ThemeManager:
         return color
     
     @staticmethod
-    def interpolate_brightness(color: str, brightness: int | str):
-        brightness = int(brightness)
-        return ThemeManager.rgb_to_hex(ThemeManager.hex_to_rgb(color, brightness) if color is not None else (255, 255, 255, 255 - brightness))
+    def mix_colors(color1: str, color2: str, ratio: str | int):
+        color1 = QColor(color1)
+        color2 = QColor(color2)
+        r1, r2 = float(ratio).as_integer_ratio()
+        
+        assert color1.isValid() and color2.isValid()
+        
+        return ThemeManager.rgb_to_hex((
+            (color1.red() * r1 + color2.red() * r2) / (r1 + r2),
+            (color1.green() * r1 + color2.green() * r2) / (r1 + r2),
+            (color1.blue() * r1 + color2.blue() * r2) / (r1 + r2),
+        ))
     
     @staticmethod
     def get_disabled_color(color: str | None) -> str:
-        return ThemeManager.interpolate_brightness(color, 100)
+        return ThemeManager.mix_colors(color, "#7d7d7d", 3/10)
     
     @staticmethod
     def get_hover_color(color: str | None) -> str:
-        return ThemeManager.interpolate_brightness(color, 200)
+        return ThemeManager.mix_colors(color, "#3A3A3A", 2/1)
     
     @staticmethod
     def get_pressed_color(color: str | None) -> str:
-        return ThemeManager.interpolate_brightness(color, 150)
+        return ThemeManager.mix_colors(color, "#414141", 1)
     
-    def _process_stylesheet_func_pointers(self, delimeter: str, stylesheet: str, palette: dict[str, str]):
+    @staticmethod
+    def process_stylesheet_func_pointers(command_delimeter: str, params_delimeter: str, stylesheet: str, palette: dict[str, str], func_mappings: dict[str, Callable[[str, tuple[Any, ...]], str]]):
         index = 0
         
         replacements = {}
         
-        for _ in range(stylesheet.count(delimeter)):
-            index = stylesheet.find(delimeter, index + 1, -1)
+        for _ in range(stylesheet.count(command_delimeter)):
+            index = stylesheet.find(command_delimeter, index + 1, -1)
             
             start_index = stylesheet.rfind("{", 0, index)
             end_index = stylesheet.find("}", index, -1)
@@ -1010,14 +1106,14 @@ class ThemeManager:
             text = stylesheet[start_index + 1: end_index]
             stripped_text = text.strip()
             
-            function_key, palette_key = stripped_text.split(delimeter)
+            function_key, palette_key = stripped_text.split(command_delimeter)
             
             if "-" in function_key:
-                function_key, *extra_function_params = function_key.split("-")
+                function_key, *extra_function_params = function_key.split(params_delimeter)
             else:
                 extra_function_params = []
             
-            replacements["{" + text + "}"] = str(self.func_mappings[function_key](palette[palette_key], *extra_function_params))
+            replacements["{" + text + "}"] = str(func_mappings[function_key](palette[palette_key], *extra_function_params))
         
         for init_text, rep_text in replacements.items():
             stylesheet = stylesheet.replace(init_text, rep_text)
@@ -1027,7 +1123,7 @@ class ThemeManager:
     def process_stylesheet(self, stylesheet: str):
         assert isinstance(self.current_pallete, dict)
         
-        return self._process_stylesheet_func_pointers("__", stylesheet, self.current_pallete).format(**self.current_pallete)
+        return self.process_stylesheet_func_pointers("__", "-", stylesheet, self.current_pallete, self.func_mappings).format(**self.current_pallete)
     
     def _add_theme(self, name: str, theme_dict: dict):
         """Add a theme directly from a dict"""

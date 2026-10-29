@@ -653,7 +653,7 @@ class SeperatorWidget(BaseWidget):
         if height:
             widget.setFixedHeight(height)
         
-        widget.setStyleSheet(f"background-color: {THEME_MANAGER.process_stylesheet("{interpolate-250__maximum}")};")
+        widget.setStyleSheet(f"background-color: {THEME_MANAGER.process_stylesheet("{interpolate-black-0.98__maximum}")};")
         
         self.addWidget(widget)
 
@@ -854,7 +854,7 @@ class GeneralPeriodEditor(BaseWidget):
         self.__init = True
         
         self.setContentsMargins(5, 5, 5, 5)
-        self.setProperty("class", "Bordered BorderRadiused DarkenedBG1")
+        self.setProperty("class", "BorderRadiused BG2")
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
         
         self._window = window

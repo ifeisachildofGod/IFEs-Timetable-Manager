@@ -96,7 +96,7 @@ class Window(QMainWindow):
         self._init_save_data()
         
         # Misc
-        self.display_index = 0
+        self.display_index = -1
         self.prev_display_index = 0
         
         self.go_focus_index = 0
@@ -171,6 +171,8 @@ class Window(QMainWindow):
             (timetable_btn, (self.timetable_widget, on_ttbl_widget_func))
         ]
         
+        _kick_off_func = None
+        
         # Connect buttons
         for index, op_info in enumerate(self.option_buttons):
             if op_info is not None:
@@ -182,11 +184,13 @@ class Window(QMainWindow):
                     widget = widget_info
                     custom_func = None
                 
+                func = self.make_option_button_func(button.text(), index, custom_func)
+                
                 button.setCheckable(True)
-                button.clicked.connect(self.make_option_button_func(button.text(), index, custom_func))
+                button.clicked.connect(func)
                 
                 if index == 0:
-                    reset(button.text())
+                    QTimer.singleShot(100, func)
                 
                 self.stack.addWidget(widget)
                 self.sub_sidebar_widget.addWidget(button)
@@ -200,8 +204,6 @@ class Window(QMainWindow):
         # Add widgets to main layout
         viewing_container.addWidget(main_sidebar_widget)
         viewing_container.addWidget(self.stack)
-        
-        subjects_btn.click()  # Start with subjects page selected
         
         self.go_back_action.setDisabled(True)
         self.title_bar.go_back_button.setDisabled(True)
@@ -223,6 +225,8 @@ class Window(QMainWindow):
         self.setCentralWidget(central_widget)
         
         self.CMD_ACTIONS = self._get_cmd_actions()
+        
+        subjects_btn.click()  # Start with subjects page selected
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -594,6 +598,7 @@ class Window(QMainWindow):
                     widget = widget_info
                 
                 self.stack.setCurrentWidget(widget)
+                widget.setFocus()
                 
                 self.display_index = index
             

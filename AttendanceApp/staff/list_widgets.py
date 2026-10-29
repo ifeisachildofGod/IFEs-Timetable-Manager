@@ -752,7 +752,7 @@ class StaffListWidget(BaseScrollListWidget):
             widget = BaseWidget()
             widget.setSpacing(0)
             widget.setContentsMargins(8, 5, 8, 5)
-            widget.setProperty("class", "DarkenedBG BorderRadiused")
+            widget.setProperty("class", "SpecialBG1 BorderRadiused")
             
             cancel_pb = QPushButton("×")
             cancel_pb.setProperty("class", "SettingEntryClose")
@@ -800,7 +800,7 @@ class StaffListWidget(BaseScrollListWidget):
         time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Window</span>", cotsi_sb))
         # -------------------------------------------------------------------------------------------------------------------------------------------------
         timeline_editing_widget = BaseWidget()
-        timeline_editing_widget.setProperty("class", "DarkenedBG1")
+        timeline_editing_widget.setProperty("class", "SpecialBG2")
         timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
         timeline_editing_widget.setFixedHeight(350)
         

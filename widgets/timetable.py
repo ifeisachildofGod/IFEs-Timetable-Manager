@@ -532,7 +532,7 @@ class CombinationEditor(BaseWidget):
         combined_stuff.append(([], []))
         
         combination_set_widget = BaseWidget()
-        combination_set_widget.setProperty("class", "DarkenedBG1 BorderRadiused")
+        combination_set_widget.setProperty("class", "SpecialBG2 BorderRadiused")
         
         cancel_pb = QPushButton("×")
         cancel_pb.setProperty("class", "SettingEntryClose")
@@ -1663,7 +1663,7 @@ class SchoolTimetableEditor(BaseWidget):
         
         def _add_everyday(set_default: bool = True):
             widg = BaseWidget()
-            widg.setProperty("class", "DarkenedBG1 BorderRadiused")
+            widg.setProperty("class", "SpecialBG2 BorderRadiused")
             
             if set_default:
                 SCHOOL.settings.TIMETABLE_time_settings[cls_level.id]["Everyday"] = SCHOOL.settings.DEFAULT_timetable_time_setting.copy()
