@@ -2,6 +2,7 @@
 from matplotlib.colors import get_named_colors_mapping
 
 from AttendanceApp.base_widgets import BaseDataDisplayWidget
+from AttendanceApp.communication import BaseCommSystem
 from AttendanceApp.data_display_widgets import BarWidget, GraphWidget
 from imports import *
 
@@ -9,6 +10,9 @@ from .base import *
 from .settings_options import *
 
 from AttendanceApp import AttendanceManager
+
+
+_T = TypeVar("_T")
 
 
 class _Prefect_PostEditor(BaseSettingDialog):
@@ -112,6 +116,117 @@ class _Prefect_PostEditor(BaseSettingDialog):
         
         if not self.__init:
             self.i_parent.window().saved_state_changed.emit(True)
+
+class _Staff_CardScanScreen(BaseWidget):
+    iud_changed = pySignal(ID)
+    comm_signal = pySignal(str)
+    
+    def __init__(self, entry: _T, parent: SettingsScreen, comm_system: BaseCommSystem):
+        super().__init__()
+        
+        top_widget = BaseWidget(QHBoxLayout)
+        
+        self.cancel_button = BaseWidget() ; self.cancel_button.addWidget(QLabel("<span style='font-size: 30px; font-weight: bold;'>×</span>"), alignment=Qt.AlignmentFlag.AlignCenter)
+        self.cancel_button.setFixedSize(40, 40)
+        self.cancel_button.setContentsMargins(0, 0, 0, 0)
+        self.cancel_button.setProperty("class", "CancelButton NoBG SpecialBG1Hover BorderRadiused")
+        self.cancel_button.enableCursorPointing()
+        self.cancel_button.clicked.connect(self.go_back)
+        
+        top_widget.addStretch()
+        top_widget.addWidget(self.cancel_button)
+        
+        self.entry = entry
+        self._parent = parent
+        self.comm_system = comm_system
+        
+        self.just_scanned = False
+        
+        scan_img = Image("AttendanceApp/src/images/scan.png", height=330)
+        scan_img.setStyleSheet("margin-bottom: 20px;")
+        
+        instruction_label = QLabel("Scan RFID card")
+        instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        info_label = QLabel(f"""
+            <span style='font-size: 20px; font-weight: 500; text-align: left;'>
+                <span style='font-weight: bold; color: {THEME_MANAGER.pallete_get('fg2')};'>ID:</span>{self.entry.id} <br>
+                <span style='font-weight: bold; color: {THEME_MANAGER.pallete_get('fg2')};'>Name:</span>{self.entry.name.full()}
+            </span>
+        """)
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.addWidget(top_widget)
+        self.addWidget(scan_img, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.addWidget(instruction_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.addWidget(info_label, Qt.AlignmentFlag.AlignCenter)
+        
+        self.comm_signal.connect(self.scanned)
+        self.comm_system.set_data_point("IUD", self.comm_signal)
+        
+        self.comm_system.connection_changed_signal.connect(self.connection_changed)
+        self.is_iud_changed = False
+        
+        for opt_info in self._parent.i_parent.window().option_buttons:
+            if opt_info is not None:
+                btn, _ = opt_info
+                btn.clicked.connect(self.clean_up)
+    
+    def _deactivate_just_scanned(self):
+        self.just_scanned = False
+    
+    def clean_up(self):
+        self._parent.stack.removeWidget(self)
+        self.deleteLater()
+        
+        self._parent.card_scan_screen_closed.emit()
+        self._parent.card_scan_screen = None
+        
+        for opt_info in self._parent.i_parent.window().option_buttons:
+            if opt_info is not None:
+                btn, _ = opt_info
+                btn.clicked.disconnect(self.clean_up)
+    
+    def go_back(self):
+        if self.is_iud_changed:
+            self.comm_system.send_message("REGISTERED")
+            
+            self.just_scanned = True
+            QTimer.singleShot(500, self._deactivate_just_scanned)
+        
+        self._parent.stack.setCurrentIndex(1)
+        self.clean_up()
+    
+    def connection_changed(self, state: bool):
+        if not state and self._parent.stack.indexOf(self) == self._parent.stack.currentIndex():
+            self.go_back()
+    
+    def scanned(self, iud: str):
+        if self._parent.stack.currentIndex() == self._parent.stack.indexOf(self):
+            for staff in list(SCHOOL.teachers.values()) + list(SCHOOL.prefects.values()):
+                if staff.IUD == iud:
+                    self.comm_system.send_message("UNREGISTERED")
+                    self.just_scanned = True
+                    
+                    QTimer.singleShot(1000, lambda: self.comm_system.send_message("Card has already_ been assigned "))
+                    
+                    QMessageBox.warning(self, "KeyError", f"Card of IUD {iud} has already been assigned to the {"teacher" if isinstance(staff, Teacher) else "prefect"}: {staff.name.full()}")
+                    
+                    QTimer.singleShot(500, self._deactivate_just_scanned)
+                    self.is_iud_changed = False
+                    self.go_back()
+                    
+                    return
+            
+            self.entry.IUD = ID(iud)
+            self.iud_changed.emit(self.entry.IUD)
+            
+            self.is_iud_changed = True
+            self.go_back()
+            self.is_iud_changed = False
+            
+            self.window().saved_state_changed.emit(True)
+
 
 
 class SubjectsSettingEntry(BaseSettingEntry[Subject]):
@@ -239,34 +354,182 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         if not self.entry.subjects:
             super().simple_name_empty(text)
 
-class TeachersSettingEntry(BaseSettingEntry[Teacher]):
-    def __init__(self, parent: StaffMainWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
+class StaffSettingEntry[_T](BaseSettingEntry[_T]):
+    card_scan_screen_opened = pySignal()
+    card_scan_screen_closed = pySignal()
+    
+    def __init__(
+        self,
+        i_parent: BaseSettingWidget[_T],
+        general_entry_name: str,
+        extended_placeholders: list[str],
+        custom_settings_format: list[tuple[str, tuple[type[BaseWidget], tuple, Qt.AlignmentFlag] | tuple[QWidget, Qt.AlignmentFlag]]],
+        entry: Optional[_T],
+        stack: QStackedWidget,
+        attendance_manager: AttendanceManager
+    ):
+        
+        self.card_scan_screen = None
+        
+        self.attendance_manager = attendance_manager
+        
+        super().__init__(i_parent, general_entry_name, extended_placeholders, custom_settings_format, entry, stack)
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
+        
+        def open_card_scan():
+            if not self.attendance_manager.comm_system.connected:
+                QMessageBox.warning(self, "CardScannerError", "No device connected")
+                
+                return
+            
+            self.card_scan_screen = _Staff_CardScanScreen(self.entry, self, self.attendance_manager.comm_system)
+            
+            self.stack.addWidget(self.card_scan_screen)
+            self.stack.setCurrentWidget(self.card_scan_screen)
+            
+            self.card_scan_screen_opened.emit()
+        
+        iud_set_btn = QPushButton("Set Teacher IUD")
+        iud_set_btn.clicked.connect(open_card_scan)
+        
+        settings_screen.top_widget.addWidget(iud_set_btn)
+        
+        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
+            settings_screen.toogle_name_format()
+        
+        return settings_screen
+    
+    def get_staff_attendance_data(self) -> tuple[dict[str, tuple[int, int], dict[str, float]]]:
+        raise NotImplementedError()
+    
+    def get_staff_punctuality_data(self) -> list[tuple[int, str, list[float]]]:
+        raise NotImplementedError()
+    
+    def new_stats_widgets(self) -> BaseWidget:
+        raise NotImplementedError()
+    
+    def new_charts_widgets(self) -> BaseWidget:
+        raise NotImplementedError()
+    
+    def get_init_text(self):
+        return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
+    
+    def get_repr_text(self):
+        return f"{self.entry.name.full().strip()}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
+    
+    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
+        full_name_e = extended_line_edits[0]
+        full_name_e.setText(text)
+        
+        for le in extended_line_edits[1:]:
+            le.blockSignals(True)
+            le.setText("")
+            le.blockSignals(False)
+        
+        self.entry.name.second = None
+        self.entry.name.third = None
+        self.entry.name.abbrev = None
+    
+    def extended_name_changed(self, index, text, simple_line_edit):
+        match index:
+            case 0:
+                self.entry.name.first = text
+            case 1:
+                self.entry.name.second = text
+            case 2:
+                self.entry.name.third = text
+            case 3:
+                self.entry.name.abbrev = text
+        
+        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
+        
+        if self.settings_screen and self.settings_screen.extended_edits_widget.isVisible():
+            simple_line_edit.blockSignals(True)
+            simple_line_edit.setText(f"{self.entry.name.first or ""}{" " + self.entry.name.second if self.entry.name.second is not None else ""}{" " + self.entry.name.third if self.entry.name.third is not None else ""}")
+            simple_line_edit.blockSignals(False)
+    
+    def extended_name_empty(self, index, text):
+        if self.settings_screen:
+            key = f"E{index}EmptyNameWarning"
+
+            if text:
+                self.settings_screen.status_widget.removeLinient(key)
+            
+            match index:
+                case 0:
+                    if not text and self.settings_screen.extended_edits_widget.isVisible():
+                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
+                case 1:
+                    if not text:
+                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"First name is empty")
+                case 2:
+                    if not text:
+                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
+                case 3:
+                    if not text:
+                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
+
+class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
+    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
+        
+        super().__init__(
+            parent,
+            "Class Level",
+            None,
+            [
+                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter)),
+                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter))
+            ],
+            entry,
+            stack
+        )
+        
+        self.addProperty("class", "ClassLevelSettingsEntry")
+    
+    def new(self):
+        return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
+    
+    def remove(self):
+        delete_class_level(self.id, self.timetable_editor, self.attendance_manager)
+        
+        return super().remove()
+    
+    def get_init_text(self):
+        return self.entry.name, None
+    
+    def get_repr_text(self):
+        return self.entry.name.full()
+    
+    def simple_name_changed(self, text, _):
+        self.entry.name = ClassLevelName(text)
+        
+        class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
+
+
+class TeachersSettingEntry(StaffSettingEntry[Teacher]):
+    def __init__(self, parent: StaffMainWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
+        self.timetable_editor = timetable_editor
         
         super().__init__(
             parent,
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             [
-                ("Assing the subjects this teacher generally teaches", (Teacher_SelectionList, (self.timetable_editor, self.attendance_manager), None)),
-                ("Assign a particular subject and class to this teacher", (Teacher_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter)),
+                ("Assing the subjects this teacher generally teaches", (Teacher_SelectionList, (self.timetable_editor, attendance_manager), None)),
+                ("Assign a particular subject and class to this teacher", (Teacher_DropdownCheckBoxes, (self.timetable_editor, attendance_manager), Qt.AlignmentFlag.AlignCenter)),
                 ("General Information and Statistics", (self.new_stats_widgets, None)),
                 ("Attendance and Punctuality", (self.new_charts_widgets, None)),
             ],
             entry,
-            stack
+            stack,
+            attendance_manager
         )
         
         self.addProperty("class", "TeacherSettingsEntry")
-    
-    def open_settings(self):
-        settings_screen = super().open_settings()
-        
-        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
-            settings_screen.toogle_name_format()
-        
-        return settings_screen
     
     def get_staff_attendance_data(self):
         weeks_data = {}
@@ -471,82 +734,23 @@ class TeachersSettingEntry(BaseSettingEntry[Teacher]):
         delete_teacher(self.id, self.timetable_editor, self.attendance_manager)
         
         return super().remove()
-    
-    def get_init_text(self):
-        return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
-    
-    def get_repr_text(self):
-        return f"{self.entry.name.full().strip()}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
-    
-    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
-        full_name_e = extended_line_edits[0]
-        full_name_e.setText(text)
-        
-        for le in extended_line_edits[1:]:
-            le.blockSignals(True)
-            le.setText("")
-            le.blockSignals(False)
-        
-        self.entry.name.second = None
-        self.entry.name.third = None
-        self.entry.name.abbrev = None
-    
-    def extended_name_changed(self, index, text, simple_line_edit):
-        match index:
-            case 0:
-                self.entry.name.first = text
-            case 1:
-                self.entry.name.second = text
-            case 2:
-                self.entry.name.third = text
-            case 3:
-                self.entry.name.abbrev = text
-        
-        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
-        
-        if self.settings_screen and self.settings_screen.extended_edits_widget.isVisible():
-            simple_line_edit.blockSignals(True)
-            simple_line_edit.setText(f"{self.entry.name.first or ""}{" " + self.entry.name.second if self.entry.name.second is not None else ""}{" " + self.entry.name.third if self.entry.name.third is not None else ""}")
-            simple_line_edit.blockSignals(False)
-    
-    def extended_name_empty(self, index, text):
-        if self.settings_screen:
-            key = f"E{index}EmptyNameWarning"
 
-            if text:
-                self.settings_screen.status_widget.removeLinient(key)
-            
-            match index:
-                case 0:
-                    if not text and self.settings_screen.extended_edits_widget.isVisible():
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
-                case 1:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"First name is empty")
-                case 2:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
-                case 3:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
-
-class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
+class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     def __init__(self, parent: StaffMainWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager, stack: QStackedWidget):
-        self.attendance_manager = attendance_manager
-        
         super().__init__(
             parent,
             "Prefect",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             [
-                ("Select Class", (Prefect_ClassSelector, (self.attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
+                ("Select Class", (Prefect_ClassSelector, (attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
                 ("Select Post", (self.get_post_cb, None)),
-                ("Set Duties", (Prefect_DutyAssigner, (self.attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
+                ("Set Duties", (Prefect_DutyAssigner, (attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
                 ("Attendane and Punctuality Statistics", (self.new_stats_widgets, Qt.AlignmentFlag.AlignCenter)),
                 ("Attendance Chart and Punctuality Graph", (self.new_charts_widgets, None))
             ],
             entry,
-            stack
+            stack,
+            attendance_manager
         )
         
         self.addProperty("class", "PrefectSettingsEntry")
@@ -556,14 +760,6 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         self.attendance_manager.update_staff_list_prefect_post_name(self.entry.id)
         
         self.i_parent.window().saved_state_changed.emit(True)
-    
-    def open_settings(self):
-        settings_screen = super().open_settings()
-        
-        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
-            settings_screen.toogle_name_format()
-        
-        return settings_screen
     
     def get_staff_attendance_data(self):
         timeline_dates = SCHOOL.attendance.prefect_attendance_time_settings.timeline_dates
@@ -752,111 +948,16 @@ class PrefectsSettingEntry(BaseSettingEntry[Prefect]):
         self.attendance_manager.staff_list_widget.delete_staff(self.entry)
         
         return super().remove()
-    
-    def get_init_text(self):
-        return self.entry.name.first, (self.entry.name.first, self.entry.name.second, self.entry.name.third, self.entry.name.abbrev)
-    
-    def get_repr_text(self):
-        return f"{self.entry.name.full().strip()}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev is not None and self.entry.name.abbrev.strip() else ""}"
-    
-    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit, QLineEdit]):
-        full_name_e = extended_line_edits[0]
-        full_name_e.setText(text)
-        
-        for le in extended_line_edits[1:]:
-            le.blockSignals(True)
-            le.setText("")
-            le.blockSignals(False)
-        
-        self.entry.name.second = None
-        self.entry.name.third = None
-        self.entry.name.abbrev = None
-    
-    def extended_name_changed(self, index, text, simple_line_edit):
-        match index:
-            case 0:
-                self.entry.name.first = text
-            case 1:
-                self.entry.name.second = text
-            case 2:
-                self.entry.name.third = text
-            case 3:
-                self.entry.name.abbrev = text
-        
-        self.attendance_manager.update_staff_list_staff_name(self.id)
-        
-        if self.settings_screen and self.settings_screen.extended_edits_widget.isVisible():
-            simple_line_edit.blockSignals(True)
-            simple_line_edit.setText(f"{self.entry.name.first or ""}{" " + self.entry.name.second if self.entry.name.second is not None else ""}{" " + self.entry.name.third if self.entry.name.third is not None else ""}")
-            simple_line_edit.blockSignals(False)
-    
-    def extended_name_empty(self, index, text):
-        if self.settings_screen:
-            key = f"E{index}EmptyNameWarning"
 
-            if text:
-                self.settings_screen.status_widget.removeLinient(key)
-            
-            match index:
-                case 0:
-                    if not text and self.settings_screen.extended_edits_widget.isVisible():
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Surname is empty")
-                case 1:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"First name is empty")
-                case 2:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Other name is empty")
-                case 3:
-                    if not text:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
-
-class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
-    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-        
-        super().__init__(
-            parent,
-            "Class Level",
-            None,
-            [
-                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter)),
-                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter))
-            ],
-            entry,
-            stack
-        )
-        
-        self.addProperty("class", "ClassLevelSettingsEntry")
-    
-    def new(self):
-        return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
-    
-    def remove(self):
-        delete_class_level(self.id, self.timetable_editor, self.attendance_manager)
-        
-        return super().remove()
-    
-    def get_init_text(self):
-        return self.entry.name, None
-    
-    def get_repr_text(self):
-        return self.entry.name.full()
-    
-    def simple_name_changed(self, text, _):
-        self.entry.name = ClassLevelName(text)
-        
-        class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
 
 
 
 class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__(["Subject", "Combined Subject"])
+        super().__init__(["Subject", "Combined Subject"], page_tracker, option_buttons)
     
     def init_saved_variables(self):
         for entry in self.get_global().values():
@@ -931,11 +1032,18 @@ class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
             self.window().saved_state_changed.emit(True)
 
 class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__(["Teacher", "Prefect"])
+        super().__init__(["Teacher", "Prefect"], page_tracker, option_buttons)
+        
+        time_settings_widget = BaseWidget(QHBoxLayout)
+        
+        time_settings_widget.addWidget(LabeledField("Teacher Attendance Time Settings", self.get_timing_settings(SCHOOL.attendance.teacher_attendance_time_settings)))
+        time_settings_widget.addWidget(LabeledField("Prefect Attendance Time Settings", self.get_timing_settings(SCHOOL.attendance.prefect_attendance_time_settings)))
+        
+        self.central_widget.insertWidget(0, time_settings_widget)
     
     def enter_pressed(self, key: int, id: Optional[ID] = None):
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -1001,13 +1109,165 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
         
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
+    
+    def get_timing_settings(self, staff_attendance_time_settings: StaffAttendanceTimeSettings):
+        _init = True
+        
+        main_widget = BaseWidget(QHBoxLayout)
+        main_widget.setContentsMargins(0, 5, 0, 0)
+        
+        def _make_ct_changed_func(target_time: Time):
+            def func(time: QTime):
+                target_time.hour = time.hour()
+                target_time.minute = time.minute()
+                
+                _update_cot_sb_limit()
+                _update_cit_sb_limit()
+                
+                self.window().saved_state_changed.emit(True)
+            
+            return func
+        
+        def _update_cit_sb_limit():
+            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
+            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
+            
+            interval = cibim + cobim
+            
+            cit_editor.setMinimumTime(QTime(cibim // 60, cibim % 60))
+            cit_editor.setMaximumTime(QTime(staff_attendance_time_settings.check_out_time.hour - interval // 60, staff_attendance_time_settings.check_out_time.minute - interval % 60))
+        
+        def _update_cot_sb_limit():
+            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
+            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
+            
+            interval = cibim + cobim
+            
+            cot_editor.setMinimumTime(QTime(staff_attendance_time_settings.check_in_time.hour + interval // 60, staff_attendance_time_settings.check_in_time.minute + interval % 60))
+            cot_editor.setMaximumTime(QTime(24 - cobim // 60, 24 - cobim % 60))
+        
+        def cibm_changed_func(value: int):
+            staff_attendance_time_settings.check_in_border_interval_minutes = value
+            
+            _update_cit_sb_limit()
+            _update_cot_sb_limit()
+            
+            self.window().saved_state_changed.emit(True)
+        
+        def cobm_changed_func(value: int):
+            staff_attendance_time_settings.check_out_border_interval_minutes = value
+            
+            _update_cit_sb_limit()
+            _update_cot_sb_limit()
+            
+            self.window().saved_state_changed.emit(True)
+        
+        def add_timeline(timeline: Optional[tuple[Period, Period]] = None):
+            def remove_func():
+                timeline_widget.removeWidget(widget)
+                widget.deleteLater()
+                
+                staff_attendance_time_settings.timeline_dates.remove(timeline_periods)
+                
+                self.window().saved_state_changed.emit(True)
+            
+            timeline_periods = timeline
+            
+            if timeline_periods is None:
+                timeline_periods = Period.str_to_period(time.ctime()), Period.str_to_period(time.ctime())
+                staff_attendance_time_settings.timeline_dates.append(timeline_periods)
+            
+            widget = BaseWidget()
+            widget.setSpacing(0)
+            widget.setContentsMargins(8, 5, 8, 5)
+            widget.setProperty("class", "SpecialBG1 BorderRadiused")
+            
+            cancel_pb = QPushButton("×")
+            cancel_pb.setProperty("class", "SettingEntryClose")
+            cancel_pb.clicked.connect(remove_func)
+            
+            central_widget = BaseWidget(QHBoxLayout)
+            central_widget.setProperty("class", "NoBG")
+            
+            central_widget.addWidget(GeneralPeriodEditor(self.window(), timeline_periods[0], max_period=timeline_periods[1]), alignment=Qt.AlignmentFlag.AlignCenter)
+            central_widget.addSpacing(15)
+            central_widget.addWidget(GeneralPeriodEditor(self.window(), timeline_periods[1], min_period=timeline_periods[0]), alignment=Qt.AlignmentFlag.AlignCenter)
+            
+            widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
+            widget.addWidget(central_widget)
+            
+            timeline_widget.insertWidget(len(timeline_widget.getChildren()), widget)
+            timeline_widget.scroll_to(widget, 100)
+            
+            if not _init:
+                self.window().saved_state_changed.emit(False)
+
+        time_widget = BaseWidget()
+        time_widget.setSpacing(10) ; time_widget.setContentsMargins(0, 0, 0, 0)
+        
+        cit_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_in_time.hour, staff_attendance_time_settings.check_in_time.minute))
+        cit_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_in_time))
+        cot_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_out_time.hour, staff_attendance_time_settings.check_out_time.minute))
+        cot_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_out_time))
+        
+        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Time</span>", cit_editor))
+        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Time</span>", cot_editor))
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        time_border_widget = BaseWidget()
+        time_border_widget.setSpacing(10) ; time_border_widget.setContentsMargins(0, 0, 0, 0)
+        
+        citsi_sb = QSpinBox()
+        citsi_sb.setSuffix("min")
+        citsi_sb.setValue(staff_attendance_time_settings.check_in_border_interval_minutes)
+        citsi_sb.setRange(0, 60 * 6)
+        citsi_sb.valueChanged.connect(cibm_changed_func)
+        cotsi_sb = QSpinBox()
+        cotsi_sb.setSuffix("min")
+        cotsi_sb.setValue(staff_attendance_time_settings.check_out_border_interval_minutes)
+        cotsi_sb.setRange(0, 60 * 6)
+        cotsi_sb.valueChanged.connect(cobm_changed_func)
+        
+        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Window</span>", citsi_sb))
+        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Window</span>", cotsi_sb))
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        timeline_editing_widget = BaseWidget()
+        timeline_editing_widget.setProperty("class", "SpecialBG2")
+        timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
+        timeline_editing_widget.setFixedHeight(350)
+        
+        timeline_widget = BaseScrollWidget()
+        timeline_widget.setSpacing(15)
+        timeline_widget.setContentsMargins(5, 3, 5, 3)
+        timeline_widget.addStretch()
+        
+        add_timeline_pb = QPushButton("Add Timeline")
+        add_timeline_pb.clicked.connect(lambda: add_timeline())
+        
+        for timeline_date in staff_attendance_time_settings.timeline_dates:
+            add_timeline(timeline_date)
+        
+        timeline_editing_widget.addWidget(timeline_widget)
+        timeline_editing_widget.addWidget(add_timeline_pb, alignment=Qt.AlignmentFlag.AlignRight)
+        # -------------------------------------------------------------------------------------------------------------------------------------------------
+        
+        main_widget.addStretch()
+        main_widget.addWidget(time_widget)
+        main_widget.addStretch()
+        main_widget.addWidget(time_border_widget)
+        main_widget.addStretch()
+        main_widget.addWidget(IconToolBarOption(title=f"Timelines", content=timeline_editing_widget, default_bg=THEME_MANAGER.process_stylesheet("{pressed__bg3}")))
+        main_widget.addStretch()
+        
+        _init = False
+        
+        return main_widget
 
 class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager):
+    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__(["Class Level"])
+        super().__init__(["Class Level"], page_tracker, option_buttons)
     
     def get_global(self):
         return SCHOOL.class_levels

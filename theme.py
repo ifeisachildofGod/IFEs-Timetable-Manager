@@ -974,6 +974,17 @@ STYLESHEET = '''
         background-color: {bg3};
     }}
     
+    QPushButton.CancelButton {{
+        width: 40px;
+        height: 40px;
+        border-radius: 20px;
+    }}
+    
+    QPushButton.CancelButton * QLabel {{
+        color: {text};
+        font-size: 30px;
+    }}
+    
     
     QWidget.ExportEditorOptionsBG, QWidget.SC_Bordeless {{
         border: none;

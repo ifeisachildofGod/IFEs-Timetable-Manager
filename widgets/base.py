@@ -84,7 +84,13 @@ class SvgWidget(QWidget):
             raise ValueError("Could not render the SVG file.")
 
         self.update()
-
+    
+    def rotate(self, angle: int):
+        *_,  width, height = self.root.get("viewBox").split()
+        
+        self.root.set("transform", f"rotate({angle}, {float(width) / 2}, {float(height) / 2})")
+        self._load_svg()
+        
     def element_ids(self):
         """Return IDs of SVG elements."""
         return [
@@ -106,7 +112,7 @@ class SvgWidget(QWidget):
 
         if not color.isValid():
             return
-
+        
         for element in self.root.iter():
             if element.get("id") == element_id:
                 element.set(
@@ -124,7 +130,6 @@ class SvgWidget(QWidget):
         color = QColor(color)
 
         if not color.isValid():
-            print("ife")
             return
 
         color_value = (
@@ -185,7 +190,7 @@ class Status(Enum):
 
 
 class BaseWidget(QWidget):
-    clicked = pySignal(QMouseEvent)
+    clicked = pySignal()
     key_pressed = pySignal(int)
     
     def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None, parent=None):
@@ -219,7 +224,7 @@ class BaseWidget(QWidget):
         self.container.style().unpolish(self.container)
         self.container.style().polish(self.container)
         
-        self.clicked.emit(ev)
+        self.click()
     
     def _mouseRelesed(self, ev):
         self.container.setProperty("pressed", False)
@@ -228,6 +233,9 @@ class BaseWidget(QWidget):
     
     def _keyPressed(self, ev):
         self.key_pressed.emit(ev.key())
+    
+    def click(self):
+        self.clicked.emit()
     
     @staticmethod
     def static_clearLayout(layout: QHBoxLayout | QVBoxLayout):
@@ -324,6 +332,9 @@ class BaseWidget(QWidget):
         self.setParent(None)
         
         return super().deleteLater()
+    
+    def enableCursorPointing(self):
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
     
     def styleSheet(self):
         return self.getWidget().styleSheet()
@@ -825,6 +836,7 @@ class SearchEdit(QFrame):
         def __init__(self, se: "SearchEdit", data_point: _T, style: str | list | tuple, info: tuple[Optional[str], Optional[str], Optional[str], Optional[str]]):
             super().__init__(QHBoxLayout)
             
+            self.enableCursorPointing()
             self.setProperty("class", "SearchOptions")
             self.setContentsMargins(10, 10, 10, 10)
             self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
@@ -1132,6 +1144,7 @@ class SearchBar(BaseWidget):
         self.search_pb = QPushButton()
         self.search_pb.setFixedWidth(self.search_edit.width())
         self.search_pb.setProperty("class", "SearchPB")
+        self.search_pb.setCursor(Qt.CursorShape.PointingHandCursor)
         self.search_pb.clicked.connect(self._open_search_edit)
         
         self.addWidget(self.search_pb)
@@ -1165,13 +1178,16 @@ class SettingsScreen[_T](BaseWidget):
 
         # Heading section
         go_back_button = BaseWidget()
-        go_back_button.clicked.connect(lambda _: self.go_back())
+        go_back_button.clicked.connect(self.go_back)
         go_back_button.setProperty("class", "SpecialBG2Hover BorderRadiused")
         go_back_button.setContentsMargins(10, 10, 10, 10)
-        go_back_button.addWidget(svg := SvgWidget("src/images/svg/direction.svg")) ; svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+        go_back_button.addWidget(svg := SvgWidget("src/images/svg/direction.svg"))
+        svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
 
-        top_widget = BaseWidget(QHBoxLayout)
-        top_widget.addWidget(go_back_button)
+        self.top_widget = BaseWidget(QHBoxLayout)
+        
+        self.top_widget.addWidget(go_back_button)
+        self.top_widget.addStretch()
 
         # Name Inputs
         simple, extended = self._parent.get_init_text()
@@ -1237,7 +1253,7 @@ class SettingsScreen[_T](BaseWidget):
             self.toogle_name_format_button_widget.addWidget(self.simple_display_widget)
             self.toogle_name_format_button_widget.addWidget(self.extended_display_widget)
             
-            self.toogle_name_format_button_widget.clicked.connect(lambda _: self.toogle_name_format())
+            self.toogle_name_format_button_widget.clicked.connect(self.toogle_name_format)
 
             for i, line_edit in enumerate(self.extended_line_edits):
                 line_edit.textChanged.connect(self._make_ext_name_empty(i))
@@ -1287,7 +1303,7 @@ class SettingsScreen[_T](BaseWidget):
 
         self.custom_settings_widgets = {n: w for n, w, _ in custom_settings_data}
         
-        self.addWidget(top_widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.addWidget(self.top_widget)
         self.addWidget(body_widget)
         
         self.toogle_name_format()
@@ -1389,14 +1405,18 @@ class SettingsScreen[_T](BaseWidget):
     
     def go_back(self):
         self.i_parent.add_buttons_widget.setVisible(True)
-
-        self.stack.setCurrentWidget(self.i_parent.scroll_widget)
+        
+        self.stack.setCurrentWidget(self.i_parent.central_widget)
         self.stack.removeWidget(self)
         self.deleteLater()
-
+        
+        self._parent.settings_screen_closed.emit()
         self._parent.settings_screen = None
 
 class BaseSettingEntry[_T](BaseWidget):
+    settings_screen_opened = pySignal()
+    settings_screen_closed = pySignal()
+    
     def __init__(
             self,
             i_parent: "BaseSettingWidget[_T]",
@@ -1411,7 +1431,7 @@ class BaseSettingEntry[_T](BaseWidget):
         self.__init = True
         
         self.setProperty("class", "SettingEntry")
-        self.setContentsMargins(10, 10, 10, 10)
+        self.setContentsMargins(15, 0, 15, 0)
         
         self.entry = entry or self.new()
         self.id = self.entry.id
@@ -1428,9 +1448,17 @@ class BaseSettingEntry[_T](BaseWidget):
 
         # ----------------------------------------------------------------------------------------
         
+        self.top_area = BaseWidget(QHBoxLayout)
+        self.top_area.setProperty("class", "NoBackground")
+        self.top_area.setContentsMargins(0, 0, 0, 0)
+        
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
         delete_button.clicked.connect(self.remove)
+        
+        self.top_area.addWidget(QLabel(f"<b>{self.general_entry_name}</b>"))
+        self.top_area.addStretch()
+        self.top_area.addWidget(delete_button)
         
         # ----------------------------------------------------------------------------------------
         
@@ -1458,17 +1486,19 @@ class BaseSettingEntry[_T](BaseWidget):
 
         # ----------------------------------------------------------------------------------------
         
-        self.setFixedHeight(200)
-        self.addWidget(delete_button, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        self.setFixedHeight(250)
+        self.enableCursorPointing()
+        self.addWidget(self.top_area)
         self.addWidget(info_area, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.addWidget(self.status_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
         
         info_area.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         
-        self.clicked.connect(lambda _: self.open_settings())
+        self.top_area.clicked.connect(self.open_settings)
+        self.clicked.connect(self.open_settings)
         
         self.set_name_text()
-
+        
         self.__init = False
     
     def _focusInput(self):
@@ -1527,6 +1557,8 @@ class BaseSettingEntry[_T](BaseWidget):
         self.stack.addWidget(self.settings_screen)
         self.stack.setCurrentWidget(self.settings_screen)
         
+        self.settings_screen_opened.emit()
+        
         return self.settings_screen
     
     def remove(self):
@@ -1578,20 +1610,28 @@ class BaseSettingEntry[_T](BaseWidget):
         raise NotImplementedError()
 
 class BaseSettingWidget[_T](BaseWidget):
-    def __init__(self, names: list[str]):
+    def __init__(self, names: list[str], page_tracker: list[QPushButton | BaseWidget], option_button: QPushButton):
         super().__init__()
 
         self.names = names
-
+        self.page_tracker = page_tracker
+        self.option_button = option_button
+        
         self.widgets: dict[ID, BaseSettingEntry[_T]] = {}
-
-        self.stack = QStackedWidget()
         
         self.scroll_widget = BaseScrollWidget()
         self.scroll_widget.setSpacing(20)
         self.scroll_widget.addStretch()
-
-        self.stack.addWidget(self.scroll_widget)
+        
+        self.central_widget = BaseWidget()
+        self.central_widget.setContentsMargins(0, 0, 0, 0)
+        self.central_widget.setSpacing(0)
+        
+        self.central_widget.addWidget(self.scroll_widget)
+        
+        self.stack = QStackedWidget()
+        
+        self.stack.addWidget(self.central_widget)
         
         self.add_buttons_widget = BaseWidget(QHBoxLayout)
         self.add_buttons_widget.addStretch()
@@ -1658,6 +1698,9 @@ class BaseSettingWidget[_T](BaseWidget):
             variables = []
         
         widget = widget_type(self, entry, *variables, stack=self.stack)
+        
+        widget.settings_screen_opened.connect(lambda: self.window().add_page_trace(widget))
+        widget.settings_screen_closed.connect(lambda: self.window().add_page_trace(self.option_button))
         
         if index is None:
             self.scroll_widget.insertWidget(len(self.widgets), widget, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignVCenter)
@@ -1774,6 +1817,8 @@ class _BaseSelectObjectWidget(BaseWidget):
     def __init__(self, parent: BaseSelectionList, id: ID, text: str, on_remove: Callable[[ID, int], None], on_opp_remove: Callable[[ID], None], window: QMainWindow, index: int = None):
         super().__init__(QHBoxLayout)
         
+        self.enableCursorPointing()
+        
         self.id = id
         self.text = text
         self._parent = parent
@@ -1793,7 +1838,7 @@ class _BaseSelectObjectWidget(BaseWidget):
         
         self.clicked.connect(self.sl_clicked)
     
-    def sl_clicked(self, a0):
+    def sl_clicked(self):
         self._parent.removeWidget(self)
         
         insert_index, widget = self.get_new_widget_index()

@@ -150,8 +150,11 @@ class ArrowWidget(QLabel):
     
     def __init__(self, angle: int = 0, parent=None):
         super().__init__("▼", parent)
-        self.angle = angle  # Angle in degrees to rotate the text
+        
         self.setProperty("class", "Arrow")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        self.angle = angle
     
     def mousePressEvent(self, ev):
         if ev.button() == Qt.MouseButton.LeftButton:
@@ -254,14 +257,20 @@ class MainTitleBar(CustomTitleBar):
         
         self.left_widget.addWidget(menu_bar)
         
-        self.go_back_button = QPushButton("<")
-        self.go_forward_button = QPushButton(">")
-        
-        self.go_back_button.setProperty("class", "GoButton")
-        self.go_forward_button.setProperty("class", "GoButton")
-        
+        self.go_back_svg = SvgWidget("src/images/svg/direction.svg")
+        self.go_back_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+        self.go_back_button = BaseWidget()
+        self.go_back_button.setProperty("class", "SpecialBG1Hover NoBG BorderRadiused")
         self.go_back_button.clicked.connect(go_back_func)
+        self.go_back_button.addWidget(self.go_back_svg)
+        
+        self.go_forward_svg = SvgWidget("src/images/svg/direction.svg")
+        self.go_forward_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+        self.go_forward_svg.rotate(180)
+        self.go_forward_button = BaseWidget()
+        self.go_forward_button.setProperty("class", "SpecialBG1Hover NoBG BorderRadiused")
         self.go_forward_button.clicked.connect(go_forward_func)
+        self.go_forward_button.addWidget(self.go_forward_svg)
         
         self.center_widget.insertWidget(0, self.go_back_button)
         self.center_widget.insertWidget(1, self.go_forward_button)
@@ -330,6 +339,8 @@ class EditableCancelableEntry(BaseWidget):
     
     def __init__(self, initial_text: str | None = None):
         super().__init__(QHBoxLayout)
+        
+        self.enableCursorPointing()
         self.setProperty("class", "OptionTag")
         
         self.text = initial_text if initial_text is not None else ""
@@ -408,232 +419,6 @@ class EditableCancelableEntry(BaseWidget):
     
     def get_text(self):
         return self.text
-
-
-
-
-class _SideBarOption(BaseWidget):
-    def __init__(self, name: str, do_action: Callable):
-        super().__init__(QHBoxLayout)
-        
-        self.SELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
-            """
-                QWidget.SideBarOption {{
-                    background-color: {fg4};
-                }}
-                
-                QLabel {{
-                    color: {text};
-                    font-weight: 500;
-                }}
-            """
-        )
-        
-        self.UNSELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
-            """
-                QWidget.SideBarOption {{
-                    background-color: transparent;
-                }}
-                
-                QWidget.SideBarOption:hover {{
-                    background-color: {hover__bg3};
-                }}
-                
-                QLabel {{
-                    color: {hover__text};
-                }}
-            """
-        )
-        
-        self.setProperty("class", "SideBarOption")
-        self.setStyleSheet(self.UNSELECTED_STYLESHEET)
-        
-        self.setSpacing(0)
-        self.setContentsMargins(10, 8, 10, 8)
-        
-        self.do_action = do_action
-        
-        self.addWidget(QLabel(name))
-        self.getWidget().mousePressEvent = lambda _: self._clicked(True)
-    
-    def _clicked(self, do: bool):
-        if do:
-            self.setStyleSheet(self.SELECTED_STYLESHEET)
-            self.do_action()
-        else:
-            self.setStyleSheet(self.UNSELECTED_STYLESHEET)
-
-class SideBar(BaseWidget):
-    def __init__(self, *content: tuple[str | None, Callable] | None):
-        super().__init__()
-        
-        self.widgets = []
-        
-        self.setFixedWidth(210)
-        
-        self.setSpacing(0)
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setProperty("class", "ExportEditorSideBar")
-        
-        for index, data in enumerate(content):
-            name, action = data if data is not None else (None, None)
-            
-            option = (
-                _SideBarOption(name, self._mf_option_changed(index, action))
-                if name is not None else
-                SeperatorWidget(Qt.Orientation.Horizontal, 10, None, 1)
-            )
-                
-            self.widgets.append(option)
-            self.addWidget(option)
-        
-        for widget in self.widgets:
-            if isinstance(widget, _SideBarOption):
-                widget._clicked(True)
-                
-                break
-        
-        self.addStretch()
-    
-    def _mf_option_changed(self, index: int, action: Callable):
-        def func():
-            action()
-            
-            if hasattr(self, "curr_widget"):
-                self.curr_widget._clicked(False)
-            
-            self.curr_widget = self.widgets[index]
-        
-        return func
-
-
-
-class _Tab(BaseWidget):
-    tab_selected = pySignal()
-    
-    def __init__(self, name: str):
-        super().__init__()
-        
-        self.SELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
-            """
-                QWidget {{
-                    background-color: transparent;
-                }}
-                
-                QLabel {{
-                    font-size: 13px;
-                    font-weight: bold;
-                    color: {fg4};
-                }}
-                
-                QLabel:hover {{
-                    color: {hover__fg4};
-                }}
-            """
-        )
-        
-        self.UNSELECTED_STYLESHEET = THEME_MANAGER.process_stylesheet(
-            """
-                QWidget {{
-                    background-color: transparent;
-                }}
-                
-                QLabel {{
-                    color: {text};
-                    font-size: 13px;
-                }}
-                
-                QLabel:hover {{
-                    color: {hover__text};
-                }}
-            """
-        )
-        
-        self.setFixedHeight(35)
-        
-        self.setSpacing(0)
-        self.setContentsMargins(10, 0, 10, 15)
-        
-        self.name = name
-        
-        self.tab_selected.connect(lambda: self.setState(self.styleSheet() != self.SELECTED_STYLESHEET))
-        self.setState(False)
-        
-        self.addWidget(QLabel(self.name))
-        self.getWidget().mousePressEvent = lambda _: self.tab_selected.emit()
-    
-    def setState(self, state):
-        if state and self.styleSheet() != self.SELECTED_STYLESHEET:
-            self.setStyleSheet(self.SELECTED_STYLESHEET)
-        elif self.styleSheet() != self.UNSELECTED_STYLESHEET:
-            self.setStyleSheet(self.UNSELECTED_STYLESHEET)
-
-class TabView(BaseWidget):
-    def __init__(self, tabs: dict[str, QWidget], *extra_title_widgets: QWidget):
-        super().__init__()
-        
-        self.STYLESHEET = THEME_MANAGER.process_stylesheet(
-            """
-                QWidget.TabView {{
-                    background-color: {bg1};
-                }}
-                
-                QWidget.TabWidget {{
-                    background-color: transparent;
-                    border-bottom: 1px solid {secondary};
-                }}
-            """ 
-        )   
-        
-        self.setProperty("class", "TabView")
-        
-        self.setSpacing(0)
-        
-        self.tabs = tabs
-        self.extra_title_widgets = extra_title_widgets
-        
-        self.tabWidget = BaseWidget(QHBoxLayout)
-        self.tabWidget.setProperty("class", "TabWidget")
-        self.tabWidget.setFixedHeight(40)
-        self.tabWidget.setStyleSheet(self.STYLESHEET)
-        self.tabWidget.setContentsMargins(10, 10, 10, 0)
-        
-        self.bodyWidget = QStackedWidget()
-        
-        self._initTabs()
-        
-        self.main_layout.addWidget(self.tabWidget)
-        self.main_layout.addWidget(self.bodyWidget)
-    
-    def _mf_tab_changed(self, tab, index: int):
-        def func():
-            if hasattr(self, "curr_tab"):
-                self.curr_tab.setState(self.curr_tab == tab)
-            
-            self.curr_tab = tab
-            
-            self.bodyWidget.setCurrentIndex(index)
-        
-        return func
-    
-    def _initTabs(self):
-        for tab_index, (tab_name, widget) in enumerate(self.tabs.items()):
-            tab = _Tab(tab_name)
-            func = self._mf_tab_changed(tab, tab_index)
-            
-            if tab_index == 0:
-                func()
-                tab.setState(True)
-            
-            tab.tab_selected.connect(func)
-            
-            self.tabWidget.addWidget(tab)
-            self.bodyWidget.addWidget(widget)
-        
-        self.tabWidget.addStretch()
-        
-        for et_widget in self.extra_title_widgets:
-            self.tabWidget.addWidget(et_widget)
 
 
 

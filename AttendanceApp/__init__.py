@@ -17,8 +17,8 @@ class AttendanceManager(TabViewWidget):
         
         self.search_state = True
         
-        self.target_connector = BaseCommSystem(CommDevice(self.comm_signal, self.connection_changed, "", None, None), self.connection_error_func)
-        self.connection_set_up_screen = CommSetupDialog(self, self.target_connector)
+        self.comm_system = BaseCommSystem(CommDevice(self.comm_signal, self.connection_changed, "", None, None), self.connection_error_func)
+        self.connection_set_up_screen = CommSetupDialog(self, self.comm_system)
         # self.management_set_up_screen = ManageSetupDialog(self)
         
         self.THEME_MANAGER = AttendanceThemeManager()
@@ -30,13 +30,13 @@ class AttendanceManager(TabViewWidget):
         sidebar_layout.setSpacing(0)
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         
-        card_scan_widget = CardScanScreenWidget(self.target_connector, self)
+        card_scan_widget = CardScanScreenWidget(self.comm_system, self)
         staff_data_widget = StaffDataWidget(self)
         
         self.attendance_chart_widget = AttendanceBarWidget(staff_data_widget)
         self.punctuality_graph_widget = PunctualityGraphWidget(staff_data_widget)
-        self.attendance_widget = AttendanceWidget(self, self.attendance_chart_widget, self.punctuality_graph_widget, self.target_connector, card_scan_widget)
-        self.staff_list_widget = StaffListWidget(self, self.target_connector, card_scan_widget, staff_data_widget, self.attendance_widget)
+        self.attendance_widget = AttendanceWidget(self, self.attendance_chart_widget, self.punctuality_graph_widget, self.comm_system, card_scan_widget)
+        self.staff_list_widget = StaffListWidget(self, self.comm_system, card_scan_widget, staff_data_widget, self.attendance_widget)
         
         def _changed_to_attendance_graph_widget(_, from_main_page: bool = False):
             self._set_search_state("")
@@ -66,8 +66,8 @@ class AttendanceManager(TabViewWidget):
                 self.connection_set_up_screen.comm_disconnect()
         
         self.connection_set_up_screen.disconnect_button.clicked.connect(self.disconnect_connection)
-        self.target_connector.device.connection_changed.connect(conn_changed)
-        self.target_connector.device.connection_changed.emit(False)
+        self.comm_system.device.connection_changed.connect(conn_changed)
+        self.comm_system.device.connection_changed.emit(False)
     
     def update_staff_list_staff_name(self, staffID: ID):
         for staff_widget_dict in self.staff_list_widget.all_staff_widgets.values():
@@ -120,14 +120,14 @@ class AttendanceManager(TabViewWidget):
                             teacher_filtered_dict[subj.teacher.id].update_class_name(cls)
     
     def disconnect_connection(self):
-        self.target_connector.stop_connection()
+        self.comm_system.stop_connection()
         self.connection_set_up_screen.comm_disconnect()
     
     # def comm_send_screen_changed(self, message: str):
     #     def scr_changed(_):
-    #         if self.target_connector.connected:
+    #         if self.comm_system.connected:
     #             pass
-    #             # self.target_connector.send_message(message)
+    #             # self.comm_system.send_message(message)
         
     #     return scr_changed
     
@@ -138,7 +138,7 @@ class AttendanceManager(TabViewWidget):
     #     self.management_set_up_screen.exec()
     
     def connection_error_func(self, e: Exception, conn_error: bool = True):
-        self.target_connector.stop_connection()
+        self.comm_system.stop_connection()
         self.connection_set_up_screen.comm_disconnect()
         
         if conn_error:

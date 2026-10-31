@@ -102,12 +102,20 @@ class Window(QMainWindow):
         self.go_focus_index = 0
         
         # Make settings widgets
+        subjects_btn = QPushButton("Subjects")
+        staff_btn = QPushButton("Staff")
+        class_levels_btn = QPushButton("Class Levels")
+        attendance_btn = QPushButton("Attendance")
+        timetable_btn = QPushButton("Timetable")
+        
+        self.page_tracker = [subjects_btn]
+        
         self.attendance_manager = AttendanceManager()
         self.timetable_widget = SchoolTimetableEditor()
         
-        self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager)
-        self.staff_widget = StaffMainWidget(self.timetable_widget, self.attendance_manager)
-        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager)
+        self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, subjects_btn)
+        self.staff_widget = StaffMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, staff_btn)
+        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, class_levels_btn)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setDisabled(not v))
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setPrompt(f"Search {v}") if v else self.title_bar.search_bar.setPrompt(None))
@@ -133,16 +141,6 @@ class Window(QMainWindow):
         # Create stacked widget for content
         self.stack = QStackedWidget()
         
-        # Create navigation buttons
-        subjects_btn = QPushButton("Subjects")
-        teachers_btn = QPushButton("Staff")
-        classes_btn = QPushButton("Class Levels")
-        
-        prefects_btn = QPushButton("Prefects")
-        
-        attendance_btn = QPushButton("Attendance")
-        timetable_btn = QPushButton("Timetable")
-        
         def reset(name: str):
             self.title_bar.search_bar.setDisabled(False)
             self.title_bar.search_bar.setPrompt(f"Search {name}")
@@ -164,14 +162,12 @@ class Window(QMainWindow):
         self.is_option_sidebar_focused = True
         self.option_buttons: list[Optional[tuple[QPushButton, tuple[BaseSettingWidget | SchoolTimetableEditor | AttendanceManager, Callable]]]] = [
             (subjects_btn, (self.subjects_widget, reset)),
-            (teachers_btn, (self.staff_widget, reset)),
-            (classes_btn, (self.classes_widget, reset)),
+            (staff_btn, (self.staff_widget, reset)),
+            (class_levels_btn, (self.classes_widget, reset)),
             None,
             (attendance_btn, (self.attendance_manager, on_att_widget_func)),
             (timetable_btn, (self.timetable_widget, on_ttbl_widget_func))
         ]
-        
-        _kick_off_func = None
         
         # Connect buttons
         for index, op_info in enumerate(self.option_buttons):
@@ -188,6 +184,7 @@ class Window(QMainWindow):
                 
                 button.setCheckable(True)
                 button.clicked.connect(func)
+                button.setCursor(Qt.CursorShape.PointingHandCursor)
                 
                 if index == 0:
                     QTimer.singleShot(100, func)
@@ -207,11 +204,11 @@ class Window(QMainWindow):
         
         self.go_back_action.setDisabled(True)
         self.title_bar.go_back_button.setDisabled(True)
+        self.title_bar.go_back_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{disabled__text}"))
         
         self.go_forward_action.setDisabled(True)
         self.title_bar.go_forward_button.setDisabled(True)
-        
-        self.view_tracker = [self.option_buttons[0]]
+        self.title_bar.go_forward_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{disabled__text}"))
         
         self.auto_save_action.setChecked(SCHOOL.settings.auto_save)
         
@@ -226,7 +223,7 @@ class Window(QMainWindow):
         
         self.CMD_ACTIONS = self._get_cmd_actions()
         
-        subjects_btn.click()  # Start with subjects page selected
+        self.page_tracker[0].click()  # Start with the first page selected
     
     def _file_init(self, index: int, arg: str):
         if index == 0:
@@ -338,6 +335,22 @@ class Window(QMainWindow):
         
         return arg
     
+    def add_page_trace(self, button: BaseWidget | QPushButton):
+        if self.is_option_sidebar_focused:
+            self.go_focus_index += 1
+            
+            self.page_tracker[self.go_focus_index:] = []
+            
+            self.go_back_action.setDisabled(False)
+            self.title_bar.go_back_button.setDisabled(False)
+            self.title_bar.go_back_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+            
+            self.go_forward_action.setDisabled(True)
+            self.title_bar.go_forward_button.setDisabled(True)
+            self.title_bar.go_forward_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{disabled__text}"))
+            
+            self.page_tracker.append(button)
+    
     def handle_cmd(self, cmd: str):
         if cmd.strip():
             key, *values = cmd.split()
@@ -446,29 +459,33 @@ class Window(QMainWindow):
             
             self.go_forward_action.setDisabled(False)
             self.title_bar.go_forward_button.setDisabled(False)
+            self.title_bar.go_forward_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
             
             self.is_option_sidebar_focused = False
-            self.view_tracker[self.go_focus_index].click()
+            self.page_tracker[self.go_focus_index].click()
             self.is_option_sidebar_focused = True
         
         if self.go_focus_index == 0:
             self.go_back_action.setDisabled(True)
             self.title_bar.go_back_button.setDisabled(True)
+            self.title_bar.go_back_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{disabled__text}"))
     
     def go_forward(self):
-        if self.go_focus_index < len(self.view_tracker) - 1:
+        if self.go_focus_index < len(self.page_tracker) - 1:
             self.go_focus_index += 1
             
             self.go_back_action.setDisabled(False)
             self.title_bar.go_back_button.setDisabled(False)
+            self.title_bar.go_back_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
             
             self.is_option_sidebar_focused = False
-            self.view_tracker[self.go_focus_index].click()
+            self.page_tracker[self.go_focus_index].click()
             self.is_option_sidebar_focused = True
         
-        if self.go_focus_index == len(self.view_tracker) - 1:
+        if self.go_focus_index == len(self.page_tracker) - 1:
             self.go_forward_action.setDisabled(True)
             self.title_bar.go_forward_button.setDisabled(True)
+            self.title_bar.go_forward_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{disabled__text}"))
     
     def create_menu_bar(self):
         menubar = QMenuBar()
@@ -576,18 +593,8 @@ class Window(QMainWindow):
     def make_option_button_func(self, name: str, index: int, custom_func: Optional[Callable[[str], None]]):
         def func():
             if self.display_index != index:
-                if self.is_option_sidebar_focused:
-                    self.go_focus_index += 1
-                    
-                    self.view_tracker[self.go_focus_index:] = []
-                    
-                    self.go_back_action.setDisabled(False)
-                    self.title_bar.go_back_button.setDisabled(False)
-                    
-                    self.go_forward_action.setDisabled(True)
-                    self.title_bar.go_forward_button.setDisabled(True)
-                    
-                    self.view_tracker.append(self.option_buttons[index])
+                if self.display_index != -1:
+                    self.add_page_trace(self.option_buttons[index][0])
                 
                 custom_func(name)
                 widget_info = self.option_buttons[index][1]
