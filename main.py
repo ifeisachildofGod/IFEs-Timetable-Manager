@@ -645,7 +645,7 @@ class Window(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon(resource_path("src/images/logo.png")))
+    app.setWindowIcon(QIcon(resource_path("src/images/logo/logo.png")))
     
     THEME_MANAGER.set_application(app)
     

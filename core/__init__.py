@@ -370,7 +370,7 @@ class School:
                 else:
                     names = [t_name, None, None, ""]
                 
-                teacher = Teacher(t_id, None, StaffName(*names), "AttendanceApp/src/profile-images/t_id1.png", [], {})
+                teacher = Teacher(t_id, None, StaffName(*names), None, "AttendanceApp/src/profile-images/t_id1.png", [], {})
                 
                 school_framework.teachers.add(teacher)
                 

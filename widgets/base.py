@@ -25,23 +25,30 @@ def wrapify_text(text: str, length: int):
 
 
 class Image(QLabel):
-    def __init__(self, path: str, parent=None, width: int | None = None, height: int | None = None):
+    def __init__(self, path: Optional[str] =  None, parent=None, width: int | None = None, height: int | None = None):
         super().__init__(parent)
-
-        self.setImage(path, width, height)
+        
+        self._width = width
+        self._height = height
+        
+        if path:
+            self.setImage(path, width, height)
 
     def setImage(self, path: str, width: int | None = None, height: int | None = None):
         pixmap = QPixmap(path)
         
         size = pixmap.size()
         
-        if width is not None or height is not None:
-            if height is not None and width is None and size.height():
-                self.setFixedSize(int(height * size.width() / size.height()), height)
-            elif width is not None and height is None and size.width():
-                self.setFixedSize(width, int(width * size.height() / size.width()))
+        self._width = width or self._width
+        self._height = height or self._height
+        
+        if self._width is not None or self._height is not None:
+            if self._height is not None and self._width is None and size.height():
+                self.setFixedSize(int(self._height * size.width() / size.height()), self._height)
+            elif self._width is not None and self._height is None and size.width():
+                self.setFixedSize(self._width, int(self._width * size.height() / size.width()))
             else:
-                self.setFixedSize(width, height)
+                self.setFixedSize(self._width, self._height)
         
         self.setScaledContents(True)  # Optional: scale image to fit self
         scaled_pixmap = pixmap.scaled(
@@ -54,25 +61,14 @@ class Image(QLabel):
 class SvgWidget(QWidget):
     """Display an SVG and dynamically edit its element colors."""
 
-    def __init__(self, svg_file, parent=None):
+    def __init__(self, path: Optional[str] = None, parent=None):
         super().__init__(parent)
-
-        self.svg_file = svg_file
-
-        # Parse and retain the original SVG structure.
-        self.tree = ET.parse(svg_file)
-        self.root = self.tree.getroot()
-
-        # Keep a pristine copy for resetting colors.
-        self.original_xml = ET.tostring(
-            self.root, encoding="utf-8"
-        )
-
-        self.renderer = QSvgRenderer(self)
-        self._load_svg()
-
+        
         self.setMinimumSize(20, 20)
-
+        
+        if path:
+            self.setSVG(path)
+    
     def _load_svg(self):
         """Serialize the current SVG and reload the renderer."""
         svg_bytes = ET.tostring(
@@ -84,9 +80,24 @@ class SvgWidget(QWidget):
             raise ValueError("Could not render the SVG file.")
 
         self.update()
-    
+        
+    def setSVG(self, path: str):
+        self.svg_file = path
+        
+        # Parse and retain the original SVG structure.
+        self.tree = ET.parse(path)
+        self.root = self.tree.getroot()
+
+        # Keep a pristine copy for resetting colors.
+        self.original_xml = ET.tostring(
+            self.root, encoding="utf-8"
+        )
+
+        self.renderer = QSvgRenderer(self)
+        self._load_svg()
+
     def rotate(self, angle: int):
-        *_,  width, height = self.root.get("viewBox").split()
+        *_, width, height = self.root.get("viewBox").split()
         
         self.root.set("transform", f"rotate({angle}, {float(width) / 2}, {float(height) / 2})")
         self._load_svg()
@@ -147,6 +158,22 @@ class SvgWidget(QWidget):
 
         self._load_svg()
 
+    def set_scaled_width(self, width: float):
+        *_, old_width, old_height = self.root.get("viewBox").split()
+        
+        scale = width / float(old_width)
+        
+        self.setFixedSize(int(width), int(scale * float(old_height)))
+        self._load_svg()
+    
+    def set_scaled_height(self, height: float):
+        *_, old_width, old_height = self.root.get("viewBox").split()
+        
+        scale = height / float(old_height)
+        
+        self.setFixedSize(int(scale * float(old_width)), int(height))
+        self._load_svg()
+    
     def reset(self):
         """Restore the original SVG."""
         self.root = ET.fromstring(self.original_xml)
@@ -181,7 +208,6 @@ class SvgWidget(QWidget):
         self.renderer.render(
             painter, QRectF(x, y, width, height)
         )
-
 
 class Status(Enum):
     MESSAGE = "MESSAGE"
@@ -1273,29 +1299,32 @@ class SettingsScreen[_T](BaseWidget):
 
         name_widget.addWidget(info_area_widget)
         name_widget.addWidget(edits_area)
-
+        
+        self.header_widget = BaseWidget(QHBoxLayout)
+        self.header_widget.addWidget(name_widget, alignment=Qt.AlignmentFlag.AlignVCenter)
+        
         # Custom Settings
-        custom_settings_widget = BaseWidget()
-        custom_settings_widget.setSpacing(10)
-        custom_settings_widget.setContentsMargins(0, 0, 0, 0)
+        self.custom_settings_widget = BaseWidget()
+        self.custom_settings_widget.setSpacing(10)
+        self.custom_settings_widget.setContentsMargins(0, 0, 0, 0)
 
         custom_settings_data = list(self.get_custom_settings_data())
         
         for name, widget, alignment in custom_settings_data:
             widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
-            custom_settings_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
+            self.custom_settings_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
         
-        _body_widget = BaseWidget()
-        _body_widget.setSpacing(10)
-        _body_widget.setContentsMargins(0, 0, 0, 0)
+        self.body_widget = BaseWidget()
+        self.body_widget.setSpacing(10)
+        self.body_widget.setContentsMargins(0, 0, 0, 0)
         
-        _body_widget.addWidget(name_widget)
-        _body_widget.addWidget(custom_settings_widget)
-        _body_widget.addStretch()
+        self.body_widget.addWidget(self.header_widget)
+        self.body_widget.addWidget(self.custom_settings_widget)
+        self.body_widget.addStretch()
         
-        body_widget = BaseScrollWidget() ; body_widget.addWidget(_body_widget)
-        body_widget.setContentsMargins(0, 0, 15, 0)
-        body_widget.setProperty("class", "Borderless")
+        _body_widget = BaseScrollWidget() ; _body_widget.addWidget(self.body_widget)
+        _body_widget.setContentsMargins(0, 0, 15, 0)
+        _body_widget.setProperty("class", "Borderless")
         
         self.i_parent.add_buttons_widget.setVisible(False)
         
@@ -1304,7 +1333,7 @@ class SettingsScreen[_T](BaseWidget):
         self.custom_settings_widgets = {n: w for n, w, _ in custom_settings_data}
         
         self.addWidget(self.top_widget)
-        self.addWidget(body_widget)
+        self.addWidget(_body_widget)
         
         self.toogle_name_format()
         
@@ -1717,7 +1746,7 @@ class BaseSettingWidget[_T](BaseWidget):
         if focus is not None and focus:
             widget.setFocus()
         
-        elif entry is None:
+        if entry is None:
             QTimer.singleShot(
                 100,
                 lambda: self.scroll_widget.getScrollWidget().verticalScrollBar().setValue(widget.y())

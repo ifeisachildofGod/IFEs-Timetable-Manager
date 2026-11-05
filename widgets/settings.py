@@ -1,10 +1,13 @@
 
+from pathlib import Path
+
 from matplotlib.colors import get_named_colors_mapping
 
 from AttendanceApp.base_widgets import BaseDataDisplayWidget
 from AttendanceApp.communication import BaseCommSystem
 from AttendanceApp.data_display_widgets import BarWidget, GraphWidget
 from imports import *
+import shutil
 
 from .base import *
 from .settings_options import *
@@ -227,6 +230,108 @@ class _Staff_CardScanScreen(BaseWidget):
             
             self.window().saved_state_changed.emit(True)
 
+class _Staff_ProfileImageSelector(BaseWidget):
+    
+    class ProfileImage(BaseWidget):
+        def __init__(self, width=None, height=None):
+            super().__init__(QHBoxLayout)
+            
+            self.setContentsMargins(0, 0, 0, 0)
+            
+            self._width = width
+            self._height = height
+            
+            self.placeholder_svg = SvgWidget(parent=self)
+            self.profile_image = Image(parent=self, width=self._width, height=self._height)
+            
+            self.addWidget(self.placeholder_svg)
+            self.addWidget(self.profile_image)
+        
+        def setImage(self, path: str, width: Optional[int] = None, height: Optional[int] = None):
+            self._width = width or self._width
+            self._height = height or self._height
+            
+            if path.endswith(".svg"):
+                self.placeholder_svg.setSVG(path)
+                self.placeholder_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+                
+                if self._width:
+                    self.placeholder_svg.set_scaled_width(self._width)
+                if self._height:
+                    self.placeholder_svg.set_scaled_height(self._height)
+                
+                self.profile_image.setVisible(False)
+                self.placeholder_svg.setVisible(True)
+            else:
+                self.profile_image.setImage(path, self._width, self._height)
+                
+                self.profile_image.setVisible(True)
+                self.placeholder_svg.setVisible(False)
+    
+    def __init__(self, entry: Staff):
+        super().__init__()
+        
+        self.setSpacing(0)
+        self.setContentsMargins(10, 10, 10, 10)
+        self.setProperty("class", "SpecialBG2 BorderRadiused")
+        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+        
+        self.image_path_filters = {
+            "PNG": "*.png",
+            "JPEG": "*.jpg *.jpeg",
+            "JIFF": "*.jiff",
+            "WebP": "*.webp",
+            "SVG": "*.svg",
+        }
+        
+        self.entry = entry
+        
+        min_width = 200
+        
+        self.image = self.ProfileImage(width=min_width)
+        
+        self.select_image_pb = QPushButton("Change Profile Image")
+        self.select_image_pb.setMinimumWidth(min_width)
+        self.select_image_pb.clicked.connect(self.open_file_dialog)
+        
+        self.addWidget(self.image)
+        self.addWidget(self.select_image_pb)
+        
+        self.set_image_path(self.entry.img_path)
+    
+    def open_file_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Profile Image", "", ";;".join([f"{name} ({ext})" for name, ext in self.image_path_filters.items()]))
+        
+        if file_path:
+            self.set_image_path(file_path)
+            self.window().saved_state_changed.emit(True)
+    
+    def set_image_path(self, file_path: Optional[str]):
+        f_path = file_path or "src/images/profile-images/default.svg"
+        d_path_w_ext = f"src/images/profile-images/{self.entry.id}"
+        
+        new_ext = f_path.split('.')[-1]
+        
+        src = Path(f_path)
+        dest = Path(f"src/images/profile-images/{self.entry.id}.{new_ext}")
+        
+        str_dest = str(dest)
+        
+        _pot_exts = [filter_ext.split(".")[-1] for filter_exts in self.image_path_filters.values() for filter_ext in filter_exts.split()]
+        
+        for p_s_ext in _pot_exts:
+            p_s_dest = f"{d_path_w_ext}.{p_s_ext}"
+            
+            if new_ext != p_s_ext and os.path.exists(p_s_dest):
+                os.remove(p_s_dest)
+        
+        if src.as_posix() != dest.as_posix():
+            shutil.copy(src, dest)
+        
+        if file_path and self.entry.img_path != str_dest:
+            self.entry.img_path = str_dest
+        
+        self.image.setImage(str_dest)
 
 
 class SubjectsSettingEntry(BaseSettingEntry[Subject]):
@@ -391,15 +496,19 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
             
             self.card_scan_screen_opened.emit()
         
+        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
+            settings_screen.toogle_name_format()
+        
         iud_set_btn = QPushButton("Set Teacher IUD")
         iud_set_btn.clicked.connect(open_card_scan)
         
         settings_screen.top_widget.addWidget(iud_set_btn)
-        
-        if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
-            settings_screen.toogle_name_format()
+        settings_screen.header_widget.insertWidget(0, _Staff_ProfileImageSelector(self.entry), alignment=Qt.AlignmentFlag.AlignCenter)
         
         return settings_screen
+    
+    def name_update(self):
+        raise NotImplementedError()
     
     def get_staff_attendance_data(self) -> tuple[dict[str, tuple[int, int], dict[str, float]]]:
         raise NotImplementedError()
@@ -443,7 +552,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
             case 3:
                 self.entry.name.abbrev = text
         
-        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
+        self.name_update()
         
         if self.settings_screen and self.settings_screen.extended_edits_widget.isVisible():
             simple_line_edit.blockSignals(True)
@@ -728,12 +837,15 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
         return chart_widget
     
     def new(self):
-        return Teacher(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], {})
+        return Teacher(NEW_ID(), StaffName("", "", "", ""), None, None, [], {})
     
     def remove(self):
         delete_teacher(self.id, self.timetable_editor, self.attendance_manager)
         
         return super().remove()
+
+    def name_update(self):
+        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
 
 class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     def __init__(self, parent: StaffMainWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager, stack: QStackedWidget):
@@ -942,12 +1054,15 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         return widget
     
     def new(self):
-        return Prefect(NEW_ID(), StaffName("", "", "", ""), None, "AttendanceApp/src/profile-images/t_id1.png", [], None, None, {})
+        return Prefect(NEW_ID(), StaffName("", "", "", ""), None, None, [], None, None, {})
     
     def remove(self):
         self.attendance_manager.staff_list_widget.delete_staff(self.entry)
         
         return super().remove()
+
+    def name_update(self):
+        self.attendance_manager.update_staff_list_staff_name(self.id)
 
 
 

@@ -218,10 +218,10 @@ class StaffName(Name):
         return self.abbrev if self.abbrev else self.first
 @dataclass
 class Staff(Entry):
-    IUD: Optional[str]
+    IUD: Optional[ID]
     
     name: StaffName
-    img_path: PathLike
+    img_path: Optional[PathLike]
     
     attendance: list[AttendanceEntry]
 @dataclass
