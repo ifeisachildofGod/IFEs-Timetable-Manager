@@ -370,7 +370,7 @@ class School:
                 else:
                     names = [t_name, None, None, ""]
                 
-                teacher = Teacher(t_id, None, StaffName(*names), None, "AttendanceApp/src/profile-images/t_id1.png", [], {})
+                teacher = Teacher(t_id, None, StaffName(*names), None, None, [], {})
                 
                 school_framework.teachers.add(teacher)
                 
@@ -497,7 +497,7 @@ class School:
                 name = StaffName(start="Eze", first="Emmmanuel", other="Udochukwu", abbrev="Emma"),
                 post_id = "Parade Commander",
                 cls = random.choice(all_classes),
-                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                img_path = None,
                 duties = {"Wednesday": ["Morning", "Assembly parade", "Cadet training"]},
                 attendance = []
             ),
@@ -507,7 +507,7 @@ class School:
                 name = StaffName(start="Eshiokwu", first="Johnpaul", other="Bassey", abbrev="J.P"),
                 post_id = "Band Prefect",
                 cls = random.choice(all_classes),
-                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                img_path = None,
                 duties = {"Monday": ["Morning", "Band"], "Thursday": ["Afternoon", "Band practice"], "Friday": ["Morning", "Band"]},
                 attendance = []
             ),
@@ -517,7 +517,7 @@ class School:
                 name = StaffName(start="Igboke", first="Chisom", other="Joseph", abbrev="Chisom"),
                 post_id = "Ast. Games",
                 cls = random.choice(all_classes),
-                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                img_path = None,
                 duties = {"Monday": ["Afternoon", "Boys Footbal"], "Tuesday": ["Afternoon", "Boys Footbal"], "Wednesday": ["Afternoon", "Boys Footbal"], "Thursday": ["Afternoon", "Boys Footbal"], "Friday": ["Afternoon", "Boys Footbal"]},
                 attendance = []
             ),
@@ -527,7 +527,7 @@ class School:
                 name = StaffName(start="Anyanwu", first="Divine", other="Godswill", abbrev="Onuwa"),
                 post_id = "Chapel Prefect",
                 cls = random.choice(all_classes),
-                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                img_path = None,
                 duties = {"Monday": ["Morning Prayers"]},
                 attendance = []
             ),
@@ -537,7 +537,7 @@ class School:
                 name = StaffName(start="Eze", first="Ifebuche", other="Esther", abbrev="Esther"),
                 post_id = "Games Prefect (Girl)",
                 cls = random.choice(all_classes),
-                img_path = "AttendanceApp/src/profile-images/p_id1.png",
+                img_path = None,
                 duties = {"Wednesday": ["Afternoon", "Girls Football" ]},
                 attendance = []
             )
