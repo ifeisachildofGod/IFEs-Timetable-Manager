@@ -718,13 +718,14 @@ class TimetableItem(QTableWidgetItem):
             self.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.update()
     
-    def update(self):
+    def updateToolTip(self, period: int):
         if isinstance(self.subject, Subject):
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.cls_name()}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
+            self.setToolTip(f"Period: {period}\nID: {self.subject.id}\nSubject: {self.subject.cls_name()}\nTeacher: {self.subject.teacher.name.full()}{"\nSubject Locked" if self.locked else ""}")
         elif isinstance(self.subject, CombinedSubject):
             sub_subject_names = "\n\t".join([s.name.full() for s in self.subject.subjects if s.teacher is not None])
-            self.setToolTip(f"ID: {self.subject.id}\nSubject: {self.subject.cls_name()}\nChild Subjects: \n\t{sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
-        
+            self.setToolTip(f"Period: {period}\nID: {self.subject.id}\nSubject: {self.subject.cls_name()}\nChild Subjects: \n\t{sub_subject_names}{"\nSubjects Locked" if self.locked else ""}")
+    
+    def update(self):
         self.setText(self.subject.cls_name())
     
     def set_locked_state(self, state: bool):
@@ -1140,6 +1141,8 @@ class ClassTimetable(QTableWidget):
                 self.takeItem(row, col)
                 self.setItem(row, col, new_target)
                 
+                new_target.updateToolTip(row + 1)
+                
                 if isinstance(target_item, TimetableItem) and not target_item.free_period:
                     # Set new items
                     self.addRemainder(target_item.subject, self.remainder_widget.indexOf(self.editor.remainder_source_ref))
@@ -1279,7 +1282,11 @@ class ClassTimetable(QTableWidget):
                         self.cls.timetable.table.update(dict(temp_table_items))
                         
                         for row, subj in enumerate(self.cls.timetable.table[day]):
-                            self.setItem(row, table_col, TimetableItem(subj, self.cls))
+                            item = TimetableItem(subj, self.cls)
+                            
+                            self.setItem(row, table_col, item)
+                            
+                            item.updateToolTip(row + 1)
                         
                         break
         
@@ -1315,6 +1322,9 @@ class ClassTimetable(QTableWidget):
         # Set new items
         self.setItem(target_row, target_col, new_target)
         self.setItem(source_row, source_col, new_source)
+        
+        new_target.updateToolTip(target_row + 1)
+        new_source.updateToolTip(source_row + 1)
         
         # Background replacement
         source = self.cls.timetable.table[self.weekdays[source_col]][source_row]
@@ -1363,6 +1373,8 @@ class ClassTimetable(QTableWidget):
                 item = TimetableItem(subject, self.cls, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
                 
                 self.setItem(row, col, item)
+                
+                item.updateToolTip(row + 1)
         
         timetable_remains = self.cls.timetable.table_remains.copy()
         

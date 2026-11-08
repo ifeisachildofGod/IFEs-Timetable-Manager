@@ -1,7 +1,8 @@
+import json
 import math
 import random
 import importlib
-from typing import TypeVar
+from typing import Any, TypeVar
 from dataclasses import dataclass
 from matplotlib.cbook import flatten
 
@@ -9,7 +10,7 @@ from os import PathLike
 
 from core.timing_and_timetable import *
 
-_T = TypeVar("_T")
+
 
 class ID(str):
     def __init__(self, *args, **kwargs):
@@ -133,6 +134,20 @@ class Subject(Entry):
     
     def passCopy(self):
         return Subject(self.id, self.name, None, self.classes)
+    
+    def template(self, _):
+        return f"{self.name.first}{f"■ {self.name.abbrev}" if self.name.abbrev else ""} - {self.id}"
+    
+    @staticmethod
+    def from_template(template: str, school):
+        names, id = template.split("-")
+        
+        if "â–" in names:
+            first, abbrev = names.split("â–")
+        else:
+            first, abbrev = names, ""
+        
+        return Subject(ID(id.strip()), SubjectName(first.strip(), abbrev.strip()), None, {})
 @dataclass
 class CombinedSubjectName(SubjectName):
     first: Optional[str]
@@ -181,6 +196,31 @@ class CombinedSubject(Entry):
     
     def passCopy(self):
         return CombinedSubject(self.id, self.name, [s.passCopy() for s in self.subjects], self.classes, self.default_occurance_data)
+    
+    def template(self, school):
+        subject_ids = list(school.subjects)
+        
+        return f"({self.name.first or ""} - {self.id}): {" ".join([str(subject_ids.index(s.id) + 1) for s in self.subjects])}"
+    
+    @staticmethod
+    def from_template(template: str, school):
+        subjects = list(school.subjects.values())
+        
+        name_and_id, sub_subject_templates = template.split(":")
+        name, id = name_and_id.strip().removeprefix("(").removesuffix(")").split("-")
+        
+        sub_subjects = [subjects[int(s_index) - 1] for s_index in sub_subject_templates.split()]
+        
+        classes = {}
+        for sub_subject in sub_subjects:
+            classes[sub_subject.id] = {}
+        
+        if name.strip():
+            first, abbrev = name.strip(), None
+        else:
+            first, abbrev = None, "/".join([s.cls_name() for s in sub_subjects])
+        
+        return CombinedSubject(ID(id.strip()), CombinedSubjectName(first, abbrev), sub_subjects, classes, (1, 1))
 @dataclass
 class FreePeriod:
     id: str = "FreePeriodID"
@@ -209,7 +249,7 @@ class BreakPeriod:
 class StaffName(Name):
     second: Optional[str]
     third: Optional[str]
-    abbrev: str
+    abbrev: Optional[str]
     
     def full(self):
         return f"{self.first} {self.second} {self.third}" if None not in (self.second, self.third) else self.first
@@ -224,15 +264,108 @@ class Staff(Entry):
     img_path: Optional[PathLike]
     
     attendance: list[AttendanceEntry]
+    
+    def info_template(self):
+        names = "■".join([self.name.first or "", self.name.second or "", self.name.third or "", self.name.abbrev or ""]) if self.name.second or self.name.third or self.name.abbrev else self.name.first or ""
+        
+        if self.IUD or self.img_path:
+            return f"{names} - {self.id} - {self.IUD or ""} - {self.img_path or ""}"
+        elif self.name.first or self.name.second or self.name.third or self.name.abbrev:
+            return f"{names} - {self.id}"
+        else:
+            return str(self.id)
+    
+    @staticmethod
+    def from_name_template(info_template: str):
+        info_template_split = info_template.split("-")
+        
+        if len(info_template_split) == 4:
+            names, id, iud, img_path = info_template_split
+        elif len(info_template_split) == 2:
+            names, id = info_template_split
+            iud, img_path = "", ""
+        elif len(info_template_split) == 1:
+            id = info_template_split
+            names, iud, img_path = "", "", ""
+        
+        iud = iud.strip()
+        
+        if "â–" in names:
+            first, second, third, abbrev = names.split("â–")
+            
+            second = second.strip()
+            third = third.strip()
+            abbrev = abbrev.strip()
+        else:
+            first, second, third, abbrev = names, None, None, None
+        
+        return StaffName(first.strip(), second, third, abbrev), ID(id.strip()), ID(iud) if iud else None, img_path.strip() or None
+    
+    @staticmethod
+    def info_template_from_template(template: str):
+        name_ids_info, info_template = template.split(":")
+        name, id, iud, img_path = Staff.from_name_template(name_ids_info.strip().removeprefix("(").removesuffix(")"))
+        
+        return name, id, iud, img_path, info_template
 @dataclass
 class Prefect(Staff):
     post_id: Optional[ID]
     cls: Optional["Class"]
     duties: dict[str, list[str]]
+    
+    def template(self, school):
+        post_ids = list(school.posts)
+        cls_lvl_ids = list(school.class_levels)
+        
+        return f"({self.info_template()}): {post_ids.index(self.post_id) + 1} {cls_lvl_ids.index(self.cls.level.id) + 1}/{list(self.cls.level.classes).index(self.cls.id) + 1} {self.duties}"
+    
+    @staticmethod
+    def from_template(template: str, school):
+        posts = list(school.posts)
+        cls_levels = list(school.class_levels.values())
+        
+        name, id, iud, img_path, str_prefect_info = Staff.info_template_from_template(template)
+        
+        prefect_info = [""]
+        in_brace = False
+        
+        for c in str_prefect_info:
+            if c == "{":
+                in_brace = True
+            elif c == "}":
+                in_brace = False
+            
+            if not in_brace and c == " ":
+                if prefect_info[-1] != "":
+                    prefect_info.append("")
+                
+                continue
+            
+            prefect_info[-1] += c
+        
+        post_index, cls_data, duties = prefect_info
+        if cls_data:
+            cls_level_index, cls_index = cls_data.split("/")
+        else:
+            cls_level_index, cls_index = None, None
+        
+        return Prefect(id, name, iud, img_path, [], posts[int(post_index) - 1] if post_index else None, list(cls_levels[int(cls_level_index) - 1].classes.values())[int(cls_index) - 1] if cls_level_index else None, json.loads(duties))
 @dataclass
 class Teacher(Staff):
     subjects: dict[ID, Subject]
-
+    
+    def template(self, school):
+        subject_ids: list[ID] = list(school.subjects)
+        
+        return f"({self.info_template()}): {" ".join([str(subject_ids.index(s_id) + 1) for s_id in self.subjects])}"
+    
+    @staticmethod
+    def from_template(template: str, school):
+        subjects = list(school.subjects.values())
+        
+        name, id, iud, img_path, subjects_template = Staff.info_template_from_template(template)
+        
+        return Teacher(id, name, iud, img_path, [], {s.id: s for subject_index in subjects_template.split() if (s := subjects[int(subject_index) - 1])})
 
 class Class:
     def __init__(
@@ -272,6 +405,98 @@ class Class:
                 classes.pop(self.id)
             
             self.subjects.pop(s_id)
+    
+    def template(self, school):
+        subject_ids = list(school.subjects)
+        teacher_ids = list(school.teachers)
+        
+        subj_str = ""
+        
+        for subject in self.subjects.values():
+            if isinstance(subject, Subject):
+                if subject.teacher:
+                    _, subj_indexes = subject.teacher.template(school).split(":")
+                    subj_indexes_split = subj_indexes.split()
+                    
+                    subject_index_template = f"{subject_ids.index(subject.id) + 1}"
+                    
+                    subj_str += f"{teacher_ids.index(subject.teacher.id) + 1}/{subj_indexes_split.index(subject_index_template) + 1} "
+                else:
+                    subj_str += f"{subject_ids.index(subject.id) + 1} "
+            elif isinstance(subject, CombinedSubject):
+                subj_str += f"({subject_ids.index(subject.id) + 1}"
+                
+                for i, sub_subj in enumerate(subject.subjects):
+                    if self.id in subject.classes[sub_subj.id]:
+                        subj_str += f"/{i + 1}"
+                        
+                        cls_sub_subj = next(s for s in self.subjects[subject.id].subjects if s.id == sub_subj.id)
+                        
+                        if cls_sub_subj.teacher is not None:
+                            subj_str += f".{teacher_ids.index(cls_sub_subj.teacher.id) + 1}"
+                
+                subj_str += ") "
+        
+        return f"({self.name} - {self.id}): {subj_str.strip()}"
+    
+    @staticmethod
+    def from_template(template: str, class_level: "ClassLevel", school):
+        subjects = list(school.subjects.values())
+        teachers = list(school.teachers.values())
+        
+        name_and_id, subjects_template = template.split(":")
+        
+        name, id = name_and_id.strip().removeprefix("(").removesuffix(")").split("-")
+        
+        id = CLASS_ID(id.strip())
+        id.class_level_id = class_level.id
+        
+        cls = Class(id, name.strip(), class_level, {})
+        
+        for subject_template in subjects_template.split():
+            if not (subject_template.startswith("(") and subject_template.endswith(")")) and "." not in subject_template and subject_template.count("/") <= 1:
+                if subject_template.count("/") == 0:
+                    subject = subjects[int(subject_template) - 1]
+                    
+                    subject.classes[cls.id] = cls
+                    cls.subjects[subject.id] = subject.passCopy()
+                elif subject_template.count("/") == 1:
+                    str_teacher_index, teacher_subject_sub_index = subject_template.split("/")
+                    
+                    teacher = teachers[int(str_teacher_index) - 1]
+                    subject = list(teacher.subjects.values())[int(teacher_subject_sub_index) - 1]
+                    
+                    subject.classes[cls.id] = cls
+                    cls.subjects[subject.id] = subject.passCopy()
+                    cls.subjects[subject.id].teacher = teacher
+            else:
+                c_subject_index, *sub_subjects_info = subject_template.removeprefix("(").removesuffix(")").split("/")
+                
+                c_subject = subjects[int(c_subject_index) - 1]
+                
+                for sub_subject_index_info in sub_subjects_info:
+                    sub_subject_index_info = sub_subject_index_info.strip()
+                    
+                    if "." in sub_subject_index_info:
+                        sub_subject_index, sub_subject_teacher_index = sub_subject_index_info.split(".")
+                        
+                        sub_subject = c_subject.subjects[int(sub_subject_index) - 1]
+                        teacher = teachers[int(sub_subject_teacher_index) - 1]
+                        
+                        assert sub_subject.id in teacher.subjects
+                        
+                        c_subject.classes[sub_subject.id][cls.id] = cls
+                        cls.subjects[c_subject.id] = c_subject.passCopy()
+                        
+                        cls_sub_subject = next(s for s in cls.subjects[c_subject.id].subjects if s.id == sub_subject.id)
+                        cls_sub_subject.teacher= teacher
+                    else:
+                        sub_subject = c_subject.subjects[int(sub_subject_index_info) - 1]
+                        
+                        c_subject.classes[sub_subject.id][cls.id] = cls
+                        cls.subjects[c_subject.id] = c_subject.passCopy()
+        
+        return cls
 class ClassLevelName(str):
     def __init__(self, *args):
         super().__init__()
@@ -300,7 +525,36 @@ class ClassLevel(Entry):
             if id in cls.subjects:
                 if cls.subjects[id].teacher is None or (cls.subjects[id].teacher.id == teacher_id if teacher_id is not None else True):
                     cls.delete_subject(id)
-
+    
+    def template(self, school):
+        subject_ids = list(school.subjects)
+        subject_occurence_str = " ".join([f"{subject_ids.index(s_id) + 1}/{occ.day_max}/{occ.week_max}" for s_id, occ in self.subjects_occurence.items()])
+        
+        return f"({self.name} - {self.id}): {self.period_amount} {self.break_period} | {" ".join(self.weekdays)} | {subject_occurence_str}\n{"\n".join([cls.template(school) for cls in self.classes.values()])}"
+    
+    @staticmethod
+    def from_template(template: str, school):
+        lvl_template, *classes_template = template.split("\n")
+        
+        subject_ids = list(school.subjects)
+        
+        name_and_id_template, info_template = lvl_template.split(":")
+        name, id = name_and_id_template.strip().removeprefix("(").removesuffix(")").split("-")
+        
+        period_amt_and_break_period, day_of_the_weeks, subject_occurence_template = info_template.split("|")
+        
+        weekdays = [day.strip() for day in day_of_the_weeks.split()]
+        period_amount, break_period = period_amt_and_break_period.split()
+        subjects_occurence = {subject_ids[int(occ_split_template[0].strip()) - 1]: SubjectOccurrance(int(occ_split_template[1].strip()), int(occ_split_template[2].strip())) for occ_template in subject_occurence_template.split() if (occ_split_template := occ_template.split("/"))}
+        
+        cls_level = ClassLevel(ID(id.strip()), ClassLevelName(name.strip()), {}, subjects_occurence, weekdays, int(period_amount.strip()), int(break_period.strip()))
+        
+        for cls_template in classes_template:
+            cls = Class.from_template(cls_template.strip(), cls_level, school)
+            
+            cls_level.classes[cls.id] = cls
+        
+        return cls_level
 @dataclass
 class GeneratingData:
     #            ClassID

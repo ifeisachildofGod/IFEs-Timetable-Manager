@@ -115,7 +115,7 @@ class Window(QMainWindow):
         
         self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, subjects_btn)
         self.staff_widget = StaffMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, staff_btn)
-        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, class_levels_btn)
+        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.page_tracker, class_levels_btn)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setDisabled(not v))
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setPrompt(f"Search {v}") if v else self.title_bar.search_bar.setPrompt(None))
@@ -376,7 +376,7 @@ class Window(QMainWindow):
                         data = SCHOOL.from_template(file.read())
                 
                     self._open_file_type = TEMPLATE_EXTENSION_TYPE
-                except Exception as e:
+                except UnicodeDecodeError:
                     with open(self.file.path, "rb") as file:
                         data = pickle.load(file)
                     
@@ -437,7 +437,7 @@ class Window(QMainWindow):
                 pickle.dump(school, file)
         elif self._open_file_type == TEMPLATE_EXTENSION_TYPE:
             with open(self.file.path, "w", encoding="utf-8") as file:
-                file.write(school.framework())
+                file.write(school.template())
         else:
             raise TypeError(f"Unsupported file type: '{self._open_file_type}'")
         

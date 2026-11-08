@@ -7,7 +7,7 @@
     - The data will have an entry view and statictics view where the punctuality of arrival and departure will be displayed and the missed classes will also be displayed
     - The electronics will have a setting for the teacher class attendance mode which will be communicated to the program once connected
     - There will be a punctuality score on all entries of the class arrival and class departure of the teacher and color coding for further visual information
-3. Add an input in the teacher and prefect section for profile picture upload
+3. ~~Add an input in the teacher and prefect section for profile picture upload~~ **(DONE)**
 4. Make the app more general in scope:
     - Add payroll features
     - Add extra info in staff profile section (Make a pdf contract viewer or drafter)

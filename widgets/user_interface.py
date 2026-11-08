@@ -292,7 +292,7 @@ class WidgetDropdown(BaseWidget):
         self.header.setProperty("class", "DPC_Header")
         self.header.setFixedHeight(50)
         self.header.setContentsMargins(12, 0, 12, 0)
-        self.header.clicked.connect(self.tdp_event_func)
+        self.header.clicked.connect(lambda: self.tdp_event_func(None))
         
         self.toogle_icon = ArrowWidget(270)
         self.toogle_icon.setProperty("class", "Arrow")
@@ -311,7 +311,7 @@ class WidgetDropdown(BaseWidget):
         self.widget.setVisible(False)
     
     def tdp_event_func(self, a0: QMouseEvent | None):
-        if a0.button() == Qt.MouseButton.LeftButton and not self._disabled:
+        if not self._disabled:
             self.toogle()
     
     def toogle(self):

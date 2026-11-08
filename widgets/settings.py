@@ -80,7 +80,6 @@ class _Prefect_PostEditor(BaseSettingDialog):
             for prefect_id, prefect in SCHOOL.prefects.items():
                 if id == prefect.post_id:
                     prefect.post_id = None
-                    self.attendance_manager.update_staff_list_prefect_post_name(prefect_id)
             
             curr_index = self.post_cb.currentIndex()
             
@@ -294,6 +293,8 @@ class _Staff_ProfileImageSelector(BaseWidget):
         self.select_image_pb.setMinimumWidth(min_width)
         self.select_image_pb.clicked.connect(self.open_file_dialog)
         
+        self.root_profile_pic_path = "src/images/profile"
+        
         self.addWidget(self.image)
         self.addWidget(self.select_image_pb)
         
@@ -307,13 +308,13 @@ class _Staff_ProfileImageSelector(BaseWidget):
             self.window().saved_state_changed.emit(True)
     
     def set_image_path(self, file_path: Optional[str]):
-        f_path = file_path or "src/images/profile-images/default.svg"
-        d_path_w_ext = f"src/images/profile-images/{self.entry.id}"
+        f_path = file_path or f"{self.root_profile_pic_path}/default.svg"
+        d_path_w_ext = f"{self.root_profile_pic_path}/{self.entry.id}"
         
         new_ext = f_path.split('.')[-1]
         
         src = Path(f_path)
-        dest = Path(f"src/images/profile-images/{self.entry.id}.{new_ext}")
+        dest = Path(f"{self.root_profile_pic_path}/{self.entry.id}.{new_ext}")
         
         str_dest = str(dest)
         
@@ -344,8 +345,8 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             "Subject",
             ["Full Name", "Abbreviation"],
             [
-                ("Teachers who can teach this subject", (Subject_SelectionList, (self.timetable_editor, self.attendance_manager), None)),
-                ("Classes offering this subject", (Subject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
+                ("Teachers who can teach this subject", (Subject_SelectionList, (self.timetable_editor,), None)),
+                ("Classes offering this subject", (Subject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
             ],
             entry,
             stack
@@ -391,7 +392,7 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             case 1:
                 self.entry.name.abbrev = text
         
-        subject_name_update(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
+        subject_name_update(self.id, self.timetable_editor, self.i_parent)
     
     def extended_name_empty(self, index, text):
         key = f"E{index}EmptyNameWarning"
@@ -414,8 +415,8 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             "Combined Subject",
             None,
             [
-                ("Child subjects under this combined subject", (CombinedSubject_SelectionList, (self.timetable_editor, self.attendance_manager), None)),
-                ("Classes offering this combined subject", (CombinedSubject_DropdownCheckBoxes, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter)),
+                ("Child subjects under this combined subject", (CombinedSubject_SelectionList, (self.timetable_editor,), None)),
+                ("Classes offering this combined subject", (CombinedSubject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
             ],
             entry,
             stack
@@ -453,7 +454,7 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             self.entry.name.first = None
             self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
         
-        combined_subject_name_update(self.id, self.timetable_editor, self.attendance_manager, self)
+        combined_subject_name_update(self.id, self.timetable_editor, self)
     
     def simple_name_empty(self, text):
         if not self.entry.subjects:
@@ -489,7 +490,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                 
                 return
             
-            self.card_scan_screen = _Staff_CardScanScreen(self.entry, self, self.attendance_manager.comm_system)
+            self.card_scan_screen = _Staff_CardScanScreen(self.entry, self.comm_system)
             
             self.stack.addWidget(self.card_scan_screen)
             self.stack.setCurrentWidget(self.card_scan_screen)
@@ -581,17 +582,16 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                         self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
 class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
-    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
+    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, stack: QStackedWidget):
         self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
         
         super().__init__(
             parent,
             "Class Level",
             None,
             [
-                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter)),
-                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor, self.attendance_manager), Qt.AlignmentFlag.AlignCenter))
+                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
+                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter))
             ],
             entry,
             stack
@@ -603,7 +603,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
     
     def remove(self):
-        delete_class_level(self.id, self.timetable_editor, self.attendance_manager)
+        delete_class_level(self.id, self.timetable_editor)
         
         return super().remove()
     
@@ -616,7 +616,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
     def simple_name_changed(self, text, _):
         self.entry.name = ClassLevelName(text)
         
-        class_level_name_update(self.id, self.timetable_editor, self.attendance_manager)
+        class_level_name_update(self.id, self.timetable_editor)
 
 
 class TeachersSettingEntry(StaffSettingEntry[Teacher]):
@@ -628,8 +628,8 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
             "Teacher",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             [
-                ("Assing the subjects this teacher generally teaches", (Teacher_SelectionList, (self.timetable_editor, attendance_manager), None)),
-                ("Assign a particular subject and class to this teacher", (Teacher_DropdownCheckBoxes, (self.timetable_editor, attendance_manager), Qt.AlignmentFlag.AlignCenter)),
+                ("Assing the subjects this teacher generally teaches", (Teacher_SelectionList, (self.timetable_editor,), None)),
+                ("Assign a particular subject and class to this teacher", (Teacher_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
                 ("General Information and Statistics", (self.new_stats_widgets, None)),
                 ("Attendance and Punctuality", (self.new_charts_widgets, None)),
             ],
@@ -723,41 +723,39 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
         avg_cot.normalize()
         avg_cot.second = int(avg_cot.second)
         
-        disabled_color = THEME_MANAGER.pallete_get("disabled")
-        
         attendance_amt_widget = QLabel(
             f"""
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Total Attendance:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Total Attendance:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {str(sum(amt_attended for amt_attended, _ in weeks_data.values())) if plot_data else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Attendance:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Attendance:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {str(int(sum(list(plot_data.values())) / len(plot_data))) + "%" if plot_data else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Punctuality Score:  </span>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Punctuality Score:  </span>
                 <span style='font-size: 15px; font-weight: 900; color: rgb({r}, {g}, {b});'>
                     {round(p_score_factor, 2) if full_y_plot_points else "No Data"}
                 </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Avg Check-in Time:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Avg Check-in Time:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {avg_cit.to_str() if cins else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Avg Check-out Time:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Avg Check-out Time:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {avg_cot.to_str() if couts else "No Data"}
                     </span>
             </span>
@@ -776,12 +774,13 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
                 
                 for day, periods in cls.timetable.table.items():
                     for s in periods:
-                        if isinstance(s, Subject):
-                            if self.entry.id == s.teacher.id and day not in subject_periods:
-                                subject_periods.append(day)
-                        elif isinstance(s, CombinedSubject):
-                            if next((True for s_s in s.subjects if s_s.id == subject.id and s_s.teacher is not None and s_s.teacher.id == self.entry.id), False):
-                                subject_periods.append(day)
+                        if day not in subject_periods:
+                            if isinstance(s, Subject):
+                                if self.entry.id == s.teacher.id:
+                                    subject_periods.append(day)
+                            elif isinstance(s, CombinedSubject):
+                                if next((True for s_s in s.subjects if s_s.id == subject.id and s_s.teacher is not None and s_s.teacher.id == self.entry.id), False):
+                                    subject_periods.append(day)
                     
                 for day in subject_periods:
                     k = day, cls_id
@@ -795,15 +794,17 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
                         duty_days_map[day] = QLabel()
                         duties_widget.addWidget(LabeledField(day, duty_days_map[day]))
                     
-                    duty_days_map[day].setText(
-                        duty_days_map[day].text() + f"""
-                            <span>
-                                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>{cls.level.name.full()} {cls.name}:  </span>
-                                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>{subject.name.full()}</span>
-                            </span>
-                            <br>
-                        """
-                    )
+                    for period in (i + 1 for i, s in enumerate(cls.timetable.table[day]) if s.id == subject.id):
+                        duty_days_map[day].setText(
+                            duty_days_map[day].text() + f"""
+                                <span>
+                                    <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>{cls.level.name.full()} {cls.name}:  </span>
+                                    <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>{subject.name.full()}</span>
+                                    <span style='font-size: 15px; font-weight: 600; color: {THEME_MANAGER.process_stylesheet("{hover__text}")};'>Period <b>{period}</b></span>
+                                </span>
+                                <br>
+                            """
+                        )
         
         stats_widget.addWidget(LabeledField("Classes", duties_widget), alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
         stats_widget.addWidget(attendance_amt_widget, alignment=Qt.AlignmentFlag.AlignTop, stretch=5)
@@ -840,12 +841,12 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
         return Teacher(NEW_ID(), StaffName("", "", "", ""), None, None, [], {})
     
     def remove(self):
-        delete_teacher(self.id, self.timetable_editor, self.attendance_manager)
+        delete_teacher(self.id, self.timetable_editor)
         
         return super().remove()
 
     def name_update(self):
-        teacher_name_update(self.id, self.timetable_editor, self.attendance_manager)
+        teacher_name_update(self.id, self.timetable_editor)
 
 class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     def __init__(self, parent: StaffMainWidget, entry: Optional[Prefect], attendance_manager: AttendanceManager, stack: QStackedWidget):
@@ -854,9 +855,9 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
             "Prefect",
             ["Surname", "First Name", "Other Names", "Abbreviation"],
             [
-                ("Select Class", (Prefect_ClassSelector, (attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
+                ("Select Class", (Prefect_ClassSelector, (), Qt.AlignmentFlag.AlignCenter)),
                 ("Select Post", (self.get_post_cb, None)),
-                ("Set Duties", (Prefect_DutyAssigner, (attendance_manager, ), Qt.AlignmentFlag.AlignCenter)),
+                ("Set Duties", (Prefect_DutyAssigner, (), Qt.AlignmentFlag.AlignCenter)),
                 ("Attendane and Punctuality Statistics", (self.new_stats_widgets, Qt.AlignmentFlag.AlignCenter)),
                 ("Attendance Chart and Punctuality Graph", (self.new_charts_widgets, None))
             ],
@@ -869,7 +870,6 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     
     def _post_changed_func(self, post_id: ID):
         self.entry.post_id = post_id
-        self.attendance_manager.update_staff_list_prefect_post_name(self.entry.id)
         
         self.i_parent.window().saved_state_changed.emit(True)
     
@@ -951,41 +951,39 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         avg_cot.normalize()
         avg_cot.second = int(avg_cot.second)
         
-        disabled_color = THEME_MANAGER.pallete_get("disabled")
-        
         attendance_amt_widget = QLabel(
             f"""
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Total Attendance:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Total Attendance:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {str(sum(amt_attended for amt_attended, _ in weeks_data.values())) if plot_data else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Attendance:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Attendance:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {str(int(sum(list(plot_data.values())) / len(plot_data))) + "%" if plot_data else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Punctuality Score:  </span>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Punctuality Score:  </span>
                 <span style='font-size: 15px; font-weight: 900; color: rgb({r}, {g}, {b});'>
                     {round(p_score_factor, 2) if full_y_plot_points else "No Data"}
                 </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Avg Check-in Time:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Avg Check-in Time:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {avg_cit.to_str() if cins else "No Data"}
                     </span>
             </span>
             <br>
             <span>
-                <span style='font-size: 20px; font-weight: 500; color: {disabled_color};'>Avg Check-out Time:  </span>
-                <span style='font-size: 15px; font-weight: 900; color: #ffffff;'>
+                <span style='font-size: 20px; font-weight: 500; color: {THEME_MANAGER.process_stylesheet("{disabled}")};'>Avg Check-out Time:  </span>
+                <span style='font-size: 15px; font-weight: 900; color: {THEME_MANAGER.process_stylesheet("{text}")};'>
                         {avg_cot.to_str() if couts else "No Data"}
                     </span>
             </span>
@@ -1035,7 +1033,7 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         
         post_combobox.setCurrentIndex(next(i for i in range(post_combobox.count()) if self.entry.post_id == post_combobox.itemData(i)))
         
-        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", self.attendance_manager, post_combobox)
+        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", post_combobox)
         
         edit_posts_button = QPushButton("Edit Prefect Posts")
         edit_posts_button.clicked.connect(lambda: post_editor.exec())
@@ -1055,15 +1053,6 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     
     def new(self):
         return Prefect(NEW_ID(), StaffName("", "", "", ""), None, None, [], None, None, {})
-    
-    def remove(self):
-        self.attendance_manager.staff_list_widget.delete_staff(self.entry)
-        
-        return super().remove()
-
-    def name_update(self):
-        self.attendance_manager.update_staff_list_staff_name(self.id)
-
 
 
 
@@ -1219,8 +1208,6 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
                 SCHOOL.prefects.add(final_entry, index)
             else:
                 raise TypeError(f"Invalid staff entry type: {final_entry.__class__.__name__}")
-        
-        self.attendance_manager.staff_list_widget.add_staff(final_entry)
         
         if focus or index is not None:
             self.window().saved_state_changed.emit(True)
@@ -1378,9 +1365,8 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
         return main_widget
 
 class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
+    def __init__(self, timetable_editor: SchoolTimetableEditor, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
         
         super().__init__(["Class Level"], page_tracker, option_buttons)
     
@@ -1388,7 +1374,7 @@ class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
         return SCHOOL.class_levels
     
     def get_widget_type(self):
-        return ClassLevelsSettingEntry, (self.timetable_editor, self.attendance_manager)
+        return ClassLevelsSettingEntry, (self.timetable_editor,)
     
     def add(self, entry = None, index = None, focus = None, button_index = None):
         final_entry = super().add(entry, index, focus)
