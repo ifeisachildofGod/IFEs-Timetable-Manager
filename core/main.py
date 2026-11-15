@@ -367,6 +367,7 @@ class Teacher(Staff):
         
         return Teacher(id, name, iud, img_path, [], {s.id: s for subject_index in subjects_template.split() if (s := subjects[int(subject_index) - 1])})
 
+
 class Class:
     def __init__(
         self,

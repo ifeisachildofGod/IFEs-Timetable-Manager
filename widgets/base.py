@@ -260,9 +260,6 @@ class BaseWidget(QWidget):
     def _keyPressed(self, ev):
         self.key_pressed.emit(ev.key())
     
-    def click(self):
-        self.clicked.emit()
-    
     @staticmethod
     def static_clearLayout(layout: QHBoxLayout | QVBoxLayout):
         while layout.count():
@@ -339,6 +336,31 @@ class BaseWidget(QWidget):
         
         return values[0] if isinstance(name, str) else values
     
+    @staticmethod
+    def static_setProperty(obj: QWidget, name: str, value: str, property_dict: dict[str, list[str]]):
+        obj.setProperty(name, value)
+        
+        property_dict[name] = value.split()
+    
+    @staticmethod
+    def static_addProperty(obj: QWidget, name: str, value: str, property_dict: dict[str, list[str]]):
+        if name not in property_dict:
+            property_dict[name] = []
+        
+        obj.setProperty(name, " ".join(property_dict[name] + value.split()))
+    
+    @staticmethod
+    def static_removeProperty(obj: QWidget, name: str, value: str, property_dict: dict[str, list[str]]):
+        assert name in property_dict
+        
+        for sub_value in value.split():
+            property_dict[name].remove(sub_value)
+        
+        obj.setProperty(name, " ".join(property_dict[name]))
+    
+    def click(self):
+        self.clicked.emit()
+    
     def delete(self):
         parent = self.parent()
         
@@ -399,26 +421,13 @@ class BaseWidget(QWidget):
         self.static_getStyleProperty(self, name)
     
     def setProperty(self, name: str | None, value: str):
-        self.getWidget().setProperty(name, value)
-
-        self._property[name] = value.split()
-
-        for widget in self.getWidgets():
-            widget.setProperty(name, value)
+        self.static_setProperty(self.getWidget(), name, value, self._property)
     
     def addProperty(self, name: str, value: str):
-        if name not in self._property:
-            self._property[name] = []
-        
-        self.setProperty(name, " ".join(self._property[name] + value.split()))
+        self.static_addProperty(self, name, value, self._property)
     
     def removeProperty(self, name: str, value: str):
-        assert name in self._property
-        
-        for sub_value in value.split():
-            self._property[name].remove(sub_value)
-        
-        self.setProperty(name, " ".join(self._property[name]))
+        self.static_removeProperty(self, name, value, self._property)
 
     def indexWidget(self, index: int):
         return self.getChildren()[index]
@@ -430,7 +439,7 @@ class BaseWidget(QWidget):
             self._children.remove(a0)
     
     def popWidget(self, index: int):
-        widget = self.getChildren()[index]
+        widget = self.indexWidget(index)
         
         self.getLayout().removeWidget(widget)
         widget.deleteLater()
@@ -511,6 +520,8 @@ class BaseWidget(QWidget):
 class BaseScrollWidget(BaseWidget):
     def __init__(self, layout_type = None):
         super().__init__(layout_type)
+        
+        self._scroll_property: dict[str, list[str]] = {}
     
     def _init(self):
         self.scroll_widget = QScrollArea()
@@ -583,6 +594,21 @@ class BaseScrollWidget(BaseWidget):
     
     def setFixedHeight(self, height):
         self.getScrollWidget().setFixedHeight(height)
+    
+    def setProperty(self, name, value):
+        self.static_setProperty(self.getScrollWidget(), name, value, self._scroll_property)
+        
+        return super().setProperty(name, value)
+    
+    def addProperty(self, name, value):
+        self.static_addProperty(self.getScrollWidget(), name, value, self._scroll_property)
+        
+        return super().addProperty(name, value)
+    
+    def removeProperty(self, name, value):
+        self.static_removeProperty(self.getScrollWidget(), name, value, self._scroll_property)
+        
+        return super().removeProperty(name, value)
     
     def getWidgets(self):
         return [self.scroll_widget]
@@ -744,11 +770,11 @@ class BaseFlowGridWidget(BaseScrollWidget):
                 row_widget.delete()
                 self.widgets.remove(row_widget)
 
-class LabeledField(BaseWidget):
+class LabeledField[_T](BaseWidget):
     def __init__(
         self,
         title: str,
-        inner_widget: BaseWidget,
+        inner_widget: _T,
         width_policy: QSizePolicy.Policy | None = None,
         height_policy: QSizePolicy.Policy | None = None,
     ):
@@ -767,11 +793,11 @@ class LabeledField(BaseWidget):
         
         self.title_area = BaseWidget(QHBoxLayout)
         self.title_area.setContentsMargins(0, 0, 0, 0)
-        
+        self.title_area.setProperty("class", "NoBackground")
         self.title_area.addWidget(self.label)
         self.title_area.addStretch()
         
-        self.setProperty("class", "LabeledContainer")
+        self.setProperty("class", "LabeledContainer NoBackground")
         self.setContentsMargins(8, 3, 8, 8)
         self.setSpacing(6)
         
@@ -1185,6 +1211,50 @@ class SearchBar(BaseWidget):
         self.search_edit.show()
 
 
+
+class KeyedListWidget[_T](BaseWidget):
+    def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None):
+        super().__init__(layout_type)
+        
+        self._widgets: dict[ID, _T] = {}
+    
+    def addWidget(self, id: ID, widget: _T, stretch = None, alignment = None):
+        if id not in self._widgets:
+            self._widgets[id] = widget
+            
+            super().addWidget(widget, stretch, alignment)
+    
+    def insertWidget(self, id: ID, index: int, widget: _T, stretch = None, alignment = None):
+        if id not in self._widgets:
+            _temp = list(self._widgets.items()) ; _temp.insert(index, (id, widget))
+            
+            self._widgets.clear()
+            self._widgets.update(dict(_temp))
+            
+            return super().insertWidget(index, widget, stretch, alignment)
+    
+    def removeWidget(self, a0):
+        for id, widg in self._widgets.copy().items():
+            if a0 == widg:
+                self._widgets.pop(id)
+                break
+        else:
+            return
+        
+        return super().removeWidget(a0)
+    
+    def popWidget(self, id: ID):
+        if id in self._widgets:
+            index = self.getChildren().index(self._widgets.pop(id))
+            
+            return super().popWidget(index)
+
+    def get(self, id: ID):
+        return self._widgets[id]
+
+
+
+
 class SettingsScreen[_T](BaseWidget):
     def __init__(
             self,
@@ -1492,21 +1562,23 @@ class BaseSettingEntry[_T](BaseWidget):
         # ----------------------------------------------------------------------------------------
         
         info_area = BaseWidget(QHBoxLayout)
-        info_area.setSpacing(15)
-        info_area.setContentsMargins(0, 0, 0, 0)
-        info_area.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         info_area.setProperty("class", "NoBackground")
 
         self.name_label = QLabel()
 
-        name_widget = BaseWidget() ; name_widget.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        name_widget = BaseWidget()
         name_widget.setProperty("class", "NoBackground")
+        name_widget.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        info_widget = BaseWidget()
-        info_widget.setProperty("class", "NoBackground")
-
+        self.info_widget = BaseScrollWidget()
+        self.info_widget.setSpacing(15)
+        self.info_widget.setContentsMargins(15, 5, 15, 5)
+        self.info_widget.setStyleProperty("background-color", THEME_MANAGER.process_stylesheet(f"{{interpolate-black-0.9__{self.general_entry_name.lower().replace(" ", "")}_bg}}"))
+        self.info_widget.addProperty("class", "BorderRadiused")
+        self.info_widget.setFixedHeight(180)
+        
         info_area.addWidget(name_widget, stretch=55)
-        info_area.addWidget(info_widget, stretch=45)
+        info_area.addWidget(self.info_widget, stretch=45)
         
         # ----------------------------------------------------------------------------------------
         
@@ -1515,15 +1587,14 @@ class BaseSettingEntry[_T](BaseWidget):
 
         # ----------------------------------------------------------------------------------------
         
-        self.setFixedHeight(250)
+        self.setFixedHeight(260)
         self.enableCursorPointing()
         self.addWidget(self.top_area)
         self.addWidget(info_area, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.addWidget(self.status_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
         
-        info_area.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        
         self.top_area.clicked.connect(self.open_settings)
+        name_widget.clicked.connect(self.open_settings)
         self.clicked.connect(self.open_settings)
         
         self.set_name_text()
@@ -1563,6 +1634,13 @@ class BaseSettingEntry[_T](BaseWidget):
                 self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id)
         
         return func
+    
+    def get_link(self, name: str):
+        link = QLabel(name)
+        link.setProperty("class", "Link")
+        link.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        return link
     
     def on_settings_open(self, settings_screen: SettingsScreen):
         pass

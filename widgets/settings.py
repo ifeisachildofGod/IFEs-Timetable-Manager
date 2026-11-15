@@ -119,6 +119,7 @@ class _Prefect_PostEditor(BaseSettingDialog):
         if not self.__init:
             self.i_parent.window().saved_state_changed.emit(True)
 
+
 class _Staff_CardScanScreen(BaseWidget):
     iud_changed = pySignal(ID)
     comm_signal = pySignal(str)
@@ -229,238 +230,115 @@ class _Staff_CardScanScreen(BaseWidget):
             
             self.window().saved_state_changed.emit(True)
 
-class _Staff_ProfileImageSelector(BaseWidget):
-    
-    class ProfileImage(BaseWidget):
-        def __init__(self, width=None, height=None):
-            super().__init__(QHBoxLayout)
-            
-            self.setContentsMargins(0, 0, 0, 0)
-            
-            self._width = width
-            self._height = height
-            
-            self.placeholder_svg = SvgWidget(parent=self)
-            self.profile_image = Image(parent=self, width=self._width, height=self._height)
-            
-            self.addWidget(self.placeholder_svg)
-            self.addWidget(self.profile_image)
-        
-        def setImage(self, path: str, width: Optional[int] = None, height: Optional[int] = None):
-            self._width = width or self._width
-            self._height = height or self._height
-            
-            if path.endswith(".svg"):
-                self.placeholder_svg.setSVG(path)
-                self.placeholder_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
-                
-                if self._width:
-                    self.placeholder_svg.set_scaled_width(self._width)
-                if self._height:
-                    self.placeholder_svg.set_scaled_height(self._height)
-                
-                self.profile_image.setVisible(False)
-                self.placeholder_svg.setVisible(True)
-            else:
-                self.profile_image.setImage(path, self._width, self._height)
-                
-                self.profile_image.setVisible(True)
-                self.placeholder_svg.setVisible(False)
-    
-    def __init__(self, entry: Staff):
-        super().__init__()
-        
-        self.setSpacing(0)
-        self.setContentsMargins(10, 10, 10, 10)
-        self.setProperty("class", "SpecialBG2 BorderRadiused")
-        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
-        
-        self.image_path_filters = {
-            "PNG": "*.png",
-            "JPEG": "*.jpg *.jpeg",
-            "JIFF": "*.jiff",
-            "WebP": "*.webp",
-            "SVG": "*.svg",
-        }
-        
-        self.entry = entry
-        
-        min_width = 200
-        
-        self.image = self.ProfileImage(width=min_width)
-        
-        self.select_image_pb = QPushButton("Change Profile Image")
-        self.select_image_pb.setMinimumWidth(min_width)
-        self.select_image_pb.clicked.connect(self.open_file_dialog)
-        
-        self.root_profile_pic_path = "src/images/profile"
-        
-        self.addWidget(self.image)
-        self.addWidget(self.select_image_pb)
-        
-        self.set_image_path(self.entry.img_path)
-    
-    def open_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Open Profile Image", "", ";;".join([f"{name} ({ext})" for name, ext in self.image_path_filters.items()]))
-        
-        if file_path:
-            self.set_image_path(file_path)
-            self.window().saved_state_changed.emit(True)
-    
-    def set_image_path(self, file_path: Optional[str]):
-        f_path = file_path or f"{self.root_profile_pic_path}/default.svg"
-        d_path_w_ext = f"{self.root_profile_pic_path}/{self.entry.id}"
-        
-        new_ext = f_path.split('.')[-1]
-        
-        src = Path(f_path)
-        dest = Path(f"{self.root_profile_pic_path}/{self.entry.id}.{new_ext}")
-        
-        str_dest = str(dest)
-        
-        _pot_exts = [filter_ext.split(".")[-1] for filter_exts in self.image_path_filters.values() for filter_ext in filter_exts.split()]
-        
-        for p_s_ext in _pot_exts:
-            p_s_dest = f"{d_path_w_ext}.{p_s_ext}"
-            
-            if new_ext != p_s_ext and os.path.exists(p_s_dest):
-                os.remove(p_s_dest)
-        
-        if src.as_posix() != dest.as_posix():
-            shutil.copy(src, dest)
-        
-        if file_path and self.entry.img_path != str_dest:
-            self.entry.img_path = str_dest
-        
-        self.image.setImage(str_dest)
-
-
-class SubjectsSettingEntry(BaseSettingEntry[Subject]):
-    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-        
-        super().__init__(
-            parent,
-            "Subject",
-            ["Full Name", "Abbreviation"],
-            [
-                ("Teachers who can teach this subject", (Subject_SelectionList, (self.timetable_editor,), None)),
-                ("Classes offering this subject", (Subject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
-            ],
-            entry,
-            stack
-        )
-
-        self.addProperty("class", "SubjectSettingsEntry")
-    
-    def open_settings(self):
-        settings_screen = super().open_settings()
-        
-        if self.entry.name.abbrev:
-            settings_screen.toogle_name_format()
-        
-        return settings_screen
-    
-    def new(self):
-        return Subject(NEW_ID(), SubjectName("", ""), None, {})
-    
-    def remove(self):
-        delete_subject(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
-        
-        return super().remove()
-    
-    def get_init_text(self):
-        return self.entry.name.first, (self.entry.name.first, self.entry.name.abbrev)
-    
-    def get_repr_text(self):
-        return f"{self.entry.name.first.strip() if self.entry.name.first else (self.entry.name.abbrev.strip() if self.entry.name.abbrev else "")}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev and self.entry.name.first else ""}"
-    
-    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit]):
-        self.entry.name.first = text
-        
-        full_name_e = extended_line_edits[0]
-        full_name_e.setText(text)
-    
-    def extended_name_changed(self, index, text, simple_line_edit):
-        match index:
-            case 0:
-                self.entry.name.first = text
-                
-                if text != simple_line_edit.text():
-                    simple_line_edit.setText(text)
-            case 1:
-                self.entry.name.abbrev = text
-        
-        subject_name_update(self.id, self.timetable_editor, self.i_parent)
-    
-    def extended_name_empty(self, index, text):
-        key = f"E{index}EmptyNameWarning"
-        
-        match index:
-            case 1:
-                if self.settings_screen:
-                    if text:
-                        self.settings_screen.status_widget.removeLinient(key)
-                    else:
-                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
-
-class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
-    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
-        self.timetable_editor = timetable_editor
-        self.attendance_manager = attendance_manager
-        
-        super().__init__(
-            parent,
-            "Combined Subject",
-            None,
-            [
-                ("Child subjects under this combined subject", (CombinedSubject_SelectionList, (self.timetable_editor,), None)),
-                ("Classes offering this combined subject", (CombinedSubject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
-            ],
-            entry,
-            stack
-        )
-        
-        self.addProperty("class", "CombinedSubjectSettingsEntry")
-    
-    def open_settings(self):
-        settings_screen = super().open_settings()
-        
-        if self.entry.subjects:
-            settings_screen.simple_name_changed(settings_screen.simple_line_edit.text())
-        
-        return settings_screen
-    
-    def new(self):
-        return CombinedSubject(NEW_ID(), CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
-    
-    def remove(self):
-        delete_combined_subject(self.id, self.timetable_editor, self.attendance_manager)
-        
-        return super().remove()
-    
-    def get_init_text(self):
-        return self.entry.name.first, None
-
-    def get_repr_text(self):
-        return self.entry.name.first.strip() if self.entry.name.first else (self.entry.name.abbrev.strip() if self.entry.name.abbrev else "")
-    
-    def simple_name_changed(self, text, _):
-        if text:
-            self.entry.name.first = text
-            self.entry.name.abbrev = None
-        else:
-            self.entry.name.first = None
-            self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
-        
-        combined_subject_name_update(self.id, self.timetable_editor, self)
-    
-    def simple_name_empty(self, text):
-        if not self.entry.subjects:
-            super().simple_name_empty(text)
-
 class StaffSettingEntry[_T](BaseSettingEntry[_T]):
+    class Staff_ProfileImageSelector(BaseWidget):
+        class ProfileImage(BaseWidget):
+            def __init__(self, width=None, height=None):
+                super().__init__(QHBoxLayout)
+                
+                self.setContentsMargins(0, 0, 0, 0)
+                
+                self._width = width
+                self._height = height
+                
+                self.placeholder_svg = SvgWidget(parent=self)
+                self.profile_image = Image(parent=self, width=self._width, height=self._height)
+                
+                self.addWidget(self.placeholder_svg)
+                self.addWidget(self.profile_image)
+            
+            def setImage(self, path: str, width: Optional[int] = None, height: Optional[int] = None):
+                self._width = width or self._width
+                self._height = height or self._height
+                
+                if path.endswith(".svg"):
+                    self.placeholder_svg.setSVG(path)
+                    self.placeholder_svg.set_all_colors(THEME_MANAGER.process_stylesheet("{text}"))
+                    
+                    if self._width:
+                        self.placeholder_svg.set_scaled_width(self._width)
+                    if self._height:
+                        self.placeholder_svg.set_scaled_height(self._height)
+                    
+                    self.profile_image.setVisible(False)
+                    self.placeholder_svg.setVisible(True)
+                else:
+                    self.profile_image.setImage(path, self._width, self._height)
+                    
+                    self.profile_image.setVisible(True)
+                    self.placeholder_svg.setVisible(False)
+        
+        def __init__(self, entry: Staff, entry_parent: StaffSettingEntry[_T]):
+            super().__init__()
+            
+            self.entry = entry
+            self.entry_parent = entry_parent
+            
+            self.setSpacing(0)
+            self.setContentsMargins(10, 10, 10, 10)
+            self.setProperty("class", "SpecialBG2 BorderRadiused")
+            self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Maximum)
+            
+            self.image_path_filters = {
+                "PNG": "*.png",
+                "JPEG": "*.jpg *.jpeg",
+                "JIFF": "*.jiff",
+                "WebP": "*.webp",
+                "SVG": "*.svg",
+            }
+            
+            min_width = 200
+            
+            self.image = self.ProfileImage(width=min_width)
+            
+            self.select_image_pb = QPushButton("Change Profile Image")
+            self.select_image_pb.setMinimumWidth(min_width)
+            self.select_image_pb.clicked.connect(self.open_file_dialog)
+            
+            self.root_profile_pic_path = "src/images/profile"
+            
+            self.addWidget(self.image)
+            self.addWidget(self.select_image_pb)
+            
+            self.set_image_path(self.entry.img_path)
+        
+        def open_file_dialog(self):
+            file_path, _ = QFileDialog.getOpenFileName(self, "Open Profile Image", "", ";;".join([f"{name} ({ext})" for name, ext in self.image_path_filters.items()]))
+            
+            if file_path:
+                self.set_image_path(file_path)
+                self.window().saved_state_changed.emit(True)
+        
+        def set_image_path(self, file_path: Optional[str]):
+            f_path = file_path or f"{self.root_profile_pic_path}/default.svg"
+            d_path_w_ext = f"{self.root_profile_pic_path}/{self.entry.id}"
+            
+            new_ext = f_path.split('.')[-1]
+            
+            src = Path(f_path)
+            dest = Path(f"{self.root_profile_pic_path}/{self.entry.id}.{new_ext}")
+            
+            str_dest = str(dest)
+            
+            _pot_exts = [filter_ext.split(".")[-1] for filter_exts in self.image_path_filters.values() for filter_ext in filter_exts.split()]
+            
+            for p_s_ext in _pot_exts:
+                p_s_dest = f"{d_path_w_ext}.{p_s_ext}"
+                
+                if new_ext != p_s_ext and os.path.exists(p_s_dest):
+                    os.remove(p_s_dest)
+            
+            if src.as_posix() != dest.as_posix():
+                shutil.copy(src, dest)
+            
+            if file_path and self.entry.img_path != str_dest:
+                self.entry.img_path = str_dest
+            
+            self.image.setImage(str_dest)
+            
+            parent_image: Image = self.entry_parent.info_widget.getChildren()[0] ; parent_image.setImage(str_dest)
+            parent_image.setVisible(bool(self.entry.img_path))
+    
     card_scan_screen_opened = pySignal()
     card_scan_screen_closed = pySignal()
     
@@ -480,6 +358,11 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         self.attendance_manager = attendance_manager
         
         super().__init__(i_parent, general_entry_name, extended_placeholders, custom_settings_format, entry, stack)
+        
+        self.info_widget.insertWidget(0, (profile_image := Image(self.entry.img_path, height=170)), alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        if not self.entry.img_path:
+            profile_image.setVisible(False)
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -504,7 +387,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         iud_set_btn.clicked.connect(open_card_scan)
         
         settings_screen.top_widget.addWidget(iud_set_btn)
-        settings_screen.header_widget.insertWidget(0, _Staff_ProfileImageSelector(self.entry), alignment=Qt.AlignmentFlag.AlignCenter)
+        settings_screen.header_widget.insertWidget(0, self.Staff_ProfileImageSelector(self.entry, self), alignment=Qt.AlignmentFlag.AlignCenter)
         
         return settings_screen
     
@@ -581,43 +464,143 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                     if not text:
                         self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
 
-class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
-    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, stack: QStackedWidget):
+
+class SubjectsSettingEntry(BaseSettingEntry[Subject]):
+    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
         self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
         
         super().__init__(
             parent,
-            "Class Level",
-            None,
+            "Subject",
+            ["Full Name", "Abbreviation"],
             [
-                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
-                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter))
+                ("Teachers who can teach this subject", (Subject_SelectionList, (self.timetable_editor,), None)),
+                ("Classes offering this subject", (Subject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
             ],
             entry,
             stack
         )
         
-        self.addProperty("class", "ClassLevelSettingsEntry")
+        self.addProperty("class", "SubjectSettingsEntry")
+        
+        self.teacher_info_list = KeyedListWidget() ; self.teacher_info_list.addProperty("class", "NoBackground")
+        self.class_info_list = KeyedListWidget() ; self.class_info_list.addProperty("class", "NoBackground")
+        
+        self.info_widget.addWidget(LabeledField("Available Teachers", self.teacher_info_list))
+        self.info_widget.addWidget(LabeledField("Offering Classes", self.class_info_list))
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
+        
+        if self.entry.name.abbrev:
+            settings_screen.toogle_name_format()
+        
+        return settings_screen
     
     def new(self):
-        return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
+        return Subject(NEW_ID(), SubjectName("", ""), None, {})
     
     def remove(self):
-        delete_class_level(self.id, self.timetable_editor)
+        delete_subject(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
         
         return super().remove()
     
     def get_init_text(self):
-        return self.entry.name, None
+        return self.entry.name.first, (self.entry.name.first, self.entry.name.abbrev)
     
     def get_repr_text(self):
-        return self.entry.name.full()
+        return f"{self.entry.name.first.strip() if self.entry.name.first else (self.entry.name.abbrev.strip() if self.entry.name.abbrev else "")}{f" ({self.entry.name.abbrev})" if self.entry.name.abbrev and self.entry.name.first else ""}"
+    
+    def simple_name_changed(self, text, extended_line_edits: tuple[QLineEdit, QLineEdit]):
+        self.entry.name.first = text
+        
+        full_name_e = extended_line_edits[0]
+        full_name_e.setText(text)
+    
+    def extended_name_changed(self, index, text, simple_line_edit):
+        match index:
+            case 0:
+                self.entry.name.first = text
+                
+                if text != simple_line_edit.text():
+                    simple_line_edit.setText(text)
+            case 1:
+                self.entry.name.abbrev = text
+        
+        subject_name_update(self.id, self.timetable_editor, self.i_parent)
+    
+    def extended_name_empty(self, index, text):
+        key = f"E{index}EmptyNameWarning"
+        
+        match index:
+            case 1:
+                if self.settings_screen:
+                    if text:
+                        self.settings_screen.status_widget.removeLinient(key)
+                    else:
+                        self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty (Switch to Short Name View)")
+
+class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
+    def __init__(self, parent: SubjectsMainWidget, entry, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
+        self.timetable_editor = timetable_editor
+        self.attendance_manager = attendance_manager
+        
+        super().__init__(
+            parent,
+            "Combined Subject",
+            None,
+            [
+                ("Child subjects under this combined subject", (CombinedSubject_SelectionList, (self.timetable_editor,), None)),
+                ("Classes offering this combined subject", (CombinedSubject_DropdownCheckBoxes, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
+            ],
+            entry,
+            stack
+        )
+        
+        self.addProperty("class", "CombinedSubjectSettingsEntry")
+        
+        self.child_subjects_info_list = KeyedListWidget() ; self.child_subjects_info_list.setProperty("class", "NoBackground")
+        self.offering_classes_info_list = KeyedListWidget() ; self.offering_classes_info_list.setProperty("class", "NoBackground")
+        
+        self.info_widget.addWidget(LabeledField("Child Subjects", self.child_subjects_info_list))
+        self.info_widget.addWidget(LabeledField("Offering Classes", self.offering_classes_info_list))
+    
+    def open_settings(self):
+        settings_screen = super().open_settings()
+        
+        if self.entry.subjects:
+            settings_screen.simple_name_changed(settings_screen.simple_line_edit.text())
+        
+        return settings_screen
+    
+    def new(self):
+        return CombinedSubject(NEW_ID(), CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
+    
+    def remove(self):
+        delete_combined_subject(self.id, self.timetable_editor, self.attendance_manager)
+        
+        return super().remove()
+    
+    def get_init_text(self):
+        return self.entry.name.first, None
+
+    def get_repr_text(self):
+        return self.entry.name.first.strip() if self.entry.name.first else (self.entry.name.abbrev.strip() if self.entry.name.abbrev else "")
     
     def simple_name_changed(self, text, _):
-        self.entry.name = ClassLevelName(text)
+        if text:
+            self.entry.name.first = text
+            self.entry.name.abbrev = None
+        else:
+            self.entry.name.first = None
+            self.entry.name.abbrev = "/".join([s.name.short() for s in self.entry.subjects]) or None
         
-        class_level_name_update(self.id, self.timetable_editor)
-
+        combined_subject_name_update(self.id, self.timetable_editor, self)
+    
+    def simple_name_empty(self, text):
+        if not self.entry.subjects:
+            super().simple_name_empty(text)
 
 class TeachersSettingEntry(StaffSettingEntry[Teacher]):
     def __init__(self, parent: StaffMainWidget, entry: Optional[Teacher], timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, stack: QStackedWidget):
@@ -639,6 +622,12 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
         )
         
         self.addProperty("class", "TeacherSettingsEntry")
+        
+        self.subjects_info_list = KeyedListWidget() ; self.subjects_info_list.setProperty("class", "NoBackground")
+        self.final_subject_class_selection_info_list = KeyedListWidget() ; self.final_subject_class_selection_info_list.setProperty("class", "NoBackground")
+        
+        self.info_widget.addWidget(LabeledField("Subjects Taught", self.subjects_info_list))
+        self.info_widget.addWidget(LabeledField("Classes where Subject is Taught", self.final_subject_class_selection_info_list))
     
     def get_staff_attendance_data(self):
         weeks_data = {}
@@ -1053,6 +1042,49 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     
     def new(self):
         return Prefect(NEW_ID(), StaffName("", "", "", ""), None, None, [], None, None, {})
+
+class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
+    def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, stack: QStackedWidget):
+        self.timetable_editor = timetable_editor
+        
+        super().__init__(
+            parent,
+            "Class Level",
+            None,
+            [
+                ("Create and edit the classes in this level", (ClassLevel_ClassMaker, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter)),
+                ("Edit occurence of the subjects under this level during the week", (ClassLevel_OccuranceEditor, (self.timetable_editor,), Qt.AlignmentFlag.AlignCenter))
+            ],
+            entry,
+            stack
+        )
+        
+        self.addProperty("class", "ClassLevelSettingsEntry")
+        
+        self.sub_class_list = KeyedListWidget() ; self.sub_class_list.setProperty("class", "NoBackground")
+        self.subjects_info_list = KeyedListWidget() ; self.subjects_info_list.setProperty("class", "NoBackground")
+        
+        self.info_widget.addWidget(LabeledField("Sub Classes", self.sub_class_list))
+        self.info_widget.addWidget(LabeledField("Subjects Taught in this Level", self.subjects_info_list))
+    
+    def new(self):
+        return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
+    
+    def remove(self):
+        delete_class_level(self.id, self.timetable_editor)
+        
+        return super().remove()
+    
+    def get_init_text(self):
+        return self.entry.name, None
+    
+    def get_repr_text(self):
+        return self.entry.name.full()
+    
+    def simple_name_changed(self, text, _):
+        self.entry.name = ClassLevelName(text)
+        
+        class_level_name_update(self.id, self.timetable_editor)
 
 
 

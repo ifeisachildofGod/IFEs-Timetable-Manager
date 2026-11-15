@@ -1124,7 +1124,7 @@ class ThemeManager:
             else:
                 extra_function_params = []
             
-            replacements["{" + text + "}"] = str(func_mappings[function_key](palette[palette_key], *extra_function_params))
+            replacements["{" + text + "}"] = str(func_mappings[function_key](palette[palette_key], *[THEME_MANAGER.process_stylesheet(p.replace("\\*", "{").replace("*\\", "}")) for p in extra_function_params]))
         
         for init_text, rep_text in replacements.items():
             stylesheet = stylesheet.replace(init_text, rep_text)
