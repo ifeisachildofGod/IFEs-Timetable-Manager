@@ -1,4 +1,6 @@
 
+from time import perf_counter
+
 from imports import *
 
 from .base import *
@@ -886,24 +888,15 @@ class TimetableSettings(BaseWidget):
         self.settings_menu.set_pos(self.toogle_button.mapToGlobal(QPoint(-470, self.toogle_button.height())))
         self.settings_menu.toogle()
     
-    def _populate(self):
-        self._can_generate_new = True
-        
-        for lvl_ttbl_content in self.editor.timetable_widgets.values():
-            for ttbl in lvl_ttbl_content.values():
-                ttbl.populate_timetable()
-        
-        self.editor.window().saved_state_changed.emit(True)
-    
     def _generate(self):
         for cls_level in SCHOOL.class_levels.values():
             for cls in cls_level.classes.values():
-                cls.timetable.generate()
+                cls.timetable.generate(self.editor.timetable_widgets[cls_level.id][cls.id])
     
     def _scramble(self):
         for cls_level in SCHOOL.class_levels.values():
             for cls in cls_level.classes.values():
-                cls.timetable.scramble()
+                cls.timetable.scramble(self.editor.timetable_widgets[cls_level.id][cls.id])
     
     def _clear(self):
         for lvl_ttbl_content in self.editor.timetable_widgets.values():
@@ -925,7 +918,7 @@ class TimetableSettings(BaseWidget):
                 pre_func()
             
             self.new = Thread(self.window(), self._generate)
-            self.new.finished.connect(self._populate)
+            self.new.finished.connect(lambda: setattr(self, "_can_generate_new", True))
             self.new.start()
             
             self._can_generate_new = False
@@ -946,7 +939,7 @@ class TimetableSettings(BaseWidget):
             self._clear()
             
             self.new = Thread(self.window(), self._scramble)
-            self.new.finished.connect(self._populate)
+            self.new.finished.connect(lambda: setattr(self, "_can_generate_new", True))
             self.new.start()
             
             self._can_generate_new = False
@@ -999,6 +992,8 @@ class TimetableSettings(BaseWidget):
             self.editor.window().saved_state_changed.emit(True)
 
 class ClassTimetable(QTableWidget):
+    visual_add_to_timetable_signal = pySignal(ID, str, int)
+    
     def __init__(self, cls: Class, editor: 'SchoolTimetableEditor'):
         super().__init__()
         
@@ -1016,10 +1011,8 @@ class ClassTimetable(QTableWidget):
         
         self.remainder_labels: list[ExtraSubjectDraggableLabel] = []
         
-        self.weekdays = self.cls.level.weekdays
-        
-        self.setColumnCount(len(self.weekdays))
-        self.setHorizontalHeaderLabels(self.weekdays)
+        self.setColumnCount(len(self.cls.level.weekdays))
+        self.setHorizontalHeaderLabels(self.cls.level.weekdays)
         
         # Set size policies
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -1044,147 +1037,366 @@ class ClassTimetable(QTableWidget):
         # Load initial data
         self.populate_timetable()
         
-        # Variables
-        self.current_source = None
+        # Drag and Drop Variables
+        self._drag_start_pos = None
+        self._drag_item = None
+
+        self.drag_source_row = -1
         self.drag_source_col = -1
+        self.current_source = None
+        self._drop_target_cell = None 
+        
+        self.visual_add_to_timetable_signal.connect(self.visual_add_to_timetable)
         
         self.__init = False
     
+    def _set_drop_target(self, row=None, col=None):
+        old_target = self._drop_target_cell
+
+        if row is None or col is None:
+            self._drop_target_cell = None
+        else:
+            self._drop_target_cell = (row, col)
+
+        if old_target is not None:
+            old_row, old_col = old_target
+            self.viewport().update(
+                self.visualRect(self.model().index(old_row, old_col))
+            )
+
+        if self._drop_target_cell is not None:
+            new_row, new_col = self._drop_target_cell
+            self.viewport().update(
+                self.visualRect(self.model().index(new_row, new_col))
+            )
+    
+    def _reject_drop(self, event: QDragMoveEvent):
+        self._set_drop_target()
+        event.ignore()
+    
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        
+        if self._drop_target_cell is None:
+            return
+        
+        row, col = self._drop_target_cell
+        rect = self.visualRect(self.model().index(row, col))
+
+        if not rect.isValid():
+            return
+
+        accent = QColor(THEME_MANAGER.pallete_get("fg1"))
+        painter = QPainter(self.viewport())
+
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Subtle accent-coloured background
+        fill = QColor(accent)
+        fill.setAlpha(30)
+
+        # Refined accent outline
+        pen = QPen(accent, 2)
+        painter.setPen(pen)
+        painter.setBrush(fill)
+
+        highlight_rect = QRectF(rect).adjusted(3, 3, -3, -3)
+
+        painter.drawRoundedRect(highlight_rect, 5, 5)
+
+        painter.end()
+    
     def mousePressEvent(self, event: QMouseEvent):
+        self._drag_start_pos = None
+        self._drag_item = None
+
         if event.button() == Qt.MouseButton.LeftButton:
             item = self.itemAt(event.pos())
-            
-            if item and isinstance(item, TimetableItem) and item.subject:
-                self.drag_source_col = self.column(item)
-                self.drag_source_row = self.row(item)
-                
-                # Store original position
-                drag = QDrag(self)
-                mime_data = QMimeData()
-                mime_data.setText(item.subject.name.full())
-                drag.setMimeData(mime_data)
-                
-                # Create drag feedback by grabbing the cell widget
-                cell_rect = self.visualItemRect(item)
-                pixmap = self.viewport().grab(cell_rect)
-                drag.setPixmap(pixmap)
-                drag.setHotSpot(event.pos() - cell_rect.topLeft())
-                
-                drag.exec()
-        
+
+            if isinstance(item, TimetableItem) and item.subject:
+                self._drag_start_pos = event.pos()
+                self._drag_item = item
+
         super().mousePressEvent(event)
     
-    def dragEnterEvent(self, event: QDragEnterEvent):
-        if event.mimeData().hasText():
-            row = self.rowAt(int(event.position().y()))
-            col = self.columnAt(int(event.position().x()))
-            
-            source: TimetableItem = self.item(row, col)
-            
-            if source is not None and not source.locked and (self.editor.remainder_source_ref is not None or source.subject.id != FreePeriod.id):
-                event.accept()
-                if self.editor.remainder_source_ref is None:
-                    self.current_source = source
-    
-    def dragMoveEvent(self, event: QDragMoveEvent):
-        if event.mimeData().hasText():
-            source_cls: ClassTimetable = event.source()
-            
-            col = self.columnAt(int(event.position().x()))
-            row = self.rowAt(int(event.position().y()))
-            
-            break_time = next(i + 1 for i, s in enumerate(self.cls.timetable.table[self.weekdays[col]]) if s.id == BreakPeriod.id)
-            source_break_time = next(i + 1 for i, s in enumerate(self.cls.timetable.table[self.weekdays[self.drag_source_col]]) if s.id == BreakPeriod.id)
-            
-            ignore = True
-            if self.editor.remainder_source_ref is None:
-                ignore = source_cls.cls.id != self.cls.id or (
-                    self.drag_source_col != col and (
-                        row == break_time - 1 or
-                        source_break_time == self.drag_source_row + 1
-                        )
-                    )
-            else:
-                ignore = self.editor.remainder_source_ref.cls.id != self.cls.id or row == break_time - 1
-            
-            ignore = ignore or (self.weekdays[col], row + 1) in self.cls.locked_subjects
-            
-            if ignore:
-                event.ignore()
-            else:
-                event.accept()
-    
-    def dropEvent(self, event: QDropEvent):
-        if event.mimeData().hasText():
-            if self.current_source is not None:
-                target_row = self.rowAt(int(event.position().y()))
-                target_col = self.columnAt(int(event.position().x()))
-                target_item = self.item(target_row, target_col)
-                
-                # Handle swapping
-                if target_item is not None and not target_item.locked and isinstance(target_item, TimetableItem):
-                    if self.current_source.cls.id == self.cls.id:
-                        self.timetable_exchange(self.current_source, target_item)
-                        
-                        event.accept()
-                        
-                        del target_item
-            elif self.editor.remainder_source_ref is not None and self.cls.id == self.editor.remainder_source_ref.cls.id:
-                row = self.rowAt(int(event.position().y()))
-                col = self.columnAt(int(event.position().x()))
-                target_item = self.item(row, col)
-                
-                self.blockSignals(True)  # Prevent unnecessary updates
-                
-                new_target = TimetableItem(self.editor.remainder_source_ref.subject, self.cls)
-                
-                self.takeItem(row, col)
-                self.setItem(row, col, new_target)
-                
-                new_target.updateToolTip(row + 1)
-                
-                if isinstance(target_item, TimetableItem) and not target_item.free_period:
-                    # Set new items
-                    self.addRemainder(target_item.subject, self.remainder_widget.indexOf(self.editor.remainder_source_ref))
-                    
-                    self.cls.timetable.table[self.weekdays[col]][row] = FreePeriod()
-                
-                # Remove remainder widget
-                self.removeRemainder(self.editor.remainder_source_ref)
-                
-                self.remainder_widget.update()
-                
-                self.blockSignals(False)
-                
-                self.cls.timetable.table[self.weekdays[col]][row] = self.editor.remainder_source_ref.subject
-                
-                event.accept()
-                self.editor.update()
-        
-        self.editor.remainder_unfocused()
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if (
+            self._drag_start_pos is None
+            or self._drag_item is None
+            or not (event.buttons() & Qt.MouseButton.LeftButton)
+        ):
+            super().mouseMoveEvent(event)
+            return
+
+        if (
+            (event.pos() - self._drag_start_pos).manhattanLength()
+            < QApplication.startDragDistance()
+        ):
+            super().mouseMoveEvent(event)
+            return
+
+        item = self._drag_item
+
+        # Ensure the original item is still in this table.
+        source_row = self.row(item)
+        source_col = self.column(item)
+
+        if source_row < 0 or source_col < 0:
+            self._drag_start_pos = None
+            self._drag_item = None
+            return
+
+        self.drag_source_row = source_row
+        self.drag_source_col = source_col
+        self.current_source = item
+
+        drag = QDrag(self)
+        mime_data = QMimeData()
+        mime_data.setText(item.subject.name.full())
+        drag.setMimeData(mime_data)
+
+        cell_rect = self.visualItemRect(item)
+        pixmap = self.viewport().grab(cell_rect)
+
+        drag.setPixmap(pixmap)
+        drag.setHotSpot(self._drag_start_pos - cell_rect.topLeft())
+
+        drag.exec(Qt.DropAction.MoveAction)
+
+        self._drag_start_pos = None
+        self._drag_item = None
         self.current_source = None
     
-    def addRemainder(self, subject: Subject | CombinedSubject, index: int | None = None):
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if not event.mimeData().hasText():
+            event.ignore()
+            return
+
+        row = self.rowAt(int(event.position().y()))
+        col = self.columnAt(int(event.position().x()))
+
+        if row < 0 or col < 0:
+            event.ignore()
+            return
+
+        target = self.item(row, col)
+
+        if not isinstance(target, TimetableItem) or target.locked:
+            event.ignore()
+            return
+
+        source_cls = event.source()
+
+        if isinstance(source_cls, ClassTimetable):
+            source_row = source_cls.drag_source_row
+            source_col = source_cls.drag_source_col
+
+            if source_row < 0 or source_col < 0:
+                event.ignore()
+                return
+
+            source = source_cls.item(source_row, source_col)
+
+            if not isinstance(source, TimetableItem) or not source.subject:
+                event.ignore()
+                return
+
+            if source.locked or source.subject.id == FreePeriod.id:
+                event.ignore()
+                return
+
+            # Only allow timetable-to-timetable moves within the same class.
+            if source_cls.cls.id != self.cls.id:
+                event.ignore()
+                return
+
+            self.current_source = source
+
+        elif self.editor.remainder_source_ref is not None:
+            if self.editor.remainder_source_ref.cls.id != self.cls.id:
+                event.ignore()
+                return
+
+            self.current_source = None
+
+        else:
+            event.ignore()
+            return
+
+        event.acceptProposedAction()
+    
+    def dragMoveEvent(self, event: QDragMoveEvent):
+        if not event.mimeData().hasText():
+            self._reject_drop(event)
+            return
+
+        row = self.rowAt(int(event.position().y()))
+        col = self.columnAt(int(event.position().x()))
+
+        if row < 0 or col < 0:
+            self._reject_drop(event)
+            return
+
+        day = self.cls.level.weekdays[col]
+        target_item = self.item(row, col)
+
+        if not isinstance(target_item, TimetableItem) or target_item.locked:
+            self._reject_drop(event)
+            return
+
+        # A locked period cannot be a destination.
+        if (day, row + 1) in self.cls.locked_subjects:
+            self._reject_drop(event)
+            return
+
+        # Find the break period in the target day.
+        break_time = next(
+            (
+                i + 1
+                for i, subject in enumerate(self.cls.timetable.table[day])
+                if subject.id == BreakPeriod.id
+            ),
+            None
+        )
+
+        # Never drop onto the break period itself.
+        if break_time is not None and row == break_time - 1:
+            self._reject_drop(event)
+            return
+
+        source_cls = event.source()
+
+        if isinstance(source_cls, ClassTimetable):
+            if source_cls.cls.id != self.cls.id:
+                self._reject_drop(event)
+                return
+
+            source_day = source_cls.cls.level.weekdays[
+                source_cls.drag_source_col
+            ]
+
+            source_break_time = next(
+                (
+                    i + 1
+                    for i, subject in enumerate(
+                        source_cls.cls.timetable.table[source_day]
+                    )
+                    if subject.id == BreakPeriod.id
+                ),
+                None
+            )
+
+            # Prevent moving a subject across the break when its
+            # original position or destination conflicts with the break.
+            if source_cls.drag_source_col != col:
+                if (
+                    (break_time is not None and row == break_time - 1)
+                    or (
+                        source_break_time is not None
+                        and source_break_time == source_cls.drag_source_row + 1
+                    )
+                ):
+                    self._reject_drop(event)
+                    return
+
+        elif self.editor.remainder_source_ref is not None:
+            if self.editor.remainder_source_ref.cls.id != self.cls.id:
+                self._reject_drop(event)
+                return
+
+        else:
+            self._reject_drop(event)
+            return
+
+        # All validation passed: highlight this destination cell.
+        self._set_drop_target(row, col)
+
+        event.acceptProposedAction()
+    
+    def dropEvent(self, event):
+        try:
+            if not event.mimeData().hasText():
+                event.ignore()
+                return
+
+            target_row = self.rowAt(int(event.position().y()))
+            target_col = self.columnAt(int(event.position().x()))
+
+            if target_row < 0 or target_col < 0:
+                event.ignore()
+                self.editor.remainder_unfocused()
+                self.current_source = None
+                return
+
+            target_item = self.item(target_row, target_col)
+
+            source_cls = event.source()
+
+            if isinstance(source_cls, ClassTimetable):
+                source_row = source_cls.drag_source_row
+                source_col = source_cls.drag_source_col
+
+                source_item = source_cls.item(source_row, source_col)
+
+                if (
+                    source_cls.cls.id == self.cls.id
+                    and source_cls is self
+                    and isinstance(source_item, TimetableItem)
+                    and isinstance(target_item, TimetableItem)
+                    and not target_item.locked
+                    and source_item is not target_item
+                ):
+                    self.timetable_exchange(source_item, target_item)
+                    event.acceptProposedAction()
+                else:
+                    event.ignore()
+
+            elif self.editor.remainder_source_ref is not None:
+                if self.editor.remainder_source_ref.cls.id == self.cls.id:
+                    self.addSubjectToTimetable(
+                        target_row,
+                        target_col,
+                        self.editor.remainder_source_ref
+                    )
+                    event.acceptProposedAction()
+                else:
+                    event.ignore()
+
+            else:
+                event.ignore()
+
+            self.editor.remainder_unfocused()
+            self.current_source = None
+        finally:
+            self._set_drop_target()
+    
+    def dragLeaveEvent(self, event):
+        self._set_drop_target()
+        super().dragLeaveEvent(event)
+    
+    def addRemainder(self, subject: Subject | CombinedSubject, index: int | None = None, visual_only: bool = False):
         remainder_label = ExtraSubjectDraggableLabel(subject, self.cls)
         remainder_label.clicked.connect(self.editor.make_ds_func(remainder_label))
         
         if index is not None:
             self.remainder_widget.insertWidget(index, remainder_label, alignment=Qt.AlignmentFlag.AlignTop)
             self.remainder_labels.insert(index - 1, remainder_label)
-            self.cls.timetable.table_remains.insert(index - 1, subject)
+            if not visual_only:
+                self.cls.timetable.table_remains.insert(index - 1, subject)
         else:
             self.remainder_widget.insertWidget(len(self.remainder_widget.getChildren()), remainder_label, alignment=Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
             self.remainder_labels.append(remainder_label)
-            self.cls.timetable.table_remains.append(subject)
+            if not visual_only:
+                self.cls.timetable.table_remains.append(subject)
         
         if not self.__init:
             self.window().saved_state_changed.emit(True)
     
-    def removeRemainder(self, remainder: ExtraSubjectDraggableLabel):
+    def removeRemainder(self, remainder: ExtraSubjectDraggableLabel, visual_only: bool = False):
         self.remainder_labels.remove(remainder)
         self.remainder_widget.removeWidget(remainder)
         
-        if (subj := next((s for s in self.cls.timetable.table_remains if s.id == remainder.subject.id), None)):
+        if not visual_only and (subj := next((s for s in self.cls.timetable.table_remains if s.id == remainder.subject.id), None)):
             self.cls.timetable.table_remains.remove(subj)
         
         remainder.deleteLater()
@@ -1192,19 +1404,50 @@ class ClassTimetable(QTableWidget):
         if not self.__init:
             self.window().saved_state_changed.emit(True)
     
-    def removeSubjectFromTimetable(self, row: int, column: int):
+    def removeSubjectFromTimetable(self, row: int, column: int, visual_only: bool = False):
         free_period = FreePeriod()
         item: TimetableItem = self.item(row, column)
         
         if item and item.subject.id not in (FreePeriod.id, BreakPeriod.id):
-            self.addRemainder(item.subject)
+            self.addRemainder(item.subject, visual_only=visual_only)
             self.setItem(row, column, TimetableItem(free_period, self.cls))
             
-            self.cls.timetable.table[self.weekdays[column]][row] = free_period
+            self.cls.timetable.table[self.cls.level.weekdays[column]][row] = free_period
+    
+    def addSubjectToTimetable(self, row: int, column: int, remainder: ExtraSubjectDraggableLabel, visual_only: bool = False):
+        target_item = self.item(row, column)
+        
+        self.blockSignals(True)  # Prevent unnecessary updates
+        
+        new_target = TimetableItem(remainder.subject, self.cls)
+        
+        self.takeItem(row, column)
+        self.setItem(row, column, new_target)
+        
+        new_target.updateToolTip(row + 1)
+        
+        if isinstance(target_item, TimetableItem) and not target_item.free_period:
+            # Set new items
+            self.addRemainder(target_item.subject, self.remainder_widget.indexOf(remainder), visual_only=visual_only)
+            
+            if not visual_only:
+                self.cls.timetable.table[self.cls.level.weekdays[column]][row] = FreePeriod()
+        
+        # Remove remainder widget
+        self.removeRemainder(remainder, visual_only=visual_only)
+        
+        self.remainder_widget.update()
+        
+        self.blockSignals(False)
+        
+        if not visual_only:
+            self.cls.timetable.table[self.cls.level.weekdays[column]][row] = remainder.subject
+        
+        self.editor.update()
     
     def set_period_amt(self, period_amt: int):
         if period_amt != self.cls.level.period_amount:
-            for col, day in enumerate(self.weekdays):
+            for col, day in enumerate(self.cls.level.weekdays):
                 is_diff_positive = period_amt - self.cls.level.period_amount > 0
                 is_diff_negative = period_amt - self.cls.level.period_amount < 0
                 
@@ -1238,7 +1481,7 @@ class ClassTimetable(QTableWidget):
     
     def set_break_period(self, break_period: int):
         if break_period != self.cls.level.break_period:
-            for col, day in enumerate(self.weekdays):
+            for col, day in enumerate(self.cls.level.weekdays):
                 ls_key = day, break_period - 1
                 
                 break_index = next(i for i, s in enumerate(self.cls.timetable.table[day]) if s.id == BreakPeriod.id)
@@ -1304,7 +1547,11 @@ class ClassTimetable(QTableWidget):
                 if item.break_time:
                     item.set_color()
     
-    def timetable_exchange(self, source_item: TimetableItem, target_item: TimetableItem):
+    def timetable_exchange(self, source_item: TimetableItem, target_item: TimetableItem, visual_only: bool = False):
+        # Nothing to exchange if both items occupy the same cell
+        if source_item is target_item:
+            return
+
         source_row, source_col = self.row(source_item), self.column(source_item)
         target_row, target_col = self.row(target_item), self.column(target_item)
         
@@ -1326,11 +1573,12 @@ class ClassTimetable(QTableWidget):
         new_target.updateToolTip(target_row + 1)
         new_source.updateToolTip(source_row + 1)
         
-        # Background replacement
-        source = self.cls.timetable.table[self.weekdays[source_col]][source_row]
-        target = self.cls.timetable.table[self.weekdays[target_col]][target_row]
-        self.cls.timetable.table[self.weekdays[source_col]][source_row] = target
-        self.cls.timetable.table[self.weekdays[target_col]][target_row] = source
+        if not visual_only:
+            # Background replacement
+            source = self.cls.timetable.table[self.cls.level.weekdays[source_col]][source_row]
+            target = self.cls.timetable.table[self.cls.level.weekdays[target_col]][target_row]
+            self.cls.timetable.table[self.cls.level.weekdays[source_col]][source_row] = target
+            self.cls.timetable.table[self.cls.level.weekdays[target_col]][target_row] = source
         
         # Force refresh
         self.blockSignals(False)
@@ -1357,20 +1605,23 @@ class ClassTimetable(QTableWidget):
     
     def generate(self):
         try:
-            self.cls.timetable.generate()
-            self.populate_timetable()
+            self.cls.timetable.generate(self)
         except TimetableGeneratorError as e:
-            response = QMessageBox.critical(None, e.__class__.__name__, str(e) + "\n\nWould you still like to populate the timetable with the available content?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            response = QMessageBox.critical(None, e.__class__.__name__, str(e) + "\n\nWould you still like to keep the timetable the way it is?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             
-            if response == QMessageBox.StandardButton.Yes:
-                self.populate_timetable()
+            if response == QMessageBox.StandardButton.No:
+                self.clear_timetable()
         except Exception as e:
             QMessageBox.critical(None, e.__class__.__name__, str(e))
     
+    def visual_add_to_timetable(self, subjectID: ID, day: str, period: int):
+        self.addSubjectToTimetable(period - 1, self.cls.level.weekdays.index(day), next(l for l in self.remainder_labels if subjectID == l.subject.id), visual_only=True)
+        self.update()
+    
     def populate_timetable(self):
-        for col, day in enumerate(self.weekdays):
+        for col, day in enumerate(self.cls.level.weekdays):
             for row, subject in enumerate(self.cls.timetable.table[day] + [FreePeriod() for _ in range(self.cls.level.period_amount - len(self.cls.timetable.table[day]))]):
-                item = TimetableItem(subject, self.cls, (self.weekdays[col], row + 1) in self.cls.locked_subjects)
+                item = TimetableItem(subject, self.cls, (self.cls.level.weekdays[col], row + 1) in self.cls.locked_subjects)
                 
                 self.setItem(row, col, item)
                 
@@ -1413,12 +1664,12 @@ class ClassTimetable(QTableWidget):
                 self.window().saved_state_changed.emit(True)
             elif action == lock_period_action:
                 item.set_locked_state(True)
-                self.cls.locked_subjects[(self.weekdays[item.column()], item.row() + 1)] = item.subject.id
+                self.cls.locked_subjects[(self.cls.level.weekdays[item.column()], item.row() + 1)] = item.subject.id
                 
                 self.window().saved_state_changed.emit(True)
             elif action == unlock_period_action:
                 item.set_locked_state(False)
-                self.cls.locked_subjects.pop((self.weekdays[item.column()], item.row() + 1))
+                self.cls.locked_subjects.pop((self.cls.level.weekdays[item.column()], item.row() + 1))
                 
                 self.window().saved_state_changed.emit(True)
             elif action == goto_subject_action:
@@ -1435,7 +1686,7 @@ class ClassTimetable(QTableWidget):
             row = x // self.columnCount()
             col = x % self.columnCount()
             
-            if subject.id == self.cls.timetable.table[self.weekdays[col]][row].id:
+            if subject.id == self.cls.timetable.table[self.cls.level.weekdays[col]][row].id:
                 item: TimetableItem = self.item(row, col)
                 
                 if item and subject_id == item.subject.id:
@@ -1462,13 +1713,13 @@ class ClassTimetable(QTableWidget):
                     row = x // self.columnCount()
                     col = x % self.columnCount()
                     
-                    if subject.id == self.cls.timetable.table[self.weekdays[col]][row].id:
+                    if subject.id == self.cls.timetable.table[self.cls.level.weekdays[col]][row].id:
                         free_period = FreePeriod()
                         
                         self.setItem(row, col, TimetableItem(free_period, self.cls))
-                        self.cls.timetable.table[self.weekdays[col]][row] = free_period
+                        self.cls.timetable.table[self.cls.level.weekdays[col]][row] = free_period
                         
-                        if (l_s_key := (self.weekdays[col], row + 1)) in self.cls.locked_subjects:
+                        if (l_s_key := (self.cls.level.weekdays[col], row + 1)) in self.cls.locked_subjects:
                             self.cls.locked_subjects.pop(l_s_key)
                         
                         ttbl_rem_amt -= 1
@@ -1491,6 +1742,8 @@ class ClassTimetable(QTableWidget):
 class SchoolTimetableEditor(BaseWidget):
     def __init__(self):
         super().__init__()
+        
+        self.setAcceptDrops(True)
         
         self.remainder_source_ref: Optional[TimetableItem] = None
         self.combination_widgets: dict[ID, CombinationEditor] = {}
@@ -1561,26 +1814,18 @@ class SchoolTimetableEditor(BaseWidget):
         widget.setProperty("class", "Borderless")
         widget.setFixedSize(550, 450)
         
-        def _populate():
-            self.class_generator_threads.pop(cls_level.id)
-            
-            for ttbl in self.timetable_widgets[cls_level.id].values():
-                ttbl.populate_timetable()
-            
-            self.window().saved_state_changed.emit(True)
-        
         def _generate():
             for cls in cls_level.classes.values():
                 try:
-                    cls.timetable.generate()
+                    cls.timetable.generate(self.timetable_widgets[cls_level.id][cls.id])
                 except TimetableGeneratorError as e:
-                    if not self.is_yes_msg_box(e.__class__.__name__, str(e) + "\n\nWould you still like to populate the timetable with the available content and continue?"):
+                    if not self.is_yes_msg_box(e.__class__.__name__, str(e) + "\n\nWould you still like to keep the timetable the way it is?"):
                         clear_button.clicked.emit(True)
                         break
         
         def _scramble():
             for cls in cls_level.classes.values():
-                cls.timetable.scramble()
+                cls.timetable.scramble(self.timetable_widgets[cls_level.id][cls.id])
         
         def _clear():
             for ttbl in self.timetable_widgets[cls_level.id].values():
@@ -1601,7 +1846,7 @@ class SchoolTimetableEditor(BaseWidget):
                     pre_func()
                 
                 self.class_generator_threads[cls_level.id] = Thread(self.window(), _generate)
-                self.class_generator_threads[cls_level.id].finished.connect(_populate)
+                self.class_generator_threads[cls_level.id].finished.connect(lambda: self.class_generator_threads.pop(cls_level.id))
                 self.class_generator_threads[cls_level.id].start()
                 
                 return
@@ -1620,7 +1865,7 @@ class SchoolTimetableEditor(BaseWidget):
                 _clear()
                 
                 self.class_generator_threads[cls_level.id] = Thread(self.window(), _scramble)
-                self.class_generator_threads[cls_level.id].finished.connect(_populate)
+                self.class_generator_threads[cls_level.id].finished.connect(lambda: self.class_generator_threads.pop(cls_level.id))
                 self.class_generator_threads[cls_level.id].start()
                 
                 return
@@ -1898,17 +2143,11 @@ class SchoolTimetableEditor(BaseWidget):
             if not _init:
                 self.window().saved_state_changed.emit(True)
         
-        def _populate():
-            self.class_generator_threads.pop(cls.id)
-            timetable.populate_timetable()
-            
-            self.window().saved_state_changed.emit(True)
-        
         def _generate():
             try:
-                cls.timetable.generate()
+                cls.timetable.generate(self.timetable_widgets[cls.level.id][cls.id])
             except TimetableGeneratorError as e:
-                if not self.is_yes_msg_box(e.__class__.__name__, str(e) + "\n\nWould you still like to populate the timetable with the available content?"):
+                if not self.is_yes_msg_box(e.__class__.__name__, str(e) + "\n\nWould you still like to keep the timetable the way it is?"):
                     clear_button.clicked.emit(True)
         
         def generate_timetable():
@@ -1923,7 +2162,7 @@ class SchoolTimetableEditor(BaseWidget):
                 timetable.clear_timetable()
                 
                 self.class_generator_threads[cls.id] = Thread(self.window(), _generate)
-                self.class_generator_threads[cls.id].finished.connect(_populate)
+                self.class_generator_threads[cls.id].finished.connect(lambda: self.class_generator_threads.pop(cls.id))
                 self.class_generator_threads[cls.id].start()
                 
                 return
@@ -1941,8 +2180,8 @@ class SchoolTimetableEditor(BaseWidget):
                 
                 timetable.clear_timetable()
                 
-                self.class_generator_threads[cls.id] = Thread(self.window(), lambda: cls.timetable.scramble())
-                self.class_generator_threads[cls.id].finished.connect(_populate)
+                self.class_generator_threads[cls.id] = Thread(self.window(), lambda: cls.timetable.scramble(self.timetable_widgets[cls.level.id][cls.id]))
+                self.class_generator_threads[cls.id].finished.connect(lambda: self.class_generator_threads.pop(cls.id))
                 self.class_generator_threads[cls.id].start()
                 
                 return

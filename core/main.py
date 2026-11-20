@@ -4,12 +4,10 @@ import random
 import importlib
 from typing import Any, TypeVar
 from dataclasses import dataclass
-from matplotlib.cbook import flatten
 
 from os import PathLike
 
 from core.timing_and_timetable import *
-
 
 
 class ID(str):
@@ -136,11 +134,15 @@ class Subject(Entry):
         return Subject(self.id, self.name, None, self.classes)
     
     def template(self, _):
-        return f"{self.name.first}{f"■ {self.name.abbrev}" if self.name.abbrev else ""} - {self.id}"
+        return f"{self.name.first}{f" ■ {self.name.abbrev}" if self.name.abbrev else ""} - {self.id}"
     
     @staticmethod
     def from_template(template: str, school):
-        names, id = template.split("-")
+        if "-" in template:
+            names, id = template.split("-")
+        else:
+            id = template.strip()
+            names = ""
         
         if "â–" in names:
             first, abbrev = names.split("â–")
@@ -200,27 +202,29 @@ class CombinedSubject(Entry):
     def template(self, school):
         subject_ids = list(school.subjects)
         
-        return f"({self.name.first or ""} - {self.id}): {" ".join([str(subject_ids.index(s.id) + 1) for s in self.subjects])}"
+        return f"({f"{self.name.first} - " if self.name.first is not None else ""}{self.id}): {" ".join([str(subject_ids.index(s.id) + 1) for s in self.subjects])}"
     
     @staticmethod
     def from_template(template: str, school):
         subjects = list(school.subjects.values())
         
         name_and_id, sub_subject_templates = template.split(":")
-        name, id = name_and_id.strip().removeprefix("(").removesuffix(")").split("-")
+        name_and_id = name_and_id.strip().removeprefix("(").removesuffix(")")
+        
+        if "-" in name_and_id:
+            name, id = name_and_id.split("-")
+        else:
+            id = name_and_id.strip()
+            name = ""
         
         sub_subjects = [subjects[int(s_index) - 1] for s_index in sub_subject_templates.split()]
-        
-        classes = {}
-        for sub_subject in sub_subjects:
-            classes[sub_subject.id] = {}
         
         if name.strip():
             first, abbrev = name.strip(), None
         else:
             first, abbrev = None, "/".join([s.cls_name() for s in sub_subjects])
         
-        return CombinedSubject(ID(id.strip()), CombinedSubjectName(first, abbrev), sub_subjects, classes, (1, 1))
+        return CombinedSubject(ID(id.strip()), CombinedSubjectName(first, abbrev), sub_subjects, {sub_subject.id: {} for sub_subject in sub_subjects}, (1, 1))
 @dataclass
 class FreePeriod:
     id: str = "FreePeriodID"
@@ -261,12 +265,12 @@ class Staff(Entry):
     IUD: Optional[ID]
     
     name: StaffName
-    img_path: Optional[PathLike]
+    img_path: Optional[str]
     
     attendance: list[AttendanceEntry]
     
     def info_template(self):
-        names = "■".join([self.name.first or "", self.name.second or "", self.name.third or "", self.name.abbrev or ""]) if self.name.second or self.name.third or self.name.abbrev else self.name.first or ""
+        names = " ■ ".join([self.name.first or "", self.name.second or "", self.name.third or "", self.name.abbrev or ""]) if self.name.second or self.name.third or self.name.abbrev else self.name.first or ""
         
         if self.IUD or self.img_path:
             return f"{names} - {self.id} - {self.IUD or ""} - {self.img_path or ""}"
@@ -385,9 +389,6 @@ class Class:
         
         self.locked_subjects: dict[tuple[str, int], ID] = {}
         self.timetable = Timetable(self, self.SCHOOL.class_levels, self.SCHOOL.gen_data)
-        
-        for subject in self.subjects.values():
-            subject.classes[self.id] = self
     
     def delete_subject(self, id: ID):
         self.subjects.pop(id)
@@ -438,42 +439,59 @@ class Class:
                 
                 subj_str += ") "
         
-        return f"({self.name} - {self.id}): {subj_str.strip()}"
+        return f"({self.name} - {self.id}): {subj_str.strip()}{f" | {t}" if (t := self.timetable.template()) else ""}"
     
     @staticmethod
     def from_template(template: str, class_level: "ClassLevel", school):
+        if "|" in template:
+            cls_template, ttbl_template = template.split("|")
+            
+            cls_template = cls_template.strip()
+            ttbl_template = ttbl_template.strip()
+        else:
+            cls_template = template.strip()
+            ttbl_template = ""
+        
         subjects = list(school.subjects.values())
         teachers = list(school.teachers.values())
         
-        name_and_id, subjects_template = template.split(":")
+        name_and_id, subjects_template = cls_template.split(":")
         
-        name, id = name_and_id.strip().removeprefix("(").removesuffix(")").split("-")
+        name, _id = name_and_id.strip().removeprefix("(").removesuffix(")").split("-")
         
-        id = CLASS_ID(id.strip())
-        id.class_level_id = class_level.id
+        _id = CLASS_ID(_id.strip())
+        _id.class_level_id = class_level.id
         
-        cls = Class(id, name.strip(), class_level, {})
+        cls_subjects = {}
+        
+        cls = Class(_id, name.strip(), class_level, cls_subjects)
         
         for subject_template in subjects_template.split():
             if not (subject_template.startswith("(") and subject_template.endswith(")")) and "." not in subject_template and subject_template.count("/") <= 1:
                 if subject_template.count("/") == 0:
                     subject = subjects[int(subject_template) - 1]
-                    
-                    subject.classes[cls.id] = cls
-                    cls.subjects[subject.id] = subject.passCopy()
                 elif subject_template.count("/") == 1:
                     str_teacher_index, teacher_subject_sub_index = subject_template.split("/")
                     
                     teacher = teachers[int(str_teacher_index) - 1]
                     subject = list(teacher.subjects.values())[int(teacher_subject_sub_index) - 1]
-                    
+                
+                assert isinstance(subject, Subject)
+                
+                if cls.id not in subject.classes:
                     subject.classes[cls.id] = cls
+                
+                if subject.id not in cls.subjects:
                     cls.subjects[subject.id] = subject.passCopy()
+                
+                if subject_template.count("/") == 1:
                     cls.subjects[subject.id].teacher = teacher
             else:
                 c_subject_index, *sub_subjects_info = subject_template.removeprefix("(").removesuffix(")").split("/")
                 
                 c_subject = subjects[int(c_subject_index) - 1]
+                
+                assert isinstance(c_subject, CombinedSubject)
                 
                 for sub_subject_index_info in sub_subjects_info:
                     sub_subject_index_info = sub_subject_index_info.strip()
@@ -484,18 +502,32 @@ class Class:
                         sub_subject = c_subject.subjects[int(sub_subject_index) - 1]
                         teacher = teachers[int(sub_subject_teacher_index) - 1]
                         
+                        if cls.id not in sub_subject.classes:
+                            sub_subject.classes[cls.id] = cls
+                        
                         assert sub_subject.id in teacher.subjects
                         
-                        c_subject.classes[sub_subject.id][cls.id] = cls
-                        cls.subjects[c_subject.id] = c_subject.passCopy()
+                        if cls.id not in c_subject.classes[sub_subject.id]:
+                            c_subject.classes[sub_subject.id][cls.id] = cls
                         
-                        cls_sub_subject = next(s for s in cls.subjects[c_subject.id].subjects if s.id == sub_subject.id)
-                        cls_sub_subject.teacher= teacher
+                        if c_subject.id not in cls.subjects:
+                            cls_c_subject = cls.subjects[c_subject.id] = c_subject.passCopy()
+                        
+                        cls_sub_subject = next(s for s in cls_c_subject.subjects if s.id == sub_subject.id)
+                        cls_sub_subject.teacher = teacher
                     else:
                         sub_subject = c_subject.subjects[int(sub_subject_index_info) - 1]
                         
-                        c_subject.classes[sub_subject.id][cls.id] = cls
-                        cls.subjects[c_subject.id] = c_subject.passCopy()
+                        if cls.id not in sub_subject.classes:
+                            sub_subject.classes[cls.id] = cls
+                        
+                        if cls.id not in c_subject.classes[sub_subject.id]:
+                            c_subject.classes[sub_subject.id][cls.id] = cls
+                        
+                        if c_subject.id not in cls.subjects:
+                            cls.subjects[c_subject.id] = c_subject.passCopy()
+        
+        cls.timetable = Timetable.from_template(ttbl_template, cls, school)
         
         return cls
 class ClassLevelName(str):
@@ -552,10 +584,27 @@ class ClassLevel(Entry):
         
         for cls_template in classes_template:
             cls = Class.from_template(cls_template.strip(), cls_level, school)
-            
             cls_level.classes[cls.id] = cls
         
+        for cls in cls_level.classes.values():
+            for s_id, s in cls.subjects.items():
+                assert s_id in cls_level.subjects_occurence, f"{s.cls_name()} is in {cls.level.name.full()} {cls.name} and it is not declared in the {cls_level.name.full()} level"
+            
+            for s_id in cls_level.subjects_occurence:
+                s = school.subjects[s_id]
+                
+                if isinstance(s, Subject):
+                    if cls.id in s.classes:
+                        break
+                elif isinstance(s, CombinedSubject):
+                    if next((True for clses in s.classes.values() if cls.id in clses), False):
+                        break
+            else:
+                raise AssertionError(f"{s.cls_name()} is never used in any of the {cls_level.name.full()} level classes")
+        
         return cls_level
+
+
 @dataclass
 class GeneratingData:
     #            ClassID
@@ -577,7 +626,7 @@ class Timetable:
         self.class_levels = class_levels
         
         self.table: dict[str, list[Subject | CombinedSubject | BreakPeriod | FreePeriod]] = {d: [BreakPeriod() if i + 1 == cls.level.break_period else FreePeriod() for i in range(cls.level.period_amount)] for d in cls.level.weekdays}
-        self.table_remains: list[Subject] = list(flatten([[s for _ in range(cls.level.subjects_occurence[s.id].week_max)] for s in cls.subjects.values() if s.id in cls.level.subjects_occurence and s.teacher is not None]))
+        self.table_remains: list[Subject] = [s for s in cls.subjects.values() if s.id in cls.level.subjects_occurence and (s.teacher is not None if isinstance(s, Subject) else next((True for s in s.subjects if s.teacher is not None), False)) for _ in range(cls.level.subjects_occurence[s.id].week_max)]
         
         self._log_data: dict = {}
     
@@ -790,7 +839,7 @@ class Timetable:
         
         return score
     
-    def generate(self):
+    def generate(self, ui_timetable=None):
         total_available_periods = sum(len(periods) for periods in self.table.values())
         total_subj_amt = sum(self.cls.level.subjects_occurence[s_id].week_max for s_id in self.cls.subjects if s_id in self.cls.level.subjects_occurence)
         
@@ -840,10 +889,13 @@ class Timetable:
             
             self.table[day][index] = self.cls.subjects[subject.id]
             self.table_remains.remove(subject)
+            
+            if ui_timetable is not None:
+                ui_timetable.visual_add_to_timetable_signal.emit(subject.id, day, index + 1)
 
-    def scramble(self):
-        timetable_points_days = list(flatten([[day for s in periods if s.id != BreakPeriod.id] for day, periods in self.table.items()]))
-        timetable_points_indexes = list(flatten([[i for i, s in enumerate(periods) if s.id != BreakPeriod.id] for periods in self.table.values()]))
+    def scramble(self, ui_timetable=None):
+        timetable_points_days = [day for day, periods in self.table.items() for s in periods if s.id != BreakPeriod.id]
+        timetable_points_indexes = [i for periods in self.table.values() for i, s in enumerate(periods) if s.id != BreakPeriod.id]
         
         timetable_points = list(zip(timetable_points_days, timetable_points_indexes))
         
@@ -856,5 +908,50 @@ class Timetable:
             
             subj = self.table_remains.pop(0)
             self.table[day][i] = self.cls.subjects[subj.id]
-
+            
+            if ui_timetable:
+                ui_timetable.visual_add_to_timetable_signal.emit(subj.id, day, i + 1)
+    
+    def template(self):
+        day_sep = " . "
+        
+        ttbl_template = day_sep.join([
+            ",".join([
+                str(list(self.cls.subjects).index(periods[i].id) + 1) if periods[i].id not in (BreakPeriod.id, FreePeriod.id) else ("~" if periods[i].id == BreakPeriod.id else "")
+                for i in
+                range(next(len(periods) - i for i, s in enumerate(reversed(periods)) if s.id != FreePeriod.id and len(periods) - i != self.cls.level.break_period))
+            ]) if next((True for s in periods if s.id not in (BreakPeriod.id, FreePeriod.id)), False) else ""
+            for periods in
+            self.table.values()
+            if next((True for s in periods if s.id not in (FreePeriod.id, BreakPeriod.id)), False)
+        ])
+        
+        return ttbl_template if ttbl_template.replace(day_sep, "").strip() else ""
+    
+    @staticmethod
+    def from_template(template: str, cls: Class, school):
+        timetable = Timetable(cls, school.class_levels, school.gen_data)
+        
+        for day_index, ttbl_content_template in enumerate(template.split(".")):
+            ttbl_content = ttbl_content_template.strip().split(",")
+            day = timetable.cls.level.weekdays[day_index]
+            
+            if len(ttbl_content) > timetable.cls.level.break_period or "~" in ttbl_content_template:
+                timetable.table[day][timetable.cls.level.break_period - 1] = FreePeriod()
+            
+            for p_index, s_index in enumerate(ttbl_content):
+                s_index_text = s_index.strip()
+                
+                if s_index_text:
+                    if s_index_text == "~":
+                        timetable.table[day][p_index] = BreakPeriod()
+                    else:
+                        subject = list(timetable.cls.subjects.values())[int(s_index_text) - 1]
+                        
+                        timetable.table[day][p_index] = timetable.table_remains.pop(timetable.table_remains.index(subject))
+            
+            assert len([s for s in timetable.table[day] if s.id == BreakPeriod.id]) <= 1, f"Invalid amount of break periods on {day} in {timetable.cls.level.name.full()} {timetable.cls.name}"
+            assert len(timetable.table[day]) == timetable.cls.level.period_amount, f"Invalid amount of periods on {day} in {timetable.cls.level.name.full()} {timetable.cls.name}"
+        
+        return timetable
 

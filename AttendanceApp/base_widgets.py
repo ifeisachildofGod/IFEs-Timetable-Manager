@@ -225,7 +225,7 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
         for i, staff_widget in enumerate(self.widgets.values()):
             if not isinstance(staff_widget, tuple):
                 staff_widget.setVisible(i == 0)
-                self.main_layout.addWidget(staff_widget)
+                self.main_layout.insertWidget(i, staff_widget)
         
         for i, staff_widget in enumerate(self.widgets.values()):
             if not i and isinstance(staff_widget, tuple):
@@ -243,7 +243,7 @@ class BaseDataDisplayWidget(BaseScrollListWidget):
     
     @staticmethod
     def is_entry_countable(entry: AttendanceEntry, valid_days: list[str], timeline_dates: list[tuple[Period, Period]]):
-        is_in_timeline = next((True for i, t_d in enumerate(timeline_dates) if t_d[0].in_minutes() <= entry.period.in_minutes() <= t_d[1].in_minutes()), False)
+        is_in_timeline = next((True for t_d in timeline_dates if t_d[0].in_minutes() <= entry.period.in_minutes() <= t_d[1].in_minutes()), False)
         
         return is_in_timeline and entry.is_check_in and entry.period.day in valid_days
     

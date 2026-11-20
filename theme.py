@@ -276,6 +276,15 @@ STYLESHEET = '''
     QScrollBar::handle:vertical:pressed, QScrollBar::handle:horizontal:pressed {{
         background-color: {pressed__scrollbar};
     }}
+    QScrollBar.FG::handle:vertical, QScrollBar.FG::handle:horizontal {{
+        background-color: {text};
+    }}
+    QScrollBar.FG::handle:vertical:hover, QScrollBar.FG::handle:horizontal:hover {{
+        background-color: {hover__text};
+    }}
+    QScrollBar.FG::handle:vertical:pressed, QScrollBar.FG::handle:horizontal:pressed {{
+        background-color: {pressed__text};
+    }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
     QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
@@ -1077,12 +1086,12 @@ class ThemeManager:
         return color
     
     @staticmethod
-    def mix_colors(color1: str, color2: str, ratio: str | int):
-        color1 = QColor(color1)
-        color2 = QColor(color2)
+    def mix_colors(c1: str, c2: str, ratio: str | int):
+        color1 = QColor(c1)
+        color2 = QColor(c2)
         r1, r2 = float(ratio).as_integer_ratio()
         
-        assert color1.isValid() and color2.isValid()
+        assert color1.isValid() and color2.isValid(), f"Both {c1} and {c2} are invalid colors" if not (color1.isValid() or color2.isValid()) else f"{c1 if color1.isValid() else c2} is an invalid color"
         
         return ThemeManager.rgb_to_hex((
             (color1.red() * r1 + color2.red() * r2) / (r1 + r2),

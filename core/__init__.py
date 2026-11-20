@@ -354,39 +354,6 @@ class School:
 
 SCHOOL = School()
 
-
-if __name__ == "__main__":
-    def display_school(sch: School):
-        for cls_lvl in sch.class_levels.values():
-            for cls in cls_lvl.classes.values():
-                print(cls_lvl.name.full(), cls.name)
-                for day, periods in cls.timetable.table.items():
-                    print(day, end=": ")
-                    print(*[(p.name.full() if not isinstance(p, CombinedSubject) else "/".join([s.name for s in p.subjects])) for p in periods], sep=", ")
-                
-                if cls.timetable.table_remains:
-                    print()
-                    print("Remainders:", ", ".join([s.name.full() for s in cls.timetable.table_remains]))
-                    print()
-                print()
-    
-    with open(r"test.save\test.frmwk") as file:
-        data = file.read()
-    
-    sch = School.from_template(data)
-    
-    print("Started Generating")
-    for cls_lvl in sch.class_levels.values():
-        for cls in cls_lvl.classes.values():
-            cls.timetable.generate()
-    print("Started Clash detection")
-    print(sch.detect_clashes())
-    print("Ended")
-    print()
-    
-    display_school(sch)
-
-
 def NEW_ID():
     SCHOOL.settings.ID_index += 1
     _id = ID(SCHOOL.settings.ID_index)

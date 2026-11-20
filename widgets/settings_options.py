@@ -1124,7 +1124,8 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         self.number_edits[subject.id] = per_day_edit, per_week_edit
         self.subject_widgets[subject.id] = selection_widget
         
-        self.subjects_info_list.addWidget(subject.id, self._parent.get_link(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject.id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject.id].week_max}"))
+        if self.subjects_info_list.get(subject.id) is None:
+            self._parent.add_new_classlevel_subject_info(subject)
     
     def make_per_day_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
@@ -1136,7 +1137,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
             self.number_edits[subject_id][0].setNumber(self.number_edits[subject_id][0].number())
             
             if number != prev_number:
-                self.subjects_info_list.get(subject_id).setText(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject_id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject_id].week_max}")
+                self._parent.update_subject_info_text(subject)
             
             if not self.__init:
                 self._parent.window().saved_state_changed.emit(True)
@@ -1178,7 +1179,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
                     self.timetable_editor.timetable_widgets[cls.level.id][cls_id].change_subject_amount(subject_id, number)
             
             if number != prev_number:
-                self.subjects_info_list.get(subject_id).setText(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject_id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject_id].week_max}")
+                self._parent.update_subject_info_text(subject)
             
             if not self.__init:
                 self._parent.window().saved_state_changed.emit(True)
@@ -1188,6 +1189,8 @@ class ClassLevel_OccuranceEditor(BaseWidget):
 class ClassLevel_ClassMaker(BaseScrollWidget):
     def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor):
         super().__init__()
+        
+        self.__init = True
         
         self.timetable_editor = timetable_editor
         
@@ -1220,6 +1223,8 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         # Load existing options
         for class_id, cls in self.entry.classes.items():
             self.add_option(class_id, cls.name)
+        
+        self.__init = False
     
     def go_to(self, widget: QWidget):
         def func():
@@ -1252,7 +1257,8 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
             
             self.sub_class_list.get(cls.id).setText(cls.name)
             
-            self._parent.window().saved_state_changed.emit(True)
+            if not self.__init:
+                self._parent.window().saved_state_changed.emit(True)
         
         update_option()
         
@@ -1319,6 +1325,8 @@ class Prefect_ClassSelector(BaseScrollWidget):
     def _make_select_func(self, cls: Class):
         def func():
             self.entry.cls = cls
+            
+            self._parent.set_class_label_text()
         
         return func
 
@@ -1428,18 +1436,20 @@ def deassign_subject_class_teacher(subjectID: ID, cls: Class, timetable_editor: 
         cls_subject.teacher = None
 
 def deassign_subject_class(subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor, c_subjects: Optional[list[CombinedSubject]] = None):
+    subject = SCHOOL.subjects[subjectID]
+    
     deassign_subject_class_teacher(subjectID, cls, timetable_editor)
     
     if c_subjects:
         for c_subject in c_subjects:
             deassign_combined_subject_sub_subject_class(c_subject, subjectID, cls, timetable_editor)
     
-    SCHOOL.subjects[subjectID].classes.pop(cls.id)
+    subject.classes.pop(cls.id)
     
     if subjectID in cls.subjects:
         cls.subjects.pop(subjectID)
         
-        if subjectID in cls.level.subjects_occurence and next((False for c in cls.level.classes.values() if subjectID in c.subjects), True):
+        if subjectID in cls.level.subjects_occurence and next((False for c in subject.classes.values() if cls.level.id == c.level.id), True):
             cls.level.subjects_occurence.pop(subjectID)
     
     combination_widget = timetable_editor.combination_widgets[cls.level.id]
@@ -1512,10 +1522,10 @@ def deassign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subj
     if cls.id in c_subject.classes[subjectID]:
         c_subject.classes[subjectID].pop(cls.id)
         
-        if c_subject.id in cls.subjects and next((False for subj_classes in c_subject.classes.values() if next((True for c in subj_classes.values() if c.id == cls.id), False)), True):
+        if c_subject.id in cls.subjects and next((False for clses in c_subject.classes.values() for c in clses.values() if cls.id == c.id), True):
             cls.subjects.pop(c_subject.id)
         
-        if c_subject.id in cls.level.subjects_occurence and next((False for subj_classes in c_subject.classes.values() if next((True for c in subj_classes.values() if c.level.id == cls.level.id), False)), True):
+        if c_subject.id in cls.level.subjects_occurence and next((False for clses in c_subject.classes.values() for c in clses.values() if cls.level.id == c.level.id), True):
             cls.level.subjects_occurence.pop(c_subject.id)
     
     if subjectID not in cls.subjects:
@@ -1785,7 +1795,7 @@ def teacher_name_update(teacherID: ID, timetable_editor: SchoolTimetableEditor):
     
     for subjectID, subject in teacher.subjects.items():
         for cls in subject.classes.values():
-            if (cls_subj := cls.subjects.get(subjectID, None)) and cls_subj.teacher and cls_subj.teacher.id == teacherID:
+            if (cls_subj := cls.subjects.get(subjectID)) and cls_subj.teacher and cls_subj.teacher.id == teacherID:
                 timetable_editor.update_subject_name(subject, cls)
 
 def class_name_update(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor):

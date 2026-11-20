@@ -52,7 +52,6 @@ class ProgressBar(QProgressBar):
         else:
             self.setValue(self.progress)
 
-
 class NumberLineEdit(BaseWidget):
     textChanged = pySignal(int)
     

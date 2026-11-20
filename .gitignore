@@ -185,7 +185,8 @@ cython_debug/
 
 # Others
 temp_core.py
-test*
+test.export/
+# test.*
 *.css
 bundle.py
 *.zip

@@ -1,6 +1,7 @@
 
 from pathlib import Path
 
+from matplotlib.cbook import flatten
 from matplotlib.colors import get_named_colors_mapping
 
 from AttendanceApp.base_widgets import BaseDataDisplayWidget
@@ -311,7 +312,9 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         
         def set_image_path(self, file_path: Optional[str]):
             f_path = file_path or f"{self.root_profile_pic_path}/default.svg"
-            d_path_w_ext = f"{self.root_profile_pic_path}/{self.entry.id}"
+            
+            path_identifier = other_p_path[-2].strip() if (other_p_path := next((p.img_path.split("/") for p in SCHOOL.prefects.values() if p.id != self.entry.id and p.img_path is not None), None)) else str(id(SCHOOL))
+            d_path_w_ext = f"{self.root_profile_pic_path}/{path_identifier}/{self.entry.id}"
             
             new_ext = f_path.split('.')[-1]
             
@@ -383,7 +386,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         if self.entry.name.second or self.entry.name.third or self.entry.name.abbrev:
             settings_screen.toogle_name_format()
         
-        iud_set_btn = QPushButton("Set Teacher IUD")
+        iud_set_btn = QPushButton(f"Set {self.general_entry_name} IUD")
         iud_set_btn.clicked.connect(open_card_scan)
         
         settings_screen.top_widget.addWidget(iud_set_btn)
@@ -501,10 +504,10 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
     def new(self):
         return Subject(NEW_ID(), SubjectName("", ""), None, {})
     
-    def remove(self):
+    def delete(self):
         delete_subject(self.id, self.timetable_editor, self.attendance_manager, self.i_parent)
         
-        return super().remove()
+        return super().delete()
     
     def get_init_text(self):
         return self.entry.name.first, (self.entry.name.first, self.entry.name.abbrev)
@@ -577,10 +580,10 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
     def new(self):
         return CombinedSubject(NEW_ID(), CombinedSubjectName(None, None), [], {}, SCHOOL.settings.DEFAULT_occurance_data)
     
-    def remove(self):
+    def delete(self):
         delete_combined_subject(self.id, self.timetable_editor, self.attendance_manager)
         
-        return super().remove()
+        return super().delete()
     
     def get_init_text(self):
         return self.entry.name.first, None
@@ -632,7 +635,7 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
     def get_staff_attendance_data(self):
         weeks_data = {}
         
-        teacher_working_days = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == self.entry.id] for s in self.entry.subjects.values()])))
+        teacher_working_days = list(set(d for s in self.entry.subjects.values() for t, d, _ in s.get_periods() if t.id == self.entry.id))
 
         for attendance in self.entry.attendance:
             if BaseDataDisplayWidget.is_entry_countable(attendance, teacher_working_days, SCHOOL.attendance.teacher_attendance_time_settings.timeline_dates):
@@ -667,7 +670,7 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
     
     def get_staff_punctuality_data(self):
         attendance_time_settings = SCHOOL.attendance.teacher_attendance_time_settings
-        working_days = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == self.entry.id] for s in self.entry.subjects.values()])))
+        working_days = list(set(d for s in self.entry.subjects.values() for t, d, _ in s.get_periods() if t.id == self.entry.id))
         
         full_y_plot_points = []
         for index, day in enumerate(working_days):
@@ -829,10 +832,10 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
     def new(self):
         return Teacher(NEW_ID(), StaffName("", "", "", ""), None, None, [], {})
     
-    def remove(self):
+    def delete(self):
         delete_teacher(self.id, self.timetable_editor)
         
-        return super().remove()
+        return super().delete()
 
     def name_update(self):
         teacher_name_update(self.id, self.timetable_editor)
@@ -856,11 +859,39 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         )
         
         self.addProperty("class", "PrefectSettingsEntry")
+        
+        self.sub_class_list = KeyedListWidget() ; self.sub_class_list.setProperty("class", "NoBackground")
+        self.subjects_info_list = KeyedListWidget() ; self.subjects_info_list.setProperty("class", "NoBackground")
+        
+        self.class_info_label = QLabel()
+        self.post_info_label = QLabel()
+        
+        w1 = BaseWidget(QHBoxLayout)
+        w1.addWidget(LabeledField("Class", self.class_info_label))
+        w1.addWidget(LabeledField("Post", self.post_info_label))
+        
+        self.duties_info: KeyedListWidget[LabeledField[QLabel]] = KeyedListWidget()
+        
+        w2 = BaseWidget()
+        w2.addWidget(LabeledWidget("Duties", self.duties_info), alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        self.info_widget.addWidget(w1)
+        self.info_widget.addWidget(w2)
+        
+        self.set_class_label_text()
+        self.set_post_label_text()
     
     def _post_changed_func(self, post_id: ID):
         self.entry.post_id = post_id
+        self.set_post_label_text()
         
         self.i_parent.window().saved_state_changed.emit(True)
+    
+    def set_class_label_text(self):
+        self.class_info_label.setText(f"{self.entry.cls.level.name.full()} {self.entry.cls.name}")
+    
+    def set_post_label_text(self):
+        self.post_info_label.setText(SCHOOL.posts[self.entry.post_id])
     
     def get_staff_attendance_data(self):
         timeline_dates = SCHOOL.attendance.prefect_attendance_time_settings.timeline_dates
@@ -1022,7 +1053,7 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         
         post_combobox.setCurrentIndex(next(i for i in range(post_combobox.count()) if self.entry.post_id == post_combobox.itemData(i)))
         
-        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", post_combobox)
+        post_editor = _Prefect_PostEditor(self, "Edit School Prefect Posts", self.attendance_manager, post_combobox)
         
         edit_posts_button = QPushButton("Edit Prefect Posts")
         edit_posts_button.clicked.connect(lambda: post_editor.exec())
@@ -1042,6 +1073,9 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
     
     def new(self):
         return Prefect(NEW_ID(), StaffName("", "", "", ""), None, None, [], None, None, {})
+    
+    def name_update(self):
+        pass
 
 class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
     def __init__(self, parent: ClassLevelsMainWidget, entry, timetable_editor: SchoolTimetableEditor, stack: QStackedWidget):
@@ -1067,13 +1101,35 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         self.info_widget.addWidget(LabeledField("Sub Classes", self.sub_class_list))
         self.info_widget.addWidget(LabeledField("Subjects Taught in this Level", self.subjects_info_list))
     
+    def add_new_classlevel_subject_info(self, subject: Subject):
+        def make_new_funcs():
+            def name_changed_func():
+                self.update_subject_info_text(subject)
+            
+            def deleted_func():
+                self.subjects_info_list.popWidget(subject.id)
+            
+            return name_changed_func, deleted_func
+        
+        name_changed_func, deleted_func = make_new_funcs()
+        
+        self.subjects_info_list.addWidget(subject.id, self.get_link(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject.id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject.id].week_max}"))
+        
+        subject_entry_widget: BaseSettingEntry = self.i_parent._window.subjects_widget.widgets[subject.id]
+        
+        subject_entry_widget.name_changed.connect(name_changed_func)
+        subject_entry_widget.deleted.connect(deleted_func)
+    
+    def update_subject_info_text(self, subject: Subject | CombinedSubject):
+        self.subjects_info_list.get(subject.id).setText(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject.id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject.id].week_max}")
+    
     def new(self):
         return ClassLevel(NEW_ID(), ClassLevelName(), {}, {}, SCHOOL.settings.TIMETABLE_weekdays.copy(), SCHOOL.settings.DEFAULT_period_amount, SCHOOL.settings.DEFAULT_break_period)
     
-    def remove(self):
+    def delete(self):
         delete_class_level(self.id, self.timetable_editor)
         
-        return super().remove()
+        return super().delete()
     
     def get_init_text(self):
         return self.entry.name, None
@@ -1089,11 +1145,11 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
 
 
 class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
+    def __init__(self, window: QMainWindow, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__(["Subject", "Combined Subject"], page_tracker, option_buttons)
+        super().__init__(["Subject", "Combined Subject"], window, page_tracker, option_buttons)
     
     def init_saved_variables(self):
         for entry in self.get_global().values():
@@ -1168,11 +1224,11 @@ class SubjectsMainWidget(BaseSettingWidget[Subject | CombinedSubject]):
             self.window().saved_state_changed.emit(True)
 
 class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
+    def __init__(self, window: QMainWindow, timetable_editor: SchoolTimetableEditor, attendance_manager: AttendanceManager, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         self.attendance_manager = attendance_manager
         
-        super().__init__(["Teacher", "Prefect"], page_tracker, option_buttons)
+        super().__init__(["Teacher", "Prefect"], window, page_tracker, option_buttons)
         
         time_settings_widget = BaseWidget(QHBoxLayout)
         
@@ -1397,10 +1453,10 @@ class StaffMainWidget(BaseSettingWidget[Teacher | Prefect]):
         return main_widget
 
 class ClassLevelsMainWidget(BaseSettingWidget[ClassLevel]):
-    def __init__(self, timetable_editor: SchoolTimetableEditor, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
+    def __init__(self, window: QMainWindow, timetable_editor: SchoolTimetableEditor, page_tracker: list[QPushButton | BaseWidget], option_buttons: QPushButton):
         self.timetable_editor = timetable_editor
         
-        super().__init__(["Class Level"], page_tracker, option_buttons)
+        super().__init__(["Class Level"], window, page_tracker, option_buttons)
     
     def get_global(self):
         return SCHOOL.class_levels

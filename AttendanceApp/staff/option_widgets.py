@@ -15,7 +15,7 @@ class StaffDataWidget(BaseOptionsWidget):
             self.staff_working_days[prefect.id] = list(prefect.duties)
         
         for teacher in SCHOOL.teachers.values():
-            self.staff_working_days[teacher.id] = list(set(flatten([[d for t, d, _ in s.get_periods() if t.id == teacher.id] for s in teacher.subjects.values()])))
+            self.staff_working_days[teacher.id] = list(set(flatten([[d for s in teacher.subjects.values() for t, d, _ in s.get_periods() if t is not None and t.id == teacher.id]])))
         
         self.attendance_amt_widget = QLabel()
         

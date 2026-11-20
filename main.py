@@ -19,6 +19,7 @@ class CmdListener(QObject):
     
     def start(self):
         def loop():
+            print()
             print(f"{TITLE} v{VERSION} [{platform.platform()}]")
             print('Type "help" for further information')
             
@@ -113,9 +114,9 @@ class Window(QMainWindow):
         self.attendance_manager = AttendanceManager()
         self.timetable_widget = SchoolTimetableEditor()
         
-        self.subjects_widget = SubjectsMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, subjects_btn)
-        self.staff_widget = StaffMainWidget(self.timetable_widget, self.attendance_manager, self.page_tracker, staff_btn)
-        self.classes_widget = ClassLevelsMainWidget(self.timetable_widget, self.page_tracker, class_levels_btn)
+        self.subjects_widget = SubjectsMainWidget(self, self.timetable_widget, self.attendance_manager, self.page_tracker, subjects_btn)
+        self.staff_widget = StaffMainWidget(self, self.timetable_widget, self.attendance_manager, self.page_tracker, staff_btn)
+        self.classes_widget = ClassLevelsMainWidget(self, self.timetable_widget, self.page_tracker, class_levels_btn)
         
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setDisabled(not v))
         self.attendance_manager.search_state_changed.connect(lambda v: self.title_bar.search_bar.setPrompt(f"Search {v}") if v else self.title_bar.search_bar.setPrompt(None))

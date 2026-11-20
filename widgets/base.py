@@ -24,6 +24,83 @@ def wrapify_text(text: str, length: int):
         return [text]
 
 
+
+class LoadingSpinner(QWidget):
+    def __init__(
+        self,
+        size=40,
+        line_width=4,
+        background_color=None,
+        speed=30,
+        parent=None
+    ):
+        super().__init__(parent)
+
+        self.size = size
+        self.line_width = line_width
+        self.color = QColor(THEME_MANAGER.process_stylesheet("{fg2}"))
+        self.background_color = (
+            QColor(background_color) if background_color else None
+        )
+
+        self.angle = 0
+
+        self.setFixedSize(size, size)
+
+        # Animation timer
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.rotate)
+        self.timer.start(speed)
+
+    def rotate(self):
+        self.angle = (self.angle + 10) % 360
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        center = self.size / 2
+        radius = center - self.line_width
+
+        rect = (
+            self.line_width,
+            self.line_width,
+            self.size - 2 * self.line_width,
+            self.size - 2 * self.line_width
+        )
+
+        # Optional background circle
+        if self.background_color:
+            pen = QPen(self.background_color, self.line_width)
+            painter.setPen(pen)
+            painter.drawEllipse(*rect)
+
+        # Spinner arc
+        pen = QPen(
+            self.color,
+            self.line_width,
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap
+        )
+
+        painter.setPen(pen)
+
+        # Draw rotating arc
+        painter.drawArc(
+            *rect,
+            self.angle * 16,
+            270 * 16
+        )
+
+        painter.end()
+
+    def start(self):
+        self.timer.start()
+
+    def stop(self):
+        self.timer.stop()
+
 class Image(QLabel):
     def __init__(self, path: Optional[str] =  None, parent=None, width: int | None = None, height: int | None = None):
         super().__init__(parent)
@@ -1250,7 +1327,7 @@ class KeyedListWidget[_T](BaseWidget):
             return super().popWidget(index)
 
     def get(self, id: ID):
-        return self._widgets[id]
+        return self._widgets.get(id)
 
 
 
@@ -1378,11 +1455,17 @@ class SettingsScreen[_T](BaseWidget):
         self.custom_settings_widget.setSpacing(10)
         self.custom_settings_widget.setContentsMargins(0, 0, 0, 0)
 
+        self._load_screens = []
+        self._load_backups = []
+        self._curr_load_index = 0
+        
         custom_settings_data = list(self.get_custom_settings_data())
         
-        for name, widget, alignment in custom_settings_data:
-            widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
-            self.custom_settings_widget.addWidget(LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum))
+        for i, (name, widget, alignment) in enumerate(custom_settings_data):
+            self._load_screens.append(LoadingSpinner(background_color=THEME_MANAGER.process_stylesheet("{bg2}")))
+            
+            self.custom_settings_widget.addWidget(self._load_screens[-1], alignment=Qt.AlignmentFlag.AlignCenter)
+            QTimer.singleShot(100, self._make_load_custom_settings_func(i, name, widget, alignment))
         
         self.body_widget = BaseWidget()
         self.body_widget.setSpacing(10)
@@ -1415,6 +1498,26 @@ class SettingsScreen[_T](BaseWidget):
         shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         shortcut.activated.connect(self.go_back)
     
+    def _make_load_custom_settings_func(self, index: int, name: str, widget: BaseWidget | QWidget, alignment: Qt.AlignmentFlag):
+        def func():
+            
+            widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
+            
+            self._load_backups.append((index, LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum)))
+            
+            for value in sorted(self._load_backups, key=lambda v: v[0]):
+                i, w = value
+                
+                if i == self._curr_load_index:
+                    self.custom_settings_widget.removeWidget(self._load_screens.pop(0))
+                    self.custom_settings_widget.addWidget(w)
+                    
+                    self._load_backups.remove(value)
+                    
+                    self._curr_load_index += 1
+        
+        return func
+    
     def _make_ext_name_changed(self, index: int, simple_line_edit: QLineEdit):
         def func(text: str):
             self._parent.extended_name_changed(index, text, simple_line_edit)
@@ -1446,9 +1549,10 @@ class SettingsScreen[_T](BaseWidget):
     def simple_name_changed(self, text: str):
         self._parent.simple_name_changed(text, self.extended_line_edits)
         self._parent.set_name_text()
-
+        
         if not self.__init:
             self.i_parent.window().saved_state_changed.emit(True)
+            self._parent.name_changed.emit(self.entry.name)
     
     def simple_name_empty(self, text: str):
         self._parent.simple_name_empty(text)
@@ -1507,12 +1611,14 @@ class SettingsScreen[_T](BaseWidget):
         
         self.stack.setCurrentWidget(self.i_parent.central_widget)
         self.stack.removeWidget(self)
-        self.deleteLater()
+        QTimer.singleShot(100, lambda: self.deleteLater())
         
         self._parent.settings_screen_closed.emit()
         self._parent.settings_screen = None
 
 class BaseSettingEntry[_T](BaseWidget):
+    name_changed = pySignal(Name)
+    deleted = pySignal()
     settings_screen_opened = pySignal()
     settings_screen_closed = pySignal()
     
@@ -1553,7 +1659,7 @@ class BaseSettingEntry[_T](BaseWidget):
         
         delete_button = QPushButton("×")
         delete_button.setProperty("class", "SettingEntryClose")
-        delete_button.clicked.connect(self.remove)
+        delete_button.clicked.connect(self.delete)
         
         self.top_area.addWidget(QLabel(f"<b>{self.general_entry_name}</b>"))
         self.top_area.addStretch()
@@ -1569,13 +1675,16 @@ class BaseSettingEntry[_T](BaseWidget):
         name_widget = BaseWidget()
         name_widget.setProperty("class", "NoBackground")
         name_widget.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignCenter)
-
+        
+        border_color_key = "dark_text" if sum(((c := QColor(THEME_MANAGER.pallete_get(f"{self.general_entry_name.replace(" ", "").lower()}_bg"))).red(), c.green(), c.blue())) / 3 > 255 / 2 else "light_text"
+        
         self.info_widget = BaseScrollWidget()
         self.info_widget.setSpacing(15)
         self.info_widget.setContentsMargins(15, 5, 15, 5)
-        self.info_widget.setStyleProperty("background-color", THEME_MANAGER.process_stylesheet(f"{{interpolate-black-0.9__{self.general_entry_name.lower().replace(" ", "")}_bg}}"))
+        self.info_widget.setStyleProperty(["background-color", "border-color", "border-width"], ["transparent", THEME_MANAGER.pallete_get(border_color_key), "1px"])
         self.info_widget.addProperty("class", "BorderRadiused")
         self.info_widget.setFixedHeight(180)
+        self.info_widget.getScrollWidget().verticalScrollBar().setProperty("class", "FG")
         
         info_area.addWidget(name_widget, stretch=55)
         info_area.addWidget(self.info_widget, stretch=45)
@@ -1617,6 +1726,7 @@ class BaseSettingEntry[_T](BaseWidget):
             
             if not self.__init:
                 self.window().saved_state_changed.emit(True)
+                self.name_changed.emit(self.entry.name)
         
         return func
     
@@ -1668,7 +1778,9 @@ class BaseSettingEntry[_T](BaseWidget):
         
         return self.settings_screen
     
-    def remove(self):
+    def delete(self):
+        self.deleted.emit()
+        
         self.i_parent.remove(self)
         self.i_parent.window().saved_state_changed.emit(True)
     
@@ -1717,9 +1829,10 @@ class BaseSettingEntry[_T](BaseWidget):
         raise NotImplementedError()
 
 class BaseSettingWidget[_T](BaseWidget):
-    def __init__(self, names: list[str], page_tracker: list[QPushButton | BaseWidget], option_button: QPushButton):
+    def __init__(self, names: list[str], window: QMainWindow, page_tracker: list[QPushButton | BaseWidget], option_button: QPushButton):
         super().__init__()
-
+        
+        self._window = window
         self.names = names
         self.page_tracker = page_tracker
         self.option_button = option_button
