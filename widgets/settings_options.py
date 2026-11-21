@@ -62,19 +62,12 @@ class Subject_SelectionList(BaseSelectionList[Teacher]):
         
         return selected, scope
     
-    def get_link(self, name: str):
-        link = QLabel(name)
-        link.setProperty("class", "Link")
-        link.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        return link
-
     def item_selected(self, id: ID, _):
         teacher = SCHOOL.teachers[id]
         
         assign_teacher(teacher, self.id)
         
-        self.teacher_info_list.addWidget(id, self._parent.get_link(teacher.name.full()))
+        self._parent.add_teacher_info(teacher)
     
     def item_removed(self, id: ID, _):
         c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and self.id in s.classes]
@@ -255,7 +248,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
         if on:
             assign_subject_class(self.entry, cls, self.timetable_editor)
             
-            self.class_info_list.addWidget(cls_id, self._parent.get_link(f"{cls.level.name.full()} {cls.name}"))
+            self._parent.add_class_info(cls)
         else:
             deassign_subject_class(self.id, cls, self.timetable_editor, self.c_subjects)
             
@@ -288,7 +281,7 @@ class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
         subject = SCHOOL.subjects[id]
         assign_combined_subject_sub_subject(self.entry, subject, self._parent, self._parent.settings_screen.get_setting_widget(CombinedSubject_DropdownCheckBoxes))
         
-        self.child_subjects_info_list.addWidget(id, self._parent.get_link(subject.name.full()))
+        self._parent.add_child_subject_info(subject)
         
         for s_id, s in SCHOOL.subjects.items():
             if not self._scope_check(s) and s_id in self.full_scope:
@@ -486,7 +479,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
         if on:
             assign_combined_subject_sub_subject_class(self.entry, subject.id, cls, self.timetable_editor)
             
-            self.offering_classes_info_list.get(subject.id).inner_widget.addWidget(cls_id, self._parent.get_link(f"{cls.level.name.full()} {cls.name}"))
+            self._parent.add_subject_offering_class_info(subject, cls)
         else:
             deassign_combined_subject_sub_subject_class(self.entry, subject.id, cls, self.timetable_editor)
             
@@ -540,7 +533,7 @@ class Teacher_SelectionList(BaseSelectionList[Subject]):
     def item_selected(self, id, _):
         assign_teacher(self.entry, id, self._parent.settings_screen.get_setting_widget(Teacher_DropdownCheckBoxes))
         
-        self.subjects_info_list.addWidget(id, self._parent.get_link(SCHOOL.subjects[id].name.full()))
+        self._parent.add_subject_info(SCHOOL.subjects[id])
     
     def item_removed(self, id, _):
         c_subjects = [s for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and id in s.classes]
@@ -837,7 +830,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         if on:
             assign_subject_class_teacher(self.entry, subject.id, cls, self.timetable_editor)
             
-            self.final_subject_class_selection_info_list.get(subject.id).inner_widget.addWidget(cls_id, self._parent.get_link(f"{cls_level.name.full()} {cls.name}"))
+            self.add_class_subject_info(subject, cls)
         else:
             deassign_subject_class_teacher(subject.id, cls, self.timetable_editor)
             
@@ -1125,7 +1118,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         self.subject_widgets[subject.id] = selection_widget
         
         if self.subjects_info_list.get(subject.id) is None:
-            self._parent.add_new_classlevel_subject_info(subject)
+            self._parent.add_subject_info(subject)
     
     def make_per_day_text_changed_func(self, subject_id: ID):
         def text_changed_func(number):
@@ -1249,8 +1242,6 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
             cls = self.entry.classes[id]
             cls.SCHOOL = SCHOOL
         
-        self.sub_class_list.addWidget(cls.id, self._parent.get_link(cls.name))
-        
         def update_option():
             cls.name = option.get_text()
             class_name_update(cls.id, self.timetable_editor)
@@ -1282,6 +1273,8 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         if is_new:
             option.start_editing()
             self.main_area.scroll_to(self.main_area.widgets[-1], 100)
+            
+            self._parent.add_sub_class_info(cls)
             
             self._parent.window().saved_state_changed.emit(True)
 
@@ -1337,7 +1330,6 @@ class Prefect_DutyAssigner(BaseScrollWidget):
         self.setFixedSize(650, 450)
         self.setContentsMargins(10, 10, 10, 10)
         
-        
         self.id = id
         self._parent = parent
         self.entry = SCHOOL.prefects[self.id]
@@ -1364,12 +1356,15 @@ class Prefect_DutyAssigner(BaseScrollWidget):
                 self.addWidget(day_widg)
             
             self.addStretch()
+        
+        self.duties_info: KeyedListWidget[LabeledField[BaseWidget]] = self._parent.duties_info
     
     def _make_entry_action_funcs(self, main_widget: BaseWidget, entry: EditableCancelableEntry, day: str):
         def update():
             index = self.duty_widgets[day].index(entry)
             
             self.entry.duties[day][index] = entry.get_text()
+            self.duties_info.get(day).inner_widget.getChildren()[index].setText(self.entry.duties[day][index])
             
             self._parent.window().saved_state_changed.emit(True)
         
@@ -1379,9 +1374,13 @@ class Prefect_DutyAssigner(BaseScrollWidget):
             self.entry.duties[day].pop(index)
             self.duty_widgets[day].pop(index)
             
+            self.duties_info.get(day).inner_widget.popWidget(index)
+            
             if not self.entry.duties[day]:
                 self.entry.duties.pop(day)
                 self.duty_widgets.pop(day)
+                
+                self.duties_info.popWidget(day)
             
             main_widget.removeWidget(entry)
             entry.deleteLater()
@@ -1409,6 +1408,7 @@ class Prefect_DutyAssigner(BaseScrollWidget):
         def func():
             if day not in self.entry.duties:
                 self.entry.duties[day] = []
+                self.duties_info.addWidget(day, BaseWidget())
             
             self.entry.duties[day].append("")
             
@@ -1417,6 +1417,8 @@ class Prefect_DutyAssigner(BaseScrollWidget):
             main_widget.addWidget(entry)
             main_widget.scroll_to(main_widget.widgets[-1], 100)
             entry.start_editing()
+            
+            self._parent.add_duty_info(day, "")
             
             self._parent.window().saved_state_changed.emit(True)
         

@@ -70,6 +70,8 @@ class Window(QMainWindow):
         self._default_file_path = None
         self.arguments = arguments
         
+        self.volatile_paths = []
+        
         i = 0
         for arg in self.arguments:
             arg = arg.strip()
@@ -95,6 +97,32 @@ class Window(QMainWindow):
         self.LOADED_SCHOOL = None
         
         self._init_save_data()
+
+        def is_valid_image(path: str) -> bool:
+            file_info = QFileInfo(path)
+
+            if not file_info.exists() or not file_info.isFile():
+                return False
+
+            image = QImage(path)
+
+            return not image.isNull()
+        
+        _staff_image_error_texts = [(staff, f"the {"teacher" if isinstance(staff, Teacher) else "prefect"} {staff.name.full()}") for staff in list(SCHOOL.prefects.values()) + list(SCHOOL.teachers.values()) if staff.img_path is not None and not is_valid_image(staff.img_path)]
+        _staff_img_error_text = ":\n   " + "\n   ".join([v for _, v in _staff_image_error_texts]) + "\n" if len(_staff_image_error_texts) > 1 else (f" {_staff_image_error_texts[0][1]}" if len(_staff_image_error_texts) == 1 else "")
+        if _staff_image_error_texts:
+            QMessageBox.warning(
+                self,
+                "FileInitializationError",
+                f"The profile {"image" if len(_staff_image_error_texts) == 1 else "images"} of{_staff_img_error_text} {"is" if len(_staff_image_error_texts) == 1 else "are"} missing or corrupted\n"
+                f"\n"
+                f"{"This" if len(_staff_image_error_texts) == 1 else "These"} profile image {"path" if len(_staff_image_error_texts) == 1 else "paths"} will be nullified"
+            )
+            
+            for staff, _ in _staff_image_error_texts:
+                staff.img_path = None
+            
+            self.saved_state_changed.emit(True)
         
         # Misc
         self.display_index = -1
@@ -411,6 +439,9 @@ class Window(QMainWindow):
     def saved_callback(self):
         self.saved = True
         self.setWindowTitle(f"{TITLE} - {os.path.abspath(self.file.path)}")
+        
+        for path in self.volatile_paths:
+            os.remove(path)
     
     def open_callback(self, path: Optional[str] = None, file_type: Optional[str] = None):
         arguments = []

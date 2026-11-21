@@ -296,12 +296,19 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
             self.select_image_pb.setMinimumWidth(min_width)
             self.select_image_pb.clicked.connect(self.open_file_dialog)
             
-            self.root_profile_pic_path = "src/images/profile"
-            
             self.addWidget(self.image)
             self.addWidget(self.select_image_pb)
             
             self.set_image_path(self.entry.img_path)
+        
+        def are_images_same(self, path1: str, path2: str) -> bool:
+            img1 = QImage(path1)
+            img2 = QImage(path2)
+
+            if img1.isNull() or img2.isNull():
+                return False
+
+            return img1 == img2
         
         def open_file_dialog(self):
             file_path, _ = QFileDialog.getOpenFileName(self, "Open Profile Image", "", ";;".join([f"{name} ({ext})" for name, ext in self.image_path_filters.items()]))
@@ -311,15 +318,20 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                 self.window().saved_state_changed.emit(True)
         
         def set_image_path(self, file_path: Optional[str]):
-            f_path = file_path or f"{self.root_profile_pic_path}/default.svg"
+            default_path = f"{self.entry_parent.root_profile_pic_path}/default.svg"
+            f_path = file_path or default_path
             
-            path_identifier = other_p_path[-2].strip() if (other_p_path := next((p.img_path.split("/") for p in SCHOOL.prefects.values() if p.id != self.entry.id and p.img_path is not None), None)) else str(id(SCHOOL))
-            d_path_w_ext = f"{self.root_profile_pic_path}/{path_identifier}/{self.entry.id}"
+            root_path = f"{self.entry_parent.root_profile_pic_path}/{self.entry_parent.project_path_identifier()}"
+            
+            d_path_w_ext = f"{root_path}/{self.entry.id}"
+            
+            if not os.path.exists(root_path):
+                os.mkdir(root_path)
             
             new_ext = f_path.split('.')[-1]
             
             src = Path(f_path)
-            dest = Path(f"{self.root_profile_pic_path}/{self.entry.id}.{new_ext}")
+            dest = Path(f"{d_path_w_ext}.{new_ext}")
             
             str_dest = str(dest)
             
@@ -331,10 +343,10 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                 if new_ext != p_s_ext and os.path.exists(p_s_dest):
                     os.remove(p_s_dest)
             
-            if src.as_posix() != dest.as_posix():
+            if src.as_posix() != dest.as_posix() and not self.are_images_same(src.as_posix(), dest.as_posix()):
                 shutil.copy(src, dest)
             
-            if file_path and self.entry.img_path != str_dest:
+            if src.as_posix() != Path(default_path).as_posix() and self.entry.img_path != str_dest:
                 self.entry.img_path = str_dest
             
             self.image.setImage(str_dest)
@@ -362,10 +374,16 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         
         super().__init__(i_parent, general_entry_name, extended_placeholders, custom_settings_format, entry, stack)
         
+        self.root_profile_pic_path = "src/images/profile"
+        
         self.info_widget.insertWidget(0, (profile_image := Image(self.entry.img_path, height=170)), alignment=Qt.AlignmentFlag.AlignCenter)
         
         if not self.entry.img_path:
             profile_image.setVisible(False)
+        
+    @staticmethod
+    def project_path_identifier():
+        return other_p_path[-2].strip() if (other_p_path := next((p.img_path.split("\\") for p in list(SCHOOL.teachers.values()) + list(SCHOOL.prefects.values()) if p.img_path is not None), None)) else str(id(SCHOOL))
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -466,6 +484,14 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
                 case 3:
                     if not text:
                         self.settings_screen.status_widget.addMessage(Status.WARN, key, f"Abbreviation is empty")
+    
+    def delete(self):
+        project_root_path = Path(f"{self.root_profile_pic_path}/{self.project_path_identifier()}")
+        
+        for path in list(project_root_path.glob(f"{self.entry.id}.*")):
+            self.i_parent._window.volatile_paths.append(path)
+        
+        return super().delete()
 
 
 class SubjectsSettingEntry(BaseSettingEntry[Subject]):
@@ -492,6 +518,19 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
         
         self.info_widget.addWidget(LabeledField("Available Teachers", self.teacher_info_list))
         self.info_widget.addWidget(LabeledField("Offering Classes", self.class_info_list))
+        
+        for teacher in SCHOOL.teachers.values():
+            if self.entry.id in teacher.subjects:
+                self.add_teacher_info(teacher)
+        
+        for cls in self.entry.classes.values():
+            self.add_class_info(cls)
+    
+    def add_teacher_info(self, teacher: Teacher):
+        self.teacher_info_list.addWidget(teacher.id, self.get_link(teacher.name.full()))
+    
+    def add_class_info(self, cls: Class):
+        self.class_info_list.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -568,6 +607,23 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
         
         self.info_widget.addWidget(LabeledField("Child Subjects", self.child_subjects_info_list))
         self.info_widget.addWidget(LabeledField("Offering Classes", self.offering_classes_info_list))
+        
+        for subject in self.entry.subjects:
+            self.add_child_subject_info(subject)
+        
+        for s_id, clses in self.entry.classes.items():
+            subject = SCHOOL.subjects[s_id]
+            
+            self.offering_classes_info_list.addWidget(s_id, LabeledField(subject.cls_name(), KeyedListWidget()))
+            
+            for cls in clses.values():
+                self.add_subject_offering_class_info(subject, cls)
+    
+    def add_child_subject_info(self, subject: Subject):
+        self.child_subjects_info_list.addWidget(id, self.get_link(subject.name.full()))
+    
+    def add_subject_offering_class_info(self, subject: Subject, cls: Class):
+        self.offering_classes_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -631,6 +687,22 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
         
         self.info_widget.addWidget(LabeledField("Subjects Taught", self.subjects_info_list))
         self.info_widget.addWidget(LabeledField("Classes where Subject is Taught", self.final_subject_class_selection_info_list))
+        
+        for subject in self.entry.subjects.values():
+            self.add_subject_info(subject)
+        
+        for subject in self.entry.subjects.values():
+            self.final_subject_class_selection_info_list.addWidget(subject.id, LabeledField(subject.cls_name(), KeyedListWidget()))
+            
+            for cls in subject.classes.values():
+                if subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None and self.entry.id == cls.subjects[subject.id].teacher.id:
+                    self.add_class_subject_info(subject, cls)
+    
+    def add_subject_info(self, subject: Teacher):
+        self.subjects_info_list.addWidget(subject.id, self.get_link(subject.name.full()))
+    
+    def add_class_subject_info(self, subject: Subject, cls: Class):
+        self.final_subject_class_selection_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
     
     def get_staff_attendance_data(self):
         weeks_data = {}
@@ -872,14 +944,20 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         
         self.duties_info: KeyedListWidget[LabeledField[QLabel]] = KeyedListWidget()
         
-        w2 = BaseWidget()
-        w2.addWidget(LabeledWidget("Duties", self.duties_info), alignment=Qt.AlignmentFlag.AlignCenter)
-        
         self.info_widget.addWidget(w1)
-        self.info_widget.addWidget(w2)
+        self.info_widget.addWidget(LabeledWidget("Duties", self.duties_info))
         
         self.set_class_label_text()
         self.set_post_label_text()
+        
+        for day, duties in self.entry.duties.items():
+            self.duties_info.addWidget(day, BaseWidget())
+            
+            for duty in duties:
+                self.add_duty_info(day, duty)
+    
+    def add_duty_info(self, day: str, duty: str):
+        self.duties_info.get(day).inner_widget.addWidget(self.get_link(duty))
     
     def _post_changed_func(self, post_id: ID):
         self.entry.post_id = post_id
@@ -1100,8 +1178,17 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         
         self.info_widget.addWidget(LabeledField("Sub Classes", self.sub_class_list))
         self.info_widget.addWidget(LabeledField("Subjects Taught in this Level", self.subjects_info_list))
+        
+        for cls in self.entry.classes.values():
+            self.add_sub_class_info(cls)
+        
+        for s_id in self.entry.subjects_occurence:
+            self.add_subject_info(SCHOOL.subjects[s_id])
     
-    def add_new_classlevel_subject_info(self, subject: Subject):
+    def add_sub_class_info(self, cls: Class):
+        self.sub_class_list.addWidget(cls.id, self.get_link(cls.name))
+    
+    def add_subject_info(self, subject: Subject):
         def make_new_funcs():
             def name_changed_func():
                 self.update_subject_info_text(subject)

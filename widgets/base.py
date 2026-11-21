@@ -119,11 +119,13 @@ class Image(QLabel):
         self._width = width or self._width
         self._height = height or self._height
         
-        if self._width is not None or self._height is not None:
-            if self._height is not None and self._width is None and size.height():
-                self.setFixedSize(int(self._height * size.width() / size.height()), self._height)
-            elif self._width is not None and self._height is None and size.width():
-                self.setFixedSize(self._width, int(self._width * size.height() / size.width()))
+        if not (self._width is None and self._height is None):
+            if self._height is not None and self._width is None:
+                if size.height():
+                    self.setFixedSize(int(self._height * size.width() / size.height()), self._height)
+            elif self._width is not None and self._height is None:
+                if size.width():
+                    self.setFixedSize(self._width, int(self._width * size.height() / size.width()))
             else:
                 self.setFixedSize(self._width, self._height)
         
@@ -1757,7 +1759,7 @@ class BaseSettingEntry[_T](BaseWidget):
     
     def set_name_text(self):
         self.name_label.setText(
-            f"<span style='font-weight: bold; font-size: 55px;'>{"<br>".join(wrapify_text(self.get_repr_text(), 50))}</span>"
+            f"<span style='font-weight: bold; font-size: 55px;'>{"<br>".join(wrapify_text(self.get_repr_text(), 25))}</span>"
             if self.get_repr_text() else
             "<i style='font-size: 55px'>NO NAME</i>"
         )

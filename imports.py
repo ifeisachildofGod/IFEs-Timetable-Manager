@@ -18,11 +18,11 @@ from PyQt6.QtGui import (
     QAction, QActionGroup, QIcon, QPixmap, QFont, QPen,
     QFontMetrics, QIntValidator, QPainter, QColor, QDrag, QCursor,
     QDragMoveEvent, QDragEnterEvent, QDropEvent, QEnterEvent, QMouseEvent,
-    QRegularExpressionValidator, QShortcut, QKeySequence, QWheelEvent
+    QRegularExpressionValidator, QShortcut, QKeySequence, QWheelEvent, QImage
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QThread, QMimeData, QSize, QTime,
-    QPoint, QPointF, QObject, QRect, QRectF, QRegularExpression,
+    QPoint, QPointF, QObject, QRect, QRectF, QRegularExpression, QFileInfo,
     QByteArray, pyqtBoundSignal as pyBoundSignal, pyqtSignal as pySignal
 )
 from PyQt6.QtSvg import QSvgRenderer
