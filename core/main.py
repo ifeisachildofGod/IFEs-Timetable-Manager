@@ -502,9 +502,6 @@ class Class:
                         sub_subject = c_subject.subjects[int(sub_subject_index) - 1]
                         teacher = teachers[int(sub_subject_teacher_index) - 1]
                         
-                        if cls.id not in sub_subject.classes:
-                            sub_subject.classes[cls.id] = cls
-                        
                         assert sub_subject.id in teacher.subjects
                         
                         if cls.id not in c_subject.classes[sub_subject.id]:
@@ -517,9 +514,6 @@ class Class:
                         cls_sub_subject.teacher = teacher
                     else:
                         sub_subject = c_subject.subjects[int(sub_subject_index_info) - 1]
-                        
-                        if cls.id not in sub_subject.classes:
-                            sub_subject.classes[cls.id] = cls
                         
                         if cls.id not in c_subject.classes[sub_subject.id]:
                             c_subject.classes[sub_subject.id][cls.id] = cls

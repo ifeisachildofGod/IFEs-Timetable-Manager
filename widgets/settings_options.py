@@ -612,8 +612,8 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             
             self.class_check_box_tracker.pop(subjectID)
             self.subject_check_box_tracker.pop(subjectID)
-            
-            self.final_subject_class_selection_info_list.popWidget(subjectID)
+        
+        self.final_subject_class_selection_info_list.popWidget(subjectID)
     
     def addCombinedSubjectSubSubject(self, combined_subject: CombinedSubject, subject: Subject, parent: BaseWidget | dict[ID, dict], scbt: dict[ID, dict], ccbt: dict[ID, dict]):
         if subject.id in self.entry.subjects and combined_subject.classes[subject.id]:
@@ -641,8 +641,8 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             
             ccbt.pop(subjectID)
             scbt.pop(subjectID)
-            
-            self.final_subject_class_selection_info_list.popWidget(subjectID)
+        
+        self.final_subject_class_selection_info_list.popWidget(subjectID)
     
     def get_combined_subjects(self):
         return {s_id: s for s_id, s in SCHOOL.subjects.items() if isinstance(s, CombinedSubject) and next((True for s_s in s.subjects if s_s.id in self.entry.subjects), False)}
@@ -1521,6 +1521,8 @@ def deassign_combined_subject_class_teacher(combinedSubjectID: ID, subjectID: ID
 def deassign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subjectID: ID, cls: Class, timetable_editor: SchoolTimetableEditor):
     deassign_combined_subject_class_teacher(c_subject.id, subjectID, cls, timetable_editor)
     
+    subject = SCHOOL.subjects[subjectID]
+    
     if cls.id in c_subject.classes[subjectID]:
         c_subject.classes[subjectID].pop(cls.id)
         
@@ -1531,9 +1533,10 @@ def deassign_combined_subject_sub_subject_class(c_subject: CombinedSubject, subj
             cls.level.subjects_occurence.pop(c_subject.id)
     
     if subjectID not in cls.subjects:
-        cls.subjects[subjectID] = SCHOOL.subjects[subjectID].passCopy()
+        if cls.id in subject.classes:
+            cls.subjects[subjectID] = subject.passCopy()
         
-        if subjectID not in cls.level.subjects_occurence:
+        if subjectID not in cls.level.subjects_occurence and next((True for c in subject.classes.values() if c.id in cls.level.classes), False):
             per_day, per_week = SCHOOL.settings.DEFAULT_occurance_data
             
             week_total = (cls.level.period_amount - 1) * len(cls.level.weekdays)
@@ -1690,14 +1693,14 @@ def delete_teacher(teacherID: ID, timetable_editor: SchoolTimetableEditor):
 def delete_class(classID: CLASS_ID, timetable_editor: SchoolTimetableEditor):
     cls = SCHOOL.class_levels[classID.class_level_id].classes[classID]
     
+    for subjectID, subject in cls.subjects.copy().items():
+        if isinstance(subject, Subject):
+            deassign_subject_class(subjectID, cls, timetable_editor)
+    
     for subject in cls.subjects.copy().values():
         if isinstance((c_subject := subject), CombinedSubject):
             for subSubjectID in c_subject.classes:
                 deassign_combined_subject_sub_subject_class(c_subject, subSubjectID, cls, timetable_editor)
-    
-    for subjectID, subject in cls.subjects.copy().items():
-        if isinstance(subject, Subject):
-            deassign_subject_class(subjectID, cls, timetable_editor)
     
     timetable_editor.delete_timetable_class(cls)
     SCHOOL.class_levels.remove_class(cls.level.id, classID)

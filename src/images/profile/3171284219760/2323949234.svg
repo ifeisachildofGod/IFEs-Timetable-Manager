@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="120"
+   height="120"
+   viewBox="0 0 120 120"
+   version="1.1"
+   id="user-profile"
+   fill="currentColor"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   sodipodi:docname="profile-icon.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="2"
+     inkscape:cx="172.5"
+     inkscape:cy="76.25"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:page
+       x="0"
+       y="0"
+       width="120"
+       height="120"
+       id="page2"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  
+    <rect
+       style="stroke:none;stroke-width:3.19051"
+       id="rect2-8"
+       width="73.606003"
+       height="3.3637893"
+       x="23.197001"
+       y="100.623"
+       ry="1.6818947"
+       transform="translate(-1.9073486e-6,-0.29979042)" />
+    <rect
+       style="stroke:none;stroke-width:3.19051"
+       id="rect2"
+       width="73.606003"
+       height="3.3637893"
+       x="23.197001"
+       y="98.959"
+       rx="0"
+       transform="translate(-1.9073486e-6,-0.29979042)" />
+    <path
+       style="stroke-width:9.49383"
+       id="path2"
+       sodipodi:type="arc"
+       sodipodi:cx="60"
+       sodipodi:cy="98.959106"
+       sodipodi:rx="36.802975"
+       sodipodi:ry="48.698887"
+       sodipodi:start="3.1415927"
+       sodipodi:end="0"
+       sodipodi:arc-type="slice"
+       d="M 23.197025,98.959106 A 36.802975,48.698887 0 0 1 60,50.26022 36.802975,48.698887 0 0 1 96.802975,98.959106 H 60 Z" />
+    <circle
+       style="stroke-width:5.3444"
+       id="path1"
+       cx="60"
+       cy="26.840149"
+       r="20" />
+</svg>
