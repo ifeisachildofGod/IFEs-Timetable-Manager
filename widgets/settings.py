@@ -1173,7 +1173,9 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         
         self.addProperty("class", "ClassLevelSettingsEntry")
         
-        self.sub_class_list = KeyedListWidget() ; self.sub_class_list.setProperty("class", "NoBackground")
+        self.sub_class_list = KeyedListFlowWidget(3)
+        self.sub_class_list.setProperty("class", "NoBackground")
+        
         self.subjects_info_list = KeyedListWidget() ; self.subjects_info_list.setProperty("class", "NoBackground")
         
         self.info_widget.addWidget(LabeledField("Sub Classes", self.sub_class_list))
@@ -1186,7 +1188,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
             self.add_subject_info(SCHOOL.subjects[s_id])
     
     def add_sub_class_info(self, cls: Class):
-        self.sub_class_list.addWidget(cls.id, self.get_link(cls.name))
+        self.sub_class_list.addWidget(cls.id, self.get_link(cls.name), alignment=Qt.AlignmentFlag.AlignCenter)
     
     def add_subject_info(self, subject: Subject):
         def make_new_funcs():

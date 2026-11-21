@@ -276,14 +276,23 @@ STYLESHEET = '''
     QScrollBar::handle:vertical:pressed, QScrollBar::handle:horizontal:pressed {{
         background-color: {pressed__scrollbar};
     }}
-    QScrollBar.FG::handle:vertical, QScrollBar.FG::handle:horizontal {{
-        background-color: {text};
+    QScrollBar.LightFG::handle:vertical, QScrollBar.LightFG::handle:horizontal {{
+        background-color: {light_text};
     }}
-    QScrollBar.FG::handle:vertical:hover, QScrollBar.FG::handle:horizontal:hover {{
-        background-color: {hover__text};
+    QScrollBar.LightFG::handle:vertical:hover, QScrollBar.LightFG::handle:horizontal:hover {{
+        background-color: {hover__light_text};
     }}
-    QScrollBar.FG::handle:vertical:pressed, QScrollBar.FG::handle:horizontal:pressed {{
-        background-color: {pressed__text};
+    QScrollBar.LightFG::handle:vertical:pressed, QScrollBar.LightFG::handle:horizontal:pressed {{
+        background-color: {pressed__light_text};
+    }}
+    QScrollBar.DarkFG::handle:vertical, QScrollBar.DarkFG::handle:horizontal {{
+        background-color: {dark_text};
+    }}
+    QScrollBar.DarkFG::handle:vertical:hover, QScrollBar.DarkFG::handle:horizontal:hover {{
+        background-color: {hover__dark_text};
+    }}
+    QScrollBar.DarkFG::handle:vertical:pressed, QScrollBar.DarkFG::handle:horizontal:pressed {{
+        background-color: {pressed__dark_text};
     }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,

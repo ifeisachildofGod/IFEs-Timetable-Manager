@@ -790,6 +790,7 @@ class BaseFlowGridWidget(BaseScrollWidget):
         if self.widget_count % self.row_max == 0:
             bg_widget = BaseWidget(QHBoxLayout)
             bg_widget.setContentsMargins(0, 0, 0, 0)
+            bg_widget.setProperty("class", "NoBackground")
             
             super().addWidget(bg_widget)
             
@@ -830,8 +831,7 @@ class BaseFlowGridWidget(BaseScrollWidget):
                 continue
             
             break
-        
-        if not coord:
+        else:
             raise ValueError(f"{a0} is not in widget")
         
         row, col = coord
@@ -848,6 +848,9 @@ class BaseFlowGridWidget(BaseScrollWidget):
             if not row_widget.getChildren(QWidget):
                 row_widget.delete()
                 self.widgets.remove(row_widget)
+    
+    def popWidget(self, index):
+        self.removeWidget(self.widgets[index // self.row_max].getChildren()[index % self.row_max])
 
 class LabeledField[_T](BaseWidget):
     def __init__(
@@ -856,6 +859,7 @@ class LabeledField[_T](BaseWidget):
         inner_widget: _T,
         width_policy: QSizePolicy.Policy | None = None,
         height_policy: QSizePolicy.Policy | None = None,
+        alignment: Optional[Qt.AlignmentFlag] = None
     ):
         super().__init__()
         
@@ -881,7 +885,7 @@ class LabeledField[_T](BaseWidget):
         self.setSpacing(6)
         
         self.addWidget(self.title_area)
-        self.addWidget(self.inner_widget)
+        self.addWidget(self.inner_widget, alignment=alignment)
     
     def setTitle(self, title: str):
         self.label.setText(title)
@@ -1331,6 +1335,49 @@ class KeyedListWidget[_T](BaseWidget):
     def get(self, id: ID):
         return self._widgets.get(id)
 
+class KeyedListFlowWidget[_T](BaseFlowGridWidget):
+    def __init__(self, row_max: int):
+        super().__init__(row_max)
+        
+        self._widgets: dict[ID, _T] = {}
+    
+    def addWidget(self, id: ID, widget: _T, stretch = None, alignment = None):
+        if id not in self._widgets:
+            self._widgets[id] = widget
+            
+            super().addWidget(widget, stretch, alignment)
+    
+    def insertWidget(self, id: ID, index: int, widget: _T, stretch = None, alignment = None):
+        if id not in self._widgets:
+            _temp = list(self._widgets.items()) ; _temp.insert(index, (id, widget))
+            
+            self._widgets.clear()
+            self._widgets.update(dict(_temp))
+            
+            return super().insertWidget(index, widget, stretch, alignment)
+    
+    def removeWidget(self, a0):
+        for id, widg in self._widgets.copy().items():
+            if a0 == widg:
+                self._widgets.pop(id)
+                break
+        else:
+            return
+        
+        return super().removeWidget(a0)
+    
+    def popWidget(self, id: ID):
+        if id in self._widgets:
+            widget = self._widgets[id]
+            
+            index = list(self._widgets.values()).index(widget)
+            self._widgets.pop(id)
+            
+            super().popWidget(index)
+            widget.deleteLater()
+
+    def get(self, id: ID):
+        return self._widgets.get(id)
 
 
 
@@ -1686,7 +1733,7 @@ class BaseSettingEntry[_T](BaseWidget):
         self.info_widget.setStyleProperty(["background-color", "border-color", "border-width"], ["transparent", THEME_MANAGER.pallete_get(border_color_key), "1px"])
         self.info_widget.addProperty("class", "BorderRadiused")
         self.info_widget.setFixedHeight(180)
-        self.info_widget.getScrollWidget().verticalScrollBar().setProperty("class", "FG")
+        self.info_widget.getScrollWidget().verticalScrollBar().setProperty("class", "DarkFG" if border_color_key == "dark_text" else "LightFG")
         
         info_area.addWidget(name_widget, stretch=55)
         info_area.addWidget(self.info_widget, stretch=45)
