@@ -321,7 +321,7 @@ class Prefect(Staff):
         post_ids = list(school.posts)
         cls_lvl_ids = list(school.class_levels)
         
-        return f"({self.info_template()}): {post_ids.index(self.post_id) + 1} {cls_lvl_ids.index(self.cls.level.id) + 1}/{list(self.cls.level.classes).index(self.cls.id) + 1} {self.duties}"
+        return f"({self.info_template()}): {post_ids.index(self.post_id) + 1} {cls_lvl_ids.index(self.cls.level.id) + 1}/{list(self.cls.level.classes).index(self.cls.id) + 1} ({" | ".join([f"{day} - {" ■ ".join(duties)}" for day, duties in self.duties.items()])})"
     
     @staticmethod
     def from_template(template: str, school):
@@ -334,9 +334,9 @@ class Prefect(Staff):
         in_brace = False
         
         for c in str_prefect_info:
-            if c == "{":
+            if c == "(":
                 in_brace = True
-            elif c == "}":
+            elif c == ")":
                 in_brace = False
             
             if not in_brace and c == " ":
@@ -353,7 +353,7 @@ class Prefect(Staff):
         else:
             cls_level_index, cls_index = None, None
         
-        return Prefect(id, name, iud, img_path, [], posts[int(post_index) - 1] if post_index else None, list(cls_levels[int(cls_level_index) - 1].classes.values())[int(cls_index) - 1] if cls_level_index else None, json.loads(duties))
+        return Prefect(id, name, iud, img_path, [], posts[int(post_index) - 1] if post_index else None, list(cls_levels[int(cls_level_index) - 1].classes.values())[int(cls_index) - 1] if cls_level_index else None, {v[0].strip(): v[1].strip().split("â–") for day_duties in duties.strip().removeprefix("(").removesuffix(")").split("|") if (v := day_duties.strip().split("-"))})
 @dataclass
 class Teacher(Staff):
     subjects: dict[ID, Subject]
@@ -504,6 +504,9 @@ class Class:
                         
                         assert sub_subject.id in teacher.subjects
                         
+                        if cls.id not in sub_subject.classes:
+                            sub_subject.classes[cls.id] = cls
+                        
                         if cls.id not in c_subject.classes[sub_subject.id]:
                             c_subject.classes[sub_subject.id][cls.id] = cls
                         
@@ -514,6 +517,9 @@ class Class:
                         cls_sub_subject.teacher = teacher
                     else:
                         sub_subject = c_subject.subjects[int(sub_subject_index_info) - 1]
+                        
+                        if cls.id not in sub_subject.classes:
+                            sub_subject.classes[cls.id] = cls
                         
                         if cls.id not in c_subject.classes[sub_subject.id]:
                             c_subject.classes[sub_subject.id][cls.id] = cls

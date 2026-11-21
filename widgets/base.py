@@ -10,6 +10,7 @@ from theme import THEME_MANAGER
 
 
 _T = TypeVar("_T")
+_T2 = TypeVar("_T2")
 
 
 def wrapify_text(text: str, length: int):
@@ -23,7 +24,37 @@ def wrapify_text(text: str, length: int):
     else:
         return [text]
 
+def singleShotDaisyChain(*path_funcs: Callable, first_func_params: Optional[tuple | Any] = None):
+    def f():
+        sub_path_funcs = list(path_funcs)
+        func = sub_path_funcs.pop(0)
+        
+        if first_func_params is not None:
+            if isinstance(first_func_params, tuple):
+                p_f_o = first_func_params
+            else:
+                p_f_o = (first_func_params, )
+        else:
+            p_f_o = ()
+        
+        output = func(*p_f_o)
+        
+        if sub_path_funcs:
+            singleShotDaisyChain(*sub_path_funcs, first_func_params=output)
+    
+    QTimer.singleShot(100, f)
 
+class CustomLabel(QLabel):
+    clicked = pySignal()
+    
+    def click(self):
+        self.clicked.emit()
+    
+    def mousePressEvent(self, ev):
+        if ev.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        
+        return super().mousePressEvent(ev)
 
 class LoadingSpinner(QWidget):
     def __init__(
@@ -101,7 +132,7 @@ class LoadingSpinner(QWidget):
     def stop(self):
         self.timer.stop()
 
-class Image(QLabel):
+class Image(CustomLabel):
     def __init__(self, path: Optional[str] =  None, parent=None, width: int | None = None, height: int | None = None):
         super().__init__(parent)
         
@@ -110,7 +141,7 @@ class Image(QLabel):
         
         if path:
             self.setImage(path, width, height)
-
+    
     def setImage(self, path: str, width: int | None = None, height: int | None = None):
         pixmap = QPixmap(path)
         
@@ -783,6 +814,22 @@ class BaseFlowGridWidget(BaseScrollWidget):
     def addSpacing(self, a0: int):
         self.widgets[-1].addSpacing(a0)
     
+    def widgetGridPos(self, a0: QWidget):
+        for col, row_widget in enumerate(self.widgets):
+            for row, widget in enumerate(row_widget.getChildren()):
+                if a0 == widget:
+                    return row, col
+        
+        raise ValueError(f"{a0} is not in widget")
+    
+    def getWidgetRow(self, a0: QWidget):
+        for row_widget in self.widgets:
+            for widget in row_widget.getChildren():
+                if a0 == widget:
+                    return row_widget
+        
+        raise ValueError(f"{a0} is not in widget")
+    
     def addStretch(self, stretch: Optional[int] = None):
         self.widgets[-1].addStretch(stretch)
     
@@ -1164,28 +1211,6 @@ class SearchEdit(QFrame):
             if dp not in self.ref_data:
                 self.options_widget.removeWidget(widg)
         
-        # added = 0
-        # for data_point, (name, right, bottom, end), (score, indices) in score_data:
-        #     if score == -1 or added >= self.MAX_RESULTS:
-        #         continue
-            
-        #     label = QLabel(
-        #         self._stylize_text_indices(
-        #             name,
-        #             f"color: {THEME_MANAGER.pallete_get("fg1")}; font-weight: bold;",
-        #             right,
-        #             bottom,
-        #             end,
-        #             indices
-        #         )
-        #     )
-        #     label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        #     label.setProperty("class", "SearchOptions")
-        #     label.mousePressEvent = self._make_option_clicked_func(data_point)
-            
-        #     self.options_widget.addWidget(label, alignment=Qt.AlignmentFlag.AlignTop)
-        #     added += 1
-        
         self.options_widget_wrapper.setVisible(added > 0)
         
         self._updating = False
@@ -1295,19 +1320,19 @@ class SearchBar(BaseWidget):
 
 
 
-class KeyedListWidget[_T](BaseWidget):
+class KeyedListWidget[_T, _T2](BaseWidget):
     def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None):
         super().__init__(layout_type)
         
-        self._widgets: dict[ID, _T] = {}
+        self._widgets: dict[_T, _T2] = {}
     
-    def addWidget(self, id: ID, widget: _T, stretch = None, alignment = None):
+    def addWidget(self, id: _T, widget: _T2, stretch = None, alignment = None):
         if id not in self._widgets:
             self._widgets[id] = widget
             
             super().addWidget(widget, stretch, alignment)
     
-    def insertWidget(self, id: ID, index: int, widget: _T, stretch = None, alignment = None):
+    def insertWidget(self, id: _T, index: int, widget: _T2, stretch = None, alignment = None):
         if id not in self._widgets:
             _temp = list(self._widgets.items()) ; _temp.insert(index, (id, widget))
             
@@ -1326,28 +1351,28 @@ class KeyedListWidget[_T](BaseWidget):
         
         return super().removeWidget(a0)
     
-    def popWidget(self, id: ID):
+    def popWidget(self, id: _T):
         if id in self._widgets:
             index = self.getChildren().index(self._widgets.pop(id))
             
             return super().popWidget(index)
 
-    def get(self, id: ID):
+    def get(self, id: _T):
         return self._widgets.get(id)
 
-class KeyedListFlowWidget[_T](BaseFlowGridWidget):
-    def __init__(self, row_max: int):
-        super().__init__(row_max)
+class KeyedListScrollWidget[_T, _T2](BaseScrollWidget):
+    def __init__(self, layout_type: Optional[type[QVBoxLayout] | type[QHBoxLayout]] = None):
+        super().__init__(layout_type)
         
-        self._widgets: dict[ID, _T] = {}
+        self._widgets: dict[_T, _T2] = {}
     
-    def addWidget(self, id: ID, widget: _T, stretch = None, alignment = None):
+    def addWidget(self, id: _T, widget: _T2, stretch = None, alignment = None):
         if id not in self._widgets:
             self._widgets[id] = widget
             
             super().addWidget(widget, stretch, alignment)
     
-    def insertWidget(self, id: ID, index: int, widget: _T, stretch = None, alignment = None):
+    def insertWidget(self, id: _T, index: int, widget: _T2, stretch = None, alignment = None):
         if id not in self._widgets:
             _temp = list(self._widgets.items()) ; _temp.insert(index, (id, widget))
             
@@ -1366,7 +1391,47 @@ class KeyedListFlowWidget[_T](BaseFlowGridWidget):
         
         return super().removeWidget(a0)
     
-    def popWidget(self, id: ID):
+    def popWidget(self, id: _T):
+        if id in self._widgets:
+            index = self.getChildren().index(self._widgets.pop(id))
+            
+            return super().popWidget(index)
+
+    def get(self, id: _T):
+        return self._widgets.get(id)
+
+class KeyedListFlowWidget[_T, _T2](BaseFlowGridWidget):
+    def __init__(self, row_max: int):
+        super().__init__(row_max)
+        
+        self._widgets: dict[_T, _T2] = {}
+    
+    def addWidget(self, id: _T, widget: _T2, stretch = None, alignment = None):
+        if id not in self._widgets:
+            self._widgets[id] = widget
+            
+            super().addWidget(widget, stretch, alignment)
+    
+    def insertWidget(self, id: _T, index: int, widget: _T2, stretch = None, alignment = None):
+        if id not in self._widgets:
+            _temp = list(self._widgets.items()) ; _temp.insert(index, (id, widget))
+            
+            self._widgets.clear()
+            self._widgets.update(dict(_temp))
+            
+            return super().insertWidget(index, widget, stretch, alignment)
+    
+    def removeWidget(self, a0):
+        for id, widg in self._widgets.copy().items():
+            if a0 == widg:
+                self._widgets.pop(id)
+                break
+        else:
+            return
+        
+        return super().removeWidget(a0)
+    
+    def popWidget(self, id: _T):
         if id in self._widgets:
             widget = self._widgets[id]
             
@@ -1376,12 +1441,12 @@ class KeyedListFlowWidget[_T](BaseFlowGridWidget):
             super().popWidget(index)
             widget.deleteLater()
 
-    def get(self, id: ID):
+    def get(self, id: _T):
         return self._widgets.get(id)
 
-
-
 class SettingsScreen[_T](BaseWidget):
+    custom_widgets_loaded = pySignal()
+    
     def __init__(
             self,
             entry: _T,
@@ -1440,7 +1505,6 @@ class SettingsScreen[_T](BaseWidget):
         
         self.simple_line_edit.textChanged.connect(self._parent.simple_name_empty)
         self.simple_line_edit.textChanged.connect(self.simple_name_changed)
-        self.simple_line_edit.returnPressed.connect(lambda: self.i_parent.enter_pressed(Qt.Key.Key_Return, self.entry.id))
         
         # ----------------------------------------------------------------------------------------
         self.edit_fmt_state = False
@@ -1500,7 +1564,7 @@ class SettingsScreen[_T](BaseWidget):
         self.header_widget.addWidget(name_widget, alignment=Qt.AlignmentFlag.AlignVCenter)
         
         # Custom Settings
-        self.custom_settings_widget = BaseWidget()
+        self.custom_settings_widget: KeyedListWidget[int, LabeledField] = KeyedListWidget()
         self.custom_settings_widget.setSpacing(10)
         self.custom_settings_widget.setContentsMargins(0, 0, 0, 0)
 
@@ -1513,7 +1577,8 @@ class SettingsScreen[_T](BaseWidget):
         for i, (name, widget, alignment) in enumerate(custom_settings_data):
             self._load_screens.append(LoadingSpinner(background_color=THEME_MANAGER.process_stylesheet("{bg2}")))
             
-            self.custom_settings_widget.addWidget(self._load_screens[-1], alignment=Qt.AlignmentFlag.AlignCenter)
+            self.custom_settings_widget.addWidget(i, self._load_screens[-1], alignment=Qt.AlignmentFlag.AlignCenter)
+            
             QTimer.singleShot(100, self._make_load_custom_settings_func(i, name, widget, alignment))
         
         self.body_widget = BaseWidget()
@@ -1524,9 +1589,9 @@ class SettingsScreen[_T](BaseWidget):
         self.body_widget.addWidget(self.custom_settings_widget)
         self.body_widget.addStretch()
         
-        _body_widget = BaseScrollWidget() ; _body_widget.addWidget(self.body_widget)
-        _body_widget.setContentsMargins(0, 0, 15, 0)
-        _body_widget.setProperty("class", "Borderless")
+        self.scroll_widget = BaseScrollWidget() ; self.scroll_widget.addWidget(self.body_widget)
+        self.scroll_widget.setContentsMargins(0, 0, 15, 0)
+        self.scroll_widget.setProperty("class", "Borderless")
         
         self.i_parent.add_buttons_widget.setVisible(False)
         
@@ -1535,7 +1600,7 @@ class SettingsScreen[_T](BaseWidget):
         self.custom_settings_widgets = {n: w for n, w, _ in custom_settings_data}
         
         self.addWidget(self.top_widget)
-        self.addWidget(_body_widget)
+        self.addWidget(self.scroll_widget)
         
         self.toogle_name_format()
         
@@ -1549,7 +1614,6 @@ class SettingsScreen[_T](BaseWidget):
     
     def _make_load_custom_settings_func(self, index: int, name: str, widget: BaseWidget | QWidget, alignment: Qt.AlignmentFlag):
         def func():
-            
             widg = BaseWidget() ; widg.addWidget(widget, alignment=alignment)
             
             self._load_backups.append((index, LabeledField(name, widg, width_policy=QSizePolicy.Policy.Minimum)))
@@ -1559,9 +1623,12 @@ class SettingsScreen[_T](BaseWidget):
                 
                 if i == self._curr_load_index:
                     self.custom_settings_widget.removeWidget(self._load_screens.pop(0))
-                    self.custom_settings_widget.addWidget(w)
+                    self.custom_settings_widget.addWidget(i, w)
                     
                     self._load_backups.remove(value)
+                    
+                    if not self._load_backups:
+                        self.custom_widgets_loaded.emit()
                     
                     self._curr_load_index += 1
         
@@ -1676,7 +1743,7 @@ class BaseSettingEntry[_T](BaseWidget):
             i_parent: "BaseSettingWidget[_T]",
             general_entry_name: str,
             extended_placeholders: list[str],
-            custom_settings_format: list[tuple[str, tuple[type[BaseWidget], tuple, Qt.AlignmentFlag] | tuple[QWidget, Qt.AlignmentFlag]]],
+            custom_settings_format: list[tuple[str, tuple[type[BaseWidget], tuple, Optional[Qt.AlignmentFlag]] | tuple[QWidget | Callable[[], QWidget], Optional[Qt.AlignmentFlag]]]],
             entry: Optional[_T],
             stack: QStackedWidget
         ):
@@ -1720,20 +1787,18 @@ class BaseSettingEntry[_T](BaseWidget):
         info_area.setProperty("class", "NoBackground")
 
         self.name_label = QLabel()
-
+        self.name_label.setProperty("class", f"{self.general_entry_name.title().replace(" ", "")}SettingsMainText")
+        
         name_widget = BaseWidget()
         name_widget.setProperty("class", "NoBackground")
         name_widget.addWidget(self.name_label, alignment=Qt.AlignmentFlag.AlignCenter)
         
-        border_color_key = "dark_text" if sum(((c := QColor(THEME_MANAGER.pallete_get(f"{self.general_entry_name.replace(" ", "").lower()}_bg"))).red(), c.green(), c.blue())) / 3 > 255 / 2 else "light_text"
-        
         self.info_widget = BaseScrollWidget()
         self.info_widget.setSpacing(15)
         self.info_widget.setContentsMargins(15, 5, 15, 5)
-        self.info_widget.setStyleProperty(["background-color", "border-color", "border-width"], ["transparent", THEME_MANAGER.pallete_get(border_color_key), "1px"])
+        self.info_widget.setStyleSheet(f"border-width: 1px")
         self.info_widget.addProperty("class", "BorderRadiused")
         self.info_widget.setFixedHeight(180)
-        self.info_widget.getScrollWidget().verticalScrollBar().setProperty("class", "DarkFG" if border_color_key == "dark_text" else "LightFG")
         
         info_area.addWidget(name_widget, stretch=55)
         info_area.addWidget(self.info_widget, stretch=45)
@@ -1758,12 +1823,6 @@ class BaseSettingEntry[_T](BaseWidget):
         self.set_name_text()
         
         self.__init = False
-    
-    def _focusInput(self):
-        if self.simple_line_edit.isVisible():
-            self.simple_line_edit.setFocus()
-        else:
-            self.extended_line_edits[0].setFocus()
     
     def _simple_name_changed(self, text: str):
         if self.settings_screen:
@@ -1794,12 +1853,35 @@ class BaseSettingEntry[_T](BaseWidget):
         
         return func
     
-    def get_link(self, name: str):
-        link = QLabel(name)
+    def make_link_func(self, index: int, *funcs: Callable):
+        def link_func():
+            settings = self.open_settings()
+            
+            def f1():
+                widget = self.get_custom_settings_option_widget(settings, index)
+                settings.scroll_widget.getScrollWidget().ensureWidgetVisible(widget)
+                
+                return widget
+            
+            settings.custom_widgets_loaded.connect(lambda: singleShotDaisyChain(f1, *funcs))
+        
+        return link_func
+    
+    def get_link(self, name: str, action: Optional[Callable[[], None]] = None):
+        link = CustomLabel(name)
         link.setProperty("class", "Link")
         link.setCursor(Qt.CursorShape.PointingHandCursor)
         
+        if action is not None:
+            link.clicked.connect(action)
+        
         return link
+    
+    def get_custom_settings_option_labeledfield_widget(self, settings_screen: SettingsScreen, index: int):
+        return settings_screen.custom_settings_widget.get(index)
+    
+    def get_custom_settings_option_widget(self, settings_screen: SettingsScreen, index: int):
+        return self.get_custom_settings_option_labeledfield_widget(settings_screen, index).inner_widget.getChildren()[0]
     
     def on_settings_open(self, settings_screen: SettingsScreen):
         pass
@@ -1814,9 +1896,6 @@ class BaseSettingEntry[_T](BaseWidget):
     def new(self) -> _T:
         raise NotImplementedError()
     
-    def focusInput(self):
-        QTimer.singleShot(100, self._focusInput)
-
     def open_settings(self):
         self.settings_screen = SettingsScreen(self.entry, self.stack, self, self.i_parent)
         

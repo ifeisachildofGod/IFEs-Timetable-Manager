@@ -351,8 +351,8 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
             
             self.image.setImage(str_dest)
             
-            parent_image: Image = self.entry_parent.info_widget.getChildren()[0] ; parent_image.setImage(str_dest)
-            parent_image.setVisible(bool(self.entry.img_path))
+            self.entry_parent.profile_image.setImage(str_dest)
+            self.entry_parent.info_widget.getChildren()[0].setVisible(bool(self.entry.img_path))
     
     card_scan_screen_opened = pySignal()
     card_scan_screen_closed = pySignal()
@@ -376,11 +376,19 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         
         self.root_profile_pic_path = "src/images/profile"
         
-        self.info_widget.insertWidget(0, (profile_image := Image(self.entry.img_path, height=170)), alignment=Qt.AlignmentFlag.AlignCenter)
+        self.profile_image = Image(self.entry.img_path, height=100)
+        self.profile_image.clicked.connect(lambda: singleShotDaisyChain(self.open_settings, lambda settings_screen: settings_screen.header_widget.getChildren()[0].select_image_pb.focusWidget()))
+        
+        w = BaseWidget()
+        w.setProperty("class", f"BG4 BorderRadiused Bordered")
+        w.setContentsMargins(15, 15, 15, 15)
+        w.addWidget(self.profile_image)
         
         if not self.entry.img_path:
-            profile_image.setVisible(False)
+            w.setVisible(False)
         
+        self.info_widget.insertWidget(0, w, alignment=Qt.AlignmentFlag.AlignCenter)
+    
     @staticmethod
     def project_path_identifier():
         return other_p_path[-2].strip() if (other_p_path := next((p.img_path.split("\\") for p in list(SCHOOL.teachers.values()) + list(SCHOOL.prefects.values()) if p.img_path is not None), None)) else str(id(SCHOOL))
@@ -527,10 +535,27 @@ class SubjectsSettingEntry(BaseSettingEntry[Subject]):
             self.add_class_info(cls)
     
     def add_teacher_info(self, teacher: Teacher):
-        self.teacher_info_list.addWidget(teacher.id, self.get_link(teacher.name.full()))
+        def last_func(subj_t_sl: Subject_SelectionList):
+            widget = subj_t_sl.widgets[teacher.id]
+            subj_t_sl.scroll_to(widget, 100)
+            
+            widget.focusWidget()
+        
+        self.teacher_info_list.addWidget(teacher.id, self.get_link(teacher.name.full(), self.make_link_func(0, last_func)))
     
     def add_class_info(self, cls: Class):
-        self.class_info_list.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
+        def open_dp(subj_t_dp_cb: Subject_DropdownCheckBoxes):
+            lvl_widget = subj_t_dp_cb.get(cls.level.id)
+            
+            subj_t_dp_cb.scroll_to(lvl_widget, 100)
+            lvl_widget.setOpen(True)
+            
+            return subj_t_dp_cb, lvl_widget, lvl_widget.widget.get(cls.id)
+        
+        def last_func(subj_t_dp_cb: Subject_DropdownCheckBoxes, lvl_widget: WidgetDropdown, subj_t_sl: BaseWidget):
+            subj_t_dp_cb.getScrollWidget().verticalScrollBar().setValue(lvl_widget.y() + subj_t_sl.y())
+        
+        self.class_info_list.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}", self.make_link_func(1, open_dp, last_func)))
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -617,13 +642,33 @@ class CombinedSubjectsSettingEntry(BaseSettingEntry[CombinedSubject]):
             self.offering_classes_info_list.addWidget(s_id, LabeledField(subject.cls_name(), KeyedListWidget()))
             
             for cls in clses.values():
-                self.add_subject_offering_class_info(subject, cls)
+                if cls.id in subject.classes:
+                    self.add_subject_offering_class_info(subject, cls)
     
     def add_child_subject_info(self, subject: Subject):
-        self.child_subjects_info_list.addWidget(id, self.get_link(subject.name.full()))
+        def last_func(cs_sl: CombinedSubject_SelectionList):
+            widget = cs_sl.widgets[subject.id]
+            cs_sl.scroll_to(cs_sl.widgets[subject.id], 100)
+            
+            widget.focusWidget()
+        
+        self.child_subjects_info_list.addWidget(subject.id, self.get_link(subject.name.full(), self.make_link_func(0, last_func)))
     
     def add_subject_offering_class_info(self, subject: Subject, cls: Class):
-        self.offering_classes_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
+        def open_subj_dp(cs_ss_dp_cb: CombinedSubject_DropdownCheckBoxes):
+            subj_widget = cs_ss_dp_cb.get(subject.id)
+            
+            cs_ss_dp_cb.scroll_to(subj_widget, 100)
+            subj_widget.setOpen(True)
+            
+            subj_widget.widget.get(cls.level.id).setOpen(True)
+            
+            return cs_ss_dp_cb, subj_widget, subj_widget.widget.get(cls.level.id)
+        
+        def last_func(cs_ss_dp_cb: CombinedSubject_DropdownCheckBoxes, subj_widget: WidgetDropdown, lvl_wd: WidgetDropdown):
+            cs_ss_dp_cb.getScrollWidget().verticalScrollBar().setValue(subj_widget.y() + lvl_wd.y() + lvl_wd.widget.get(cls.id).y())
+        
+        self.offering_classes_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}", self.make_link_func(1, open_subj_dp, last_func)))
     
     def open_settings(self):
         settings_screen = super().open_settings()
@@ -695,14 +740,41 @@ class TeachersSettingEntry(StaffSettingEntry[Teacher]):
             self.final_subject_class_selection_info_list.addWidget(subject.id, LabeledField(subject.cls_name(), KeyedListWidget()))
             
             for cls in subject.classes.values():
-                if subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None and self.entry.id == cls.subjects[subject.id].teacher.id:
+                if next((True for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and s.classes.get(subject.id, {}).get(cls.id)), False) or (subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None and self.entry.id == cls.subjects[subject.id].teacher.id):
                     self.add_class_subject_info(subject, cls)
     
-    def add_subject_info(self, subject: Teacher):
-        self.subjects_info_list.addWidget(subject.id, self.get_link(subject.name.full()))
+    def add_subject_info(self, subject: Subject):
+        def last_func(t_sl: Teacher_SelectionList):
+            widget = t_sl.widgets[subject.id]
+            t_sl.scroll_to(t_sl.widgets[subject.id], 100)
+            
+            widget.focusWidget()
+        
+        self.subjects_info_list.addWidget(subject.id, self.get_link(subject.name.full(), self.make_link_func(0, last_func)))
     
     def add_class_subject_info(self, subject: Subject, cls: Class):
-        self.final_subject_class_selection_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}"))
+        def open_subj_dp(subj_t_dp_cb: Teacher_DropdownCheckBoxes):
+            if (c_subj_id := next((s.id for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and s.classes.get(subject.id, {}).get(cls.id)), None)):
+                c_subj_widget = subj_t_dp_cb.get(c_subj_id)
+                subj_t_dp_cb.scroll_to(c_subj_widget, 100)
+                
+                c_subj_widget.setOpen(True)
+                
+                subj_widget = c_subj_widget.widget.get(subject.id)
+            else:
+                subj_widget = subj_t_dp_cb.get(subject.id)
+                subj_t_dp_cb.scroll_to(subj_widget, 100)
+            
+            subj_widget.setOpen(True)
+            
+            subj_widget.widget.get(cls.level.id).setOpen(True)
+            
+            return subj_t_dp_cb, subj_widget, subj_widget.widget.get(cls.level.id)
+        
+        def last_func(subj_t_dp_cb: Teacher_DropdownCheckBoxes, subj_widget: WidgetDropdown, lvl_wd: WidgetDropdown):
+            subj_t_dp_cb.getScrollWidget().verticalScrollBar().setValue(subj_widget.y() + lvl_wd.y() + lvl_wd.widget.get(cls.id).y())
+        
+        self.final_subject_class_selection_info_list.get(subject.id).inner_widget.addWidget(cls.id, self.get_link(f"{cls.level.name.full()} {cls.name}", self.make_link_func(1, open_subj_dp, last_func)))
     
     def get_staff_attendance_data(self):
         weeks_data = {}
@@ -938,26 +1010,38 @@ class PrefectsSettingEntry(StaffSettingEntry[Prefect]):
         self.class_info_label = QLabel()
         self.post_info_label = QLabel()
         
+        self.duties_info: KeyedListWidget[str, LabeledField[KeyedListWidget[int, QLabel]]] = KeyedListWidget()
+        
         w1 = BaseWidget(QHBoxLayout)
         w1.addWidget(LabeledField("Class", self.class_info_label))
         w1.addWidget(LabeledField("Post", self.post_info_label))
         
-        self.duties_info: KeyedListWidget[LabeledField[QLabel]] = KeyedListWidget()
+        w2 = BaseWidget()
+        w2.addWidget(LabeledField("Duties", self.duties_info))
         
         self.info_widget.addWidget(w1)
-        self.info_widget.addWidget(LabeledWidget("Duties", self.duties_info))
+        self.info_widget.addWidget(w2)
         
         self.set_class_label_text()
         self.set_post_label_text()
         
         for day, duties in self.entry.duties.items():
-            self.duties_info.addWidget(day, BaseWidget())
+            self.duties_info.addWidget(day, LabeledField(day, KeyedListWidget()))
             
-            for duty in duties:
-                self.add_duty_info(day, duty)
+            for i in range(len(duties)):
+                self.add_duty_info(day, i)
     
-    def add_duty_info(self, day: str, duty: str):
-        self.duties_info.get(day).inner_widget.addWidget(self.get_link(duty))
+    def add_duty_info(self, day: str, index: int):
+        def f2(pref_da: Prefect_DutyAssigner):
+            main_widget = pref_da.get(day)
+            pref_da.scroll_to(main_widget, 100)
+            
+            widget = main_widget.inner_widget.get(index)
+            main_widget.inner_widget.scroll_to(widget)
+            
+            widget.start_editing()
+        
+        self.duties_info.get(day).inner_widget.addWidget(index, self.get_link(self.entry.duties[day][index], self.make_link_func(2, f2)))
     
     def _post_changed_func(self, post_id: ID):
         self.entry.post_id = post_id
@@ -1174,9 +1258,7 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         self.addProperty("class", "ClassLevelSettingsEntry")
         
         self.sub_class_list = KeyedListFlowWidget(3)
-        self.sub_class_list.setProperty("class", "NoBackground")
-        
-        self.subjects_info_list = KeyedListWidget() ; self.subjects_info_list.setProperty("class", "NoBackground")
+        self.subjects_info_list = KeyedListWidget()
         
         self.info_widget.addWidget(LabeledField("Sub Classes", self.sub_class_list))
         self.info_widget.addWidget(LabeledField("Subjects Taught in this Level", self.subjects_info_list))
@@ -1188,7 +1270,13 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
             self.add_subject_info(SCHOOL.subjects[s_id])
     
     def add_sub_class_info(self, cls: Class):
-        self.sub_class_list.addWidget(cls.id, self.get_link(cls.name), alignment=Qt.AlignmentFlag.AlignCenter)
+        def last_func(lvl_c_maker: ClassLevel_ClassMaker):
+            editable_option_widget = lvl_c_maker.main_area.get(cls.id)
+            
+            lvl_c_maker.main_area.scroll_to(lvl_c_maker.main_area.getWidgetRow(editable_option_widget), 100)
+            editable_option_widget.start_editing()
+        
+        self.sub_class_list.addWidget(cls.id, self.get_link(cls.name, self.make_link_func(0, last_func)), alignment=Qt.AlignmentFlag.AlignCenter)
     
     def add_subject_info(self, subject: Subject):
         def make_new_funcs():
@@ -1202,7 +1290,13 @@ class ClassLevelsSettingEntry(BaseSettingEntry[ClassLevel]):
         
         name_changed_func, deleted_func = make_new_funcs()
         
-        self.subjects_info_list.addWidget(subject.id, self.get_link(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject.id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject.id].week_max}"))
+        def last_func(lvl_occ_editor: ClassLevel_OccuranceEditor):
+            occ_edit_widget = lvl_occ_editor.central_widget.get(subject.id)
+            
+            lvl_occ_editor.central_widget.scroll_to(occ_edit_widget, 100)
+            occ_edit_widget.per_day_edit.edit.setFocus()
+        
+        self.subjects_info_list.addWidget(subject.id, self.get_link(f"{subject.cls_name()} - Max In a Day: {self.entry.subjects_occurence[subject.id].day_max}, Max In a Week: {self.entry.subjects_occurence[subject.id].week_max}", self.make_link_func(1, last_func)))
         
         subject_entry_widget: BaseSettingEntry = self.i_parent._window.subjects_widget.widgets[subject.id]
         

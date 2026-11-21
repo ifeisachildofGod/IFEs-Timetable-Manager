@@ -21,7 +21,7 @@ class Subject_SelectionList(BaseSelectionList[Teacher]):
         
         self.timetable_editor = timetable_editor
         
-        self.teacher_info_list: KeyedListWidget[QLabel] = self._parent.teacher_info_list
+        self.teacher_info_list: KeyedListWidget[ID, QLabel] = self._parent.teacher_info_list
     
     def _get_list_data(self, id: ID):
         selected = {t_id: teacher for t_id, teacher in SCHOOL.teachers.items() if id in teacher.subjects}
@@ -83,7 +83,7 @@ class Subject_SelectionList(BaseSelectionList[Teacher]):
         
         self.teacher_info_list.popWidget(id)
 
-class Subject_DropdownCheckBoxes(BaseScrollWidget):
+class Subject_DropdownCheckBoxes(KeyedListScrollWidget[ID, WidgetDropdown]):
     def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor):
         super().__init__()
         
@@ -106,21 +106,14 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
         
         self.class_check_box_tracker = {"widget_dp": {}, "main_cb": {}, "sub_cbs": {}, "min_rem": {}}
         
-        self.class_info_list: KeyedListWidget[QLabel] = self._parent.class_info_list
+        self.class_info_list: KeyedListWidget[CLASS_ID, QLabel] = self._parent.class_info_list
         
-        for widget in self.make_school_widget_dropdowns():
-            self.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
+        for lvl_id, widget in self.make_school_widget_dropdowns():
+            self.addWidget(lvl_id, widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         self.addStretch()
         
         self.__init = False
-    
-    def get_link(self, name: str):
-        link = QLabel(name)
-        link.setProperty("class", "Link")
-        link.setCursor(Qt.CursorShape.PointingHandCursor)
-        
-        return link
     
     def go_to(self, lvl_id: ID, cls_id: Optional[CLASS_ID] = None):
         if cls_id is None:
@@ -142,7 +135,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
             self.class_check_box_tracker["sub_cbs"][lvl_id][cls_id].setFocus()
     
     def make_school_widget_dropdowns(self):
-        widgets: list[QWidget] = []
+        widgets: list[tuple[ID, BaseWidget]] = []
         all_clicked_checkboxes: list[QCheckBox] = []
         
         for lvl_id, cls_lvl in SCHOOL.class_levels.items():
@@ -164,7 +157,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
             
             all_clicked_checkboxes.extend(to_be_clicked)
             
-            widgets.append(main_widget)
+            widgets.append((lvl_id, main_widget))
         
         for cb in all_clicked_checkboxes:
             cb.click()
@@ -172,7 +165,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
         return widgets
     
     def make_level_dp_widget(self, lvl_id: ID, cls_lvl: ClassLevel):
-        dp_widget = BaseWidget()
+        dp_widget: KeyedListWidget[CLASS_ID, BaseWidget] = KeyedListWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
         
@@ -196,7 +189,7 @@ class Subject_DropdownCheckBoxes(BaseScrollWidget):
             option_widget.addStretch()
             option_widget.addWidget(dp_checkbox)
             
-            dp_widget.addWidget(option_widget)
+            dp_widget.addWidget(cls_id, option_widget)
         
         dp_widget.setVisible(False)
         
@@ -265,7 +258,7 @@ class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
         
         self.timetable_editor = timetable_editor
         
-        self.child_subjects_info_list: KeyedListWidget[QLabel] = self._parent.child_subjects_info_list
+        self.child_subjects_info_list: KeyedListWidget[ID, QLabel] = self._parent.child_subjects_info_list
         
     def _scope_check(self, subject: Subject | CombinedSubject):
         return isinstance(subject, Subject)
@@ -298,7 +291,7 @@ class CombinedSubject_SelectionList(BaseSelectionList[Subject]):
                 self.full_scope[s_id] = s
                 self.insertWidget(len(self.full_scope) - 1, SL_UnSelectedWidget(self, s_id, s.name.full(), self.item_selected, self.item_removed, self._parent.window()))
 
-class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
+class CombinedSubject_DropdownCheckBoxes(KeyedListScrollWidget[ID, WidgetDropdown]):
     def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor):
         super().__init__()
         
@@ -321,7 +314,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
         self.subject_check_box_tracker = {}
         self.class_check_box_tracker = {}
         
-        self.offering_classes_info_list: KeyedListWidget[LabeledField[KeyedListWidget[QLabel]]] = self._parent.offering_classes_info_list
+        self.offering_classes_info_list: KeyedListWidget[ID, LabeledField[KeyedListWidget[CLASS_ID, QLabel]]] = self._parent.offering_classes_info_list
         
         for subject in self.entry.subjects:
             self.addSubject(subject)
@@ -343,21 +336,19 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
         
         self.subject_check_box_tracker[subject.id]["widget_dp"] = WidgetDropdown(subject.name.full(), self.make_subject_widget(subject))
         
-        self.insertWidget(len(self.getChildren(WidgetDropdown)), self.subject_check_box_tracker[subject.id]["widget_dp"], alignment=Qt.AlignmentFlag.AlignTop)
+        self.insertWidget(subject.id, len(self.getChildren(WidgetDropdown)), self.subject_check_box_tracker[subject.id]["widget_dp"], alignment=Qt.AlignmentFlag.AlignTop)
         
         self.offering_classes_info_list.addWidget(subject.id, LabeledField(subject.cls_name(), KeyedListWidget()))
     
     def removeSubject(self, subjectID: ID):
         self.class_check_box_tracker.pop(subjectID)
-        subject_info = self.subject_check_box_tracker.pop(subjectID)
         
-        self.removeWidget(subject_info["widget_dp"])
-        subject_info["widget_dp"].deleteLater()
+        self.popWidget(subjectID)
         
         self.offering_classes_info_list.removeWidget(subjectID)
     
     def make_subject_widget(self, subject: Subject):
-        widgets: list[QWidget] = []
+        widgets: list[tuple[ID, KeyedListWidget[CLASS_ID, BaseWidget]]] = []
         
         all_clicked = []
         
@@ -379,24 +370,24 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
             
             all_clicked.extend(to_be_clicked)
             
-            widgets.append(main_widget)
+            widgets.append((cls.level.id, main_widget))
             
             main_widget.header.addWidget(select_all_check_box)
         
         for cb in all_clicked:
             cb.click()
         
-        container_widget = BaseWidget()
+        container_widget = KeyedListWidget()\
         
-        for widget in widgets:
-            container_widget.addWidget(widget, alignment=Qt.AlignmentFlag.AlignTop)
+        for lvl_id, widget in widgets:
+            container_widget.addWidget(lvl_id, widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         container_widget.setVisible(False)
         
         return container_widget
     
     def make_level_dp_widget(self, subject: Subject, lvl: ClassLevel):
-        dp_widget = BaseWidget()
+        dp_widget = KeyedListWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
         
@@ -405,7 +396,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
         for cls_id, cls in subject.classes.items():
             if (
                     cls_id not in lvl.classes or
-                    (subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None) or
+                    (subject.id in cls.subjects and cls.subjects[subject.id].teacher is not None and cls.id not in self.entry.classes[subject.id]) or
                     next((True for s in SCHOOL.subjects.values() if isinstance(s, CombinedSubject) and s.id != self.entry.id and subject.id in s.classes and cls_id in s.classes[subject.id]), False)
                 ):
                 continue
@@ -428,7 +419,7 @@ class CombinedSubject_DropdownCheckBoxes(BaseScrollWidget):
             option_widget.addStretch()
             option_widget.addWidget(dp_checkbox)
             
-            dp_widget.addWidget(option_widget)
+            dp_widget.addWidget(cls.id, option_widget)
         
         dp_widget.setVisible(False)
         
@@ -496,7 +487,7 @@ class Teacher_SelectionList(BaseSelectionList[Subject]):
         
         self.timetable_editor = timetable_editor
         
-        self.subjects_info_list: KeyedListWidget[QLabel] = self._parent.subjects_info_list
+        self.subjects_info_list: KeyedListWidget[ID, QLabel] = self._parent.subjects_info_list
     
     def _scope_check(self, teacher_id: ID, subject: Subject | CombinedSubject):
         if not isinstance(subject, Subject):
@@ -542,7 +533,7 @@ class Teacher_SelectionList(BaseSelectionList[Subject]):
         
         self.subjects_info_list.popWidget(id)
 
-class Teacher_DropdownCheckBoxes(BaseScrollWidget):
+class Teacher_DropdownCheckBoxes(KeyedListScrollWidget):
     def __init__(self, parent: BaseSettingEntry, id: ID, timetable_editor: SchoolTimetableEditor):
         super().__init__()
         
@@ -565,7 +556,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         self.subject_check_box_tracker = {}
         self.class_check_box_tracker = {}
         
-        self.final_subject_class_selection_info_list: KeyedListWidget[LabeledField[KeyedListWidget[QLabel]]] = self._parent.final_subject_class_selection_info_list
+        self.final_subject_class_selection_info_list: KeyedListWidget[ID, LabeledField[KeyedListWidget[CLASS_ID, QLabel]]] = self._parent.final_subject_class_selection_info_list
         
         for subject in self.entry.subjects.values():
             self.addSubject(subject)
@@ -588,7 +579,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             main_widget.title_label.setText(metrics.elidedText(main_widget.title_label.text(), Qt.TextElideMode.ElideRight, 200))
             main_widget.title_label.setToolTip(main_widget.title_label.text())
             
-            self.insertWidget(len(self.getChildren(WidgetDropdown)), main_widget, alignment=Qt.AlignmentFlag.AlignTop)
+            self.insertWidget(subject.id, len(self.getChildren(WidgetDropdown)), main_widget, alignment=Qt.AlignmentFlag.AlignTop)
             
             self.final_subject_class_selection_info_list.addWidget(subject.id, LabeledField(subject.cls_name(), KeyedListWidget()))
     
@@ -603,19 +594,18 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         combined_subject_widget.title_label.setText(metrics.elidedText(combined_subject_widget.title_label.text(), Qt.TextElideMode.ElideRight, 200))
         combined_subject_widget.title_label.setToolTip(combined_subject_widget.title_label.text())
     
-        self.insertWidget(len(self.getChildren(WidgetDropdown)), combined_subject_widget, alignment=Qt.AlignmentFlag.AlignTop)
+        self.insertWidget(combined_subject.id, len(self.getChildren(WidgetDropdown)), combined_subject_widget, alignment=Qt.AlignmentFlag.AlignTop)
     
     def removeSubject(self, subjectID: ID):
         if subjectID in self.subject_check_box_tracker:
-            self.removeWidget(self.subject_check_box_tracker[subjectID]["widget_dp"])
-            self.subject_check_box_tracker[subjectID]["widget_dp"].deleteLater()
+            self.popWidget(subjectID)
             
             self.class_check_box_tracker.pop(subjectID)
             self.subject_check_box_tracker.pop(subjectID)
         
         self.final_subject_class_selection_info_list.popWidget(subjectID)
     
-    def addCombinedSubjectSubSubject(self, combined_subject: CombinedSubject, subject: Subject, parent: BaseWidget | dict[ID, dict], scbt: dict[ID, dict], ccbt: dict[ID, dict]):
+    def addCombinedSubjectSubSubject(self, combined_subject: CombinedSubject, subject: Subject, parent: KeyedListWidget | dict[ID, dict], scbt: dict[ID, dict], ccbt: dict[ID, dict]):
         if subject.id in self.entry.subjects and combined_subject.classes[subject.id]:
             scbt[subject.id] = {}
             ccbt[subject.id] = {"main_cb": {}, "widget_dp": {}, "sub_cbs": {}, "cls_cb_widget": {}, "max_random": {}}
@@ -627,7 +617,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             elif isinstance(parent, dict):
                 widget = parent["widget_dp"].widget
             
-            widget.insertWidget(len(widget.getChildren(WidgetDropdown)), scbt[subject.id]["widget_dp"], alignment=Qt.AlignmentFlag.AlignTop)
+            widget.insertWidget(subject.id, len(widget.getChildren(WidgetDropdown)), scbt[subject.id]["widget_dp"], alignment=Qt.AlignmentFlag.AlignTop)
             
             self.final_subject_class_selection_info_list.addWidget(subject.id, LabeledField(subject.cls_name(), KeyedListWidget()))
     
@@ -636,8 +626,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         scbt = self.subject_check_box_tracker[combinedSubjectID]["content"]
         
         if subjectID in scbt:
-            self.subject_check_box_tracker[combinedSubjectID]["widget_dp"].widget.removeWidget(scbt[subjectID]["widget_dp"])
-            scbt[subjectID]["widget_dp"].deleteLater()
+            self.subject_check_box_tracker[combinedSubjectID]["widget_dp"].widget.popWidget(subjectID)
             
             ccbt.pop(subjectID)
             scbt.pop(subjectID)
@@ -721,7 +710,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         
         class_level_ids = (combined_subject and set([c.level.id for c in combined_subject.classes[subject.id].values()])) or set([c.level.id for c in subject.classes.values()])
         
-        container_widget = BaseWidget()
+        container_widget = KeyedListWidget()
         
         all_clicked: list[QCheckBox] = []
         
@@ -764,7 +753,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
                 
                 all_clicked.extend(to_be_clicked)
                 
-                container_widget.addWidget(main_widget, alignment=Qt.AlignmentFlag.AlignTop)
+                container_widget.addWidget(cls_level.id, main_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
         for cb in all_clicked:
             cb.click()
@@ -774,7 +763,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         return container_widget
     
     def make_level_dp_widget(self, subject: Subject, lvl: ClassLevel, *args):
-        dp_widget = BaseWidget()
+        dp_widget = KeyedListWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
         
@@ -809,15 +798,16 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             option_widget.addWidget(dp_title)
             option_widget.addStretch()
             if is_disabled:
-                link_label = QLabel(u_subject.teacher.name.full())
-                link_label.mousePressEvent = self.make_link_func(u_subject.id, lvl.id, cls.id, u_subject.teacher)
+                link_label = CustomLabel(u_subject.teacher.name.full())
+                link_label.clicked.connect(self.make_link_func(u_subject.teacher.id, u_subject.id, cls.id))
                 link_label.setProperty("class", "Link")
+                link_label.setCursor(Qt.CursorShape.PointingHandCursor)
                 
                 option_widget.addWidget(link_label)
             else:
                 option_widget.addWidget(dp_checkbox)
             
-            dp_widget.addWidget(option_widget)
+            dp_widget.addWidget(cls.id, option_widget)
         
         dp_widget.setVisible(False)
         
@@ -836,22 +826,12 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             
             self.final_subject_class_selection_info_list.get(subject.id).inner_widget.popWidget(cls_id)
     
-    def make_link_func(self, s_id: ID, lvl_id: ID, cls_id: CLASS_ID, teacher: Teacher, c_s_id: Optional[ID] = None):
-        def func(e):
-            self.close()
-            
-            def func1():
-                widget = self._parent.go_to(teacher)
+    def make_link_func(self, t_id: ID, s_id: ID, cls_id: CLASS_ID):
+        def func():
+            if self._parent.settings_screen:
+                self._parent.settings_screen.go_back()
                 
-                QTimer.singleShot(500, lambda: func2(widget.dialog_widget_funcs[0]))
-            
-            def func2(d_func: Callable[[], BaseScrollWidget]):
-                w = d_func()
-                QTimer.singleShot(500, lambda: w.go_to(s_id, lvl_id, cls_id, c_s_id))
-                
-                w.exec()
-            
-            QTimer.singleShot(500, func1)
+                QTimer.singleShot(100, lambda: self._parent.i_parent.widgets[t_id].final_subject_class_selection_info_list.get(s_id).inner_widget.get(cls_id).click())
         
         return func
     
@@ -927,7 +907,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         return checkbox_func
     
     def c_make_subject_widget(self, combined_subject: CombinedSubject, scbt: dict[ID, dict], ccbt: dict[ID, dict]):
-        c_widget = BaseWidget()
+        c_widget = KeyedListWidget()
         
         for subject in combined_subject.subjects:
             self.addCombinedSubjectSubSubject(combined_subject, subject, c_widget, scbt, ccbt)
@@ -935,7 +915,7 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
         return c_widget
     
     def c_make_level_dp_widget(self, subject: Subject, lvl: ClassLevel, ccbt: dict[ID, dict], combined_subject: CombinedSubject):
-        dp_widget = BaseWidget()
+        dp_widget = KeyedListWidget()
         dp_widget.setProperty("class", "DPC_Body")
         dp_widget.setSpacing(2)
         
@@ -972,15 +952,16 @@ class Teacher_DropdownCheckBoxes(BaseScrollWidget):
             option_widget.addWidget(dp_title)
             option_widget.addStretch()
             if is_disabled:
-                link_label = QLabel(u_subject.teacher.name.full())
-                link_label.mousePressEvent = self.make_link_func(subject.id, lvl.id, cls.id, u_subject.teacher, combined_subject.id)
+                link_label = CustomLabel(u_subject.teacher.name.full())
+                link_label.clicked.connect(self.make_link_func(u_subject.teacher.id, subject.id, cls.id))
                 link_label.setProperty("class", "Link")
+                link_label.setCursor(Qt.CursorShape.PointingHandCursor)
                 
                 option_widget.addWidget(link_label)
             else:
                 option_widget.addWidget(dp_checkbox)
             
-            dp_widget.addWidget(option_widget)
+            dp_widget.addWidget(cls.id, option_widget)
         
         dp_widget.setVisible(False)
         
@@ -1013,7 +994,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         
         self.timetable_editor = timetable_editor
         
-        self.central_widget = BaseScrollWidget()
+        self.central_widget: KeyedListScrollWidget[ID, _SubjectOccuranceEdit] = KeyedListScrollWidget()
         self.remainder_slots_label = QLabel()
         
         self.setSpacing(5)
@@ -1031,7 +1012,7 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         self.subject_widgets: dict[str, QWidget] = {}
         self.number_edits: dict[str, tuple[NumberLineEdit, NumberLineEdit]] = {}
         
-        self.subjects_info_list: KeyedListWidget[QLabel] = self._parent.subjects_info_list
+        self.subjects_info_list: KeyedListWidget[ID, QLabel] = self._parent.subjects_info_list
         
         for subject_id in self.entry.subjects_occurence:
             self.add_subject(SCHOOL.subjects[subject_id])
@@ -1063,25 +1044,9 @@ class ClassLevel_OccuranceEditor(BaseWidget):
                 break
     
     def add_subject(self, subject: Subject):
-        selection_widget = BaseWidget(QHBoxLayout)
-        selection_widget.setProperty("class", "SubjectClassViewEntry")
+        selection_widget = _SubjectOccuranceEdit(self.entry, subject)
         
-        metrics = QFontMetrics(self.font())
-        subjects_label = QLabel(metrics.elidedText(subject.name.full(), Qt.TextElideMode.ElideRight, 100))
-        subjects_label.setFont(self.font())
-        subjects_label.setToolTip(subject.name.full())
-        subjects_label.setProperty("class", "SubjectClassViewEntryName")
-        
-        sub_widget = BaseWidget()
-        sub_widget.setProperty("class", "SubjectClassViewEntryEdits")
-        
-        selection_widget.addWidget(subjects_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        selection_widget.addWidget(sub_widget, alignment=Qt.AlignmentFlag.AlignRight)
-        
-        per_day_edit = NumberLineEdit(self.entry.subjects_occurence[subject.id].day_max, 1, self.entry.subjects_occurence[subject.id].week_max)
-        # per_day_edit.edit.setFixedWidth(50)
-        per_day_edit.setPlaceholderText("Per day")
-        per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject.id))
+        selection_widget.per_day_edit.textChanged.connect(self.make_per_day_text_changed_func(subject.id))
         
         subjects = set([])
         for cls in self.entry.classes.values():
@@ -1090,31 +1055,11 @@ class ClassLevel_OccuranceEditor(BaseWidget):
         
         self.focuses_ids[subject.id] = subjects
         
-        per_week_edit = NumberLineEdit(self.entry.subjects_occurence[subject.id].week_max, 1, self.entry.subjects_occurence[subject.id].week_max + 1)
-        # per_week_edit.edit.setFixedWidth(54)
-        per_week_edit.setPlaceholderText("Per week")
-        per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject.id))
+        selection_widget.per_week_edit.textChanged.connect(self.make_per_week_text_changed_func(subject.id))
         
-        per_day_widget = BaseWidget(QHBoxLayout)
-        per_day_widget.setProperty("class", "Edit")
-        per_day_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
+        self.central_widget.addWidget(subject.id, selection_widget, alignment=Qt.AlignmentFlag.AlignTop)
         
-        per_day_widget.addWidget(QLabel("<b>Per day</b>"))
-        per_day_widget.addWidget(per_day_edit)
-        
-        per_week_widget = BaseWidget(QHBoxLayout)
-        per_week_widget.setProperty("class", "Edit")
-        per_week_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
-        
-        per_week_widget.addWidget(QLabel("<b>Per week</b>"))
-        per_week_widget.addWidget(per_week_edit)
-        
-        sub_widget.addWidget(per_day_widget)
-        sub_widget.addWidget(per_week_widget)
-        
-        self.central_widget.addWidget(selection_widget, alignment=Qt.AlignmentFlag.AlignTop)
-        
-        self.number_edits[subject.id] = per_day_edit, per_week_edit
+        self.number_edits[subject.id] = selection_widget.per_day_edit, selection_widget.per_week_edit
         self.subject_widgets[subject.id] = selection_widget
         
         if self.subjects_info_list.get(subject.id) is None:
@@ -1193,7 +1138,7 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         
         self.max_cols = 4  # Maximum number of columns before wrapping
         
-        self.main_area = BaseFlowGridWidget(self.max_cols)
+        self.main_area: KeyedListFlowWidget[CLASS_ID, EditableCancelableEntry] = KeyedListFlowWidget(self.max_cols)
         self.main_area.setVerticalSpacing(4)
         self.main_area.setContentsMargins(0, 0, 0, 0)
         self.main_area.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
@@ -1211,7 +1156,7 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         
         del temp_option
         
-        self.sub_class_list: KeyedListWidget[QLabel] = self._parent.sub_class_list
+        self.sub_class_list: KeyedListWidget[CLASS_ID, QLabel] = self._parent.sub_class_list
         
         # Load existing options
         for class_id, cls in self.entry.classes.items():
@@ -1258,7 +1203,7 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         def remove_option():
             delete_class(id, self.timetable_editor)
             
-            self.main_area.removeWidget(option)
+            self.main_area.popWidget(id)
             option.deleteLater()
             
             self.sub_class_list.popWidget(id)
@@ -1268,7 +1213,7 @@ class ClassLevel_ClassMaker(BaseScrollWidget):
         option.deleted.connect(remove_option)
         
         # Add to grid and wrap to next row if needed
-        self.main_area.addWidget(option, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.main_area.addWidget(id, option, alignment=Qt.AlignmentFlag.AlignCenter)
         
         if is_new:
             option.start_editing()
@@ -1323,7 +1268,7 @@ class Prefect_ClassSelector(BaseScrollWidget):
         
         return func
 
-class Prefect_DutyAssigner(BaseScrollWidget):
+class Prefect_DutyAssigner(KeyedListScrollWidget[str, LabeledField[KeyedListFlowWidget[int, EditableCancelableEntry]]]):
     def __init__(self, parent: BaseSettingEntry, id: ID):
         super().__init__()
         
@@ -1338,7 +1283,7 @@ class Prefect_DutyAssigner(BaseScrollWidget):
         
         if self.entry.cls:
             for day in self.entry.cls.level.weekdays:
-                main_widget = BaseFlowGridWidget(4)
+                main_widget: KeyedListFlowWidget[int, EditableCancelableEntry] = KeyedListFlowWidget(4)
                 main_widget.setMinimumHeight(150)
                 main_widget.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 
@@ -1350,21 +1295,21 @@ class Prefect_DutyAssigner(BaseScrollWidget):
                 day_widg.title_area.addWidget(add_duty_button)
                 
                 if day in self.entry.duties:
-                    for duty in self.entry.duties[day]:
-                        main_widget.addWidget(self._duty_entry(main_widget, day, duty))
+                    for i, duty in enumerate(self.entry.duties[day]):
+                        main_widget.addWidget(i, self._duty_entry(main_widget, day, duty))
                 
-                self.addWidget(day_widg)
+                self.addWidget(day, day_widg)
             
             self.addStretch()
         
-        self.duties_info: KeyedListWidget[LabeledField[BaseWidget]] = self._parent.duties_info
+        self.duties_info: KeyedListWidget[str, LabeledField[KeyedListWidget[int, QLabel]]] = self._parent.duties_info
     
-    def _make_entry_action_funcs(self, main_widget: BaseWidget, entry: EditableCancelableEntry, day: str):
+    def _make_entry_action_funcs(self, main_widget: KeyedListFlowWidget[int, EditableCancelableEntry], entry: EditableCancelableEntry, day: str):
         def update():
             index = self.duty_widgets[day].index(entry)
             
             self.entry.duties[day][index] = entry.get_text()
-            self.duties_info.get(day).inner_widget.getChildren()[index].setText(self.entry.duties[day][index])
+            self.duties_info.get(day).inner_widget.get(index).setText(self.entry.duties[day][index])
             
             self._parent.window().saved_state_changed.emit(True)
         
@@ -1382,14 +1327,13 @@ class Prefect_DutyAssigner(BaseScrollWidget):
                 
                 self.duties_info.popWidget(day)
             
-            main_widget.removeWidget(entry)
-            entry.deleteLater()
+            main_widget.popWidget(index, entry)
             
             self._parent.window().saved_state_changed.emit(True)
         
         return update, remove
     
-    def _duty_entry(self, main_widget: BaseWidget, day: str, duty: Optional[str] = None):
+    def _duty_entry(self, main_widget: KeyedListFlowWidget[int, EditableCancelableEntry], day: str, duty: Optional[str] = None):
         duty_entry = EditableCancelableEntry(duty)
         
         update_option, remove_option = self._make_entry_action_funcs(main_widget, duty_entry, day)
@@ -1404,25 +1348,72 @@ class Prefect_DutyAssigner(BaseScrollWidget):
         
         return duty_entry
     
-    def _make_add_duty_func(self, main_widget: BaseWidget, day: str):
+    def _make_add_duty_func(self, main_widget: KeyedListFlowWidget[int, EditableCancelableEntry], day: str):
         def func():
             if day not in self.entry.duties:
                 self.entry.duties[day] = []
-                self.duties_info.addWidget(day, BaseWidget())
+                self.duties_info.addWidget(day, LabeledField(day, KeyedListWidget()))
             
             self.entry.duties[day].append("")
             
+            self._parent.add_duty_info(day, len(self.entry.duties[day]) - 1)
+            
             entry = self._duty_entry(main_widget, day)
             
-            main_widget.addWidget(entry)
+            main_widget.addWidget(len(self.entry.duties[day]) - 1, entry)
             main_widget.scroll_to(main_widget.widgets[-1], 100)
             entry.start_editing()
-            
-            self._parent.add_duty_info(day, "")
             
             self._parent.window().saved_state_changed.emit(True)
         
         return func
+
+
+class _SubjectOccuranceEdit(BaseWidget):
+    def __init__(self, entry: ClassLevel, subject: Subject):
+        super().__init__(QHBoxLayout)
+        
+        self.entry = entry
+        
+        self.setProperty("class", "SubjectClassViewEntry")
+        
+        metrics = QFontMetrics(self.font())
+        self.subject_label = QLabel(metrics.elidedText(subject.name.full(), Qt.TextElideMode.ElideRight, 100))
+        self.subject_label.setFont(self.font())
+        self.subject_label.setToolTip(subject.name.full())
+        self.subject_label.setProperty("class", "SubjectClassViewEntryName")
+        
+        sub_widget = BaseWidget()
+        sub_widget.setProperty("class", "SubjectClassViewEntryEdits")
+        
+        self.addWidget(self.subject_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.addWidget(sub_widget, alignment=Qt.AlignmentFlag.AlignRight)
+        
+        self.per_day_edit = NumberLineEdit(self.entry.subjects_occurence[subject.id].day_max, 1, self.entry.subjects_occurence[subject.id].week_max)
+        # self.per_day_edit.edit.setFixedWidth(50)
+        self.per_day_edit.setPlaceholderText("Per day")
+        
+        self.per_week_edit = NumberLineEdit(self.entry.subjects_occurence[subject.id].week_max, 1, self.entry.subjects_occurence[subject.id].week_max + 1)
+        # self.per_week_edit.edit.setFixedWidth(54)
+        self.per_week_edit.setPlaceholderText("Per week")
+        
+        per_day_widget = BaseWidget(QHBoxLayout)
+        per_day_widget.setProperty("class", "Edit")
+        per_day_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
+        
+        per_day_widget.addWidget(QLabel("<b>Per day</b>"))
+        per_day_widget.addWidget(self.per_day_edit)
+        
+        per_week_widget = BaseWidget(QHBoxLayout)
+        per_week_widget.setProperty("class", "Edit")
+        per_week_widget.setStyleSheet("QWidget.Edit{background: none} QLabel{background: none}")
+        
+        per_week_widget.addWidget(QLabel("<b>Per week</b>"))
+        per_week_widget.addWidget(self.per_week_edit)
+        
+        sub_widget.addWidget(per_day_widget)
+        sub_widget.addWidget(per_week_widget)
+    
 
 
 # Assignments

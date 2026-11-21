@@ -302,7 +302,6 @@ class Window(QMainWindow):
             
             if isinstance(current_display_widget, BaseSettingWidget):
                 current_display_widget.scroll_widget.scroll_to(sw, 100)
-                sw.focusInput()
     
     def _get_search_scope(self):
         current_display_index = self.stack.currentIndex()
@@ -312,7 +311,9 @@ class Window(QMainWindow):
                 widget = self.attendance_manager.stack.currentWidget()
                 return widget.search_get_scope()
         else:
-            display_data = SCHOOL.subjects, SCHOOL.teachers, SCHOOL.class_levels
+            staff = SCHOOL.teachers.copy() ; staff.update(SCHOOL.prefects)
+            
+            display_data = SCHOOL.subjects, staff, SCHOOL.class_levels
             
             current_display_widget = self.stack.currentWidget()
             

@@ -366,10 +366,11 @@ class EditableCancelableEntry(BaseWidget):
         self.finished_editing_signal.connect(self._finished_editing)
         
         # Label mode widget
-        self.label = QLabel(self.text)
+        self.label = CustomLabel(self.text)
         self.label.setMinimumWidth(110)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.mousePressEvent = lambda _: self.started_editing_signal.emit()
+        self.label.clicked.connect(lambda: self.started_editing_signal.emit())
+        self.label.setCursor(Qt.CursorShape.PointingHandCursor)
         
         # Initialize both widgets but hide input initially
         self.addWidget(self.label)

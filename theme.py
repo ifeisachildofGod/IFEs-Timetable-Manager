@@ -825,7 +825,7 @@ STYLESHEET = '''
     QWidget.SubjectSettingsEntry {{
         background-color: {subject_bg};
     }}
-    QWidget.SubjectSettingsEntry * {{
+    QLabel.SubjectSettingsMainText {{
         color: {light_text};
     }}
     QWidget.SubjectSettingsEntry:hover {{
@@ -837,10 +837,13 @@ STYLESHEET = '''
     QWidget.SubjectSettingsEntry * QPushButton.SettingEntryClose:hover {{
         color: {hover__light_text};
     }}
+    QWidget.DarkenedSubjectBG {{
+        background-color: {interpolate-grey-0.5__subject_bg};
+    }}
     QWidget.CombinedSubjectSettingsEntry {{
         background-color: {combinedsubject_bg};
     }}
-    QWidget.CombinedSubjectSettingsEntry * {{
+    QLabel.CombinedSubjectSettingsMainText {{
         color: {light_text};
     }}
     QWidget.CombinedSubjectSettingsEntry:hover {{
@@ -852,10 +855,13 @@ STYLESHEET = '''
     QWidget.CombinedSubjectSettingsEntry * QPushButton.SettingEntryClose:hover {{
         color: {hover__light_text};
     }}
+    QWidget.DarkenedCombinedSubjectBG {{
+        background-color: {interpolate-grey-0.5__combinedsubject_bg};
+    }}
     QWidget.TeacherSettingsEntry {{
         background-color: {teacher_bg};
     }}
-    QWidget.TeacherSettingsEntry * {{
+    QLabel.TeacherSettingsMainText {{
         color: {light_text};
     }}
     QWidget.TeacherSettingsEntry:hover {{
@@ -867,10 +873,13 @@ STYLESHEET = '''
     QWidget.TeacherSettingsEntry * QPushButton.SettingEntryClose:hover {{
         color: {hover__light_text};
     }}
+    QWidget.DarkenedTeacherBG {{
+        background-color: {interpolate-grey-0.5__teacher_bg};
+    }}
     QWidget.PrefectSettingsEntry {{
         background-color: {prefect_bg};
     }}
-    QWidget.PrefectSettingsEntry * {{
+    QLabel.PrefectSettingsMainText {{
         color: {light_text};
     }}
     QWidget.PrefectSettingsEntry:hover {{
@@ -882,10 +891,13 @@ STYLESHEET = '''
     QWidget.PrefectSettingsEntry * QPushButton.SettingEntryClose:hover {{
         color: {hover__light_text};
     }}
+    QWidget.DarkenedPrefectBG {{
+        background-color: {interpolate-grey-0.5__prefect_bg};
+    }}
     QWidget.ClassLevelSettingsEntry {{
         background-color: {classlevel_bg};
     }}
-    QWidget.ClassLevelSettingsEntry * {{
+    QLabel.ClassLevelSettingsMainText {{
         color: {dark_text};
     }}
     QWidget.ClassLevelSettingsEntry:hover {{
@@ -896,6 +908,9 @@ STYLESHEET = '''
     }}
     QWidget.ClassLevelSettingsEntry * QPushButton.SettingEntryClose:hover {{
         color: {hover__dark_text};
+    }}
+    QWidget.DarkenedClassLevelBG {{
+        background-color: {interpolate-grey-0.5__classlevel_bg};
     }}
     QPushButton.SettingEntryClose {{
         font-size: 30px;

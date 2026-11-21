@@ -206,7 +206,7 @@ class ClashDisplayDialog(BaseDialogWidget):
             else:
                 func3()
         
-        def func(_):
+        def func():
             self.close()
             
             QTimer.singleShot(100, func2)
@@ -244,9 +244,10 @@ class ClashDisplayDialog(BaseDialogWidget):
                     self.classes_widgets[t_id][s_id][pos] = LabeledField(pos, BaseWidget())
                     self.subjects_widgets[t_id][s_id].widget.addWidget(self.classes_widgets[t_id][s_id][pos])
                 
-                cls_label = QLabel(f"<span style='font-size: 30px; text-spacing: 2px;'>{cls.level.name.full()} {cls.name}</span>")
+                cls_label = CustomLabel(f"<span style='font-size: 30px; text-spacing: 2px;'>{cls.level.name.full()} {cls.name}</span>")
                 cls_label.setProperty("class", "Link2")
-                cls_label.mousePressEvent = self.make_go_to_clash(cls, day, row, s_id)
+                cls_label.clicked.connect(self.make_go_to_clash(cls, day, row, s_id))
+                cls_label.setCursor(Qt.CursorShape.PointingHandCursor)
                 
                 self.classes_widgets[t_id][s_id][pos].inner_widget.addWidget(cls_label, alignment=Qt.AlignmentFlag.AlignCenter)
         
