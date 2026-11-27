@@ -1,6 +1,4 @@
-import os
-import sys
-import pickle
+import os, sys, math, time, json, numpy, pickle, asyncio
 from typing import Any, Callable, Optional, TypeVar
 
 from PyQt6.QtWidgets import (
@@ -29,9 +27,7 @@ from PyQt6.QtSvg import QSvgRenderer
 
 from core import *
 
-import sys
-import faulthandler
-import traceback
+import faulthandler, traceback
 from datetime import datetime
 
 crash_log = open("crash.log", "a", buffering=1)

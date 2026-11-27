@@ -38,35 +38,6 @@ def create_widget(parent_layout: QLayout | None, layout_type: type[QHBoxLayout] 
     
     return widget, layout
 
-def create_scrollable_widget(parent_layout: QLayout | None, layout_type: type[QHBoxLayout] | type[QVBoxLayout], borderless=True):
-    scroll_widget = QScrollArea()
-    scroll_widget.setWidgetResizable(True)
-    scroll_widget.setStyleSheet("QScrollArea{border: none}")
-    
-    widget = QWidget()
-    scroll_widget.setWidget(widget)
-    layout = layout_type(widget)
-    
-    if parent_layout is not None:
-        parent_layout.addWidget(scroll_widget)
-    
-    return scroll_widget, layout
-
-def clear_layout(layout: QLayout):
-    while layout.count():
-        item = layout.takeAt(0)
-
-        widget = item.widget()
-        layout_item = item.layout()
-
-        if widget is not None:
-            widget.setParent(None)
-            widget.deleteLater()
-
-        elif layout_item is not None:
-            clear_layout(layout_item)
-
-
 class Thread(QThread):
     crashed = pySignal(Exception)
     

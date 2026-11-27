@@ -918,7 +918,7 @@ class TimetableSettings(BaseWidget):
             if callable(pre_func):
                 pre_func()
             
-            self.new = Thread(self.window(), self._generate)
+            self.new = Thread(self._generate, self.window())
             self.new.finished.connect(lambda: setattr(self, "_can_generate_new", True))
             self.new.start()
             
@@ -939,7 +939,7 @@ class TimetableSettings(BaseWidget):
             
             self._clear()
             
-            self.new = Thread(self.window(), self._scramble)
+            self.new = Thread(self._scramble, self.window())
             self.new.finished.connect(lambda: setattr(self, "_can_generate_new", True))
             self.new.start()
             
@@ -1846,7 +1846,7 @@ class SchoolTimetableEditor(BaseWidget):
                 if callable(pre_func):
                     pre_func()
                 
-                self.class_generator_threads[cls_level.id] = Thread(self.window(), _generate)
+                self.class_generator_threads[cls_level.id] = Thread(_generate, self.window())
                 self.class_generator_threads[cls_level.id].finished.connect(lambda: self.class_generator_threads.pop(cls_level.id))
                 self.class_generator_threads[cls_level.id].start()
                 
@@ -1865,7 +1865,7 @@ class SchoolTimetableEditor(BaseWidget):
                 
                 _clear()
                 
-                self.class_generator_threads[cls_level.id] = Thread(self.window(), _scramble)
+                self.class_generator_threads[cls_level.id] = Thread(_scramble, self.window())
                 self.class_generator_threads[cls_level.id].finished.connect(lambda: self.class_generator_threads.pop(cls_level.id))
                 self.class_generator_threads[cls_level.id].start()
                 
@@ -2162,7 +2162,7 @@ class SchoolTimetableEditor(BaseWidget):
                 
                 timetable.clear_timetable()
                 
-                self.class_generator_threads[cls.id] = Thread(self.window(), _generate)
+                self.class_generator_threads[cls.id] = Thread(_generate, self.window())
                 self.class_generator_threads[cls.id].finished.connect(lambda: self.class_generator_threads.pop(cls.id))
                 self.class_generator_threads[cls.id].start()
                 
@@ -2181,7 +2181,7 @@ class SchoolTimetableEditor(BaseWidget):
                 
                 timetable.clear_timetable()
                 
-                self.class_generator_threads[cls.id] = Thread(self.window(), lambda: cls.timetable.scramble(self.timetable_widgets[cls.level.id][cls.id]))
+                self.class_generator_threads[cls.id] = Thread(lambda: cls.timetable.scramble(self.timetable_widgets[cls.level.id][cls.id]), self.window())
                 self.class_generator_threads[cls.id].finished.connect(lambda: self.class_generator_threads.pop(cls.id))
                 self.class_generator_threads[cls.id].start()
                 

@@ -1,10 +1,7 @@
 
 from .imports import *
 from .extra_widgets import *
-from .communication import *
 from .functions_and_uncategorized import *
-
-from widgets.user_interface import IconToolBarOption, wrapify_text
 
 
 _T = TypeVar("_T")
@@ -181,39 +178,6 @@ class BaseFilterCategoriesWidget(BaseListWidget):
         return self.category_widgets_tracker
 
 
-class BaseOptionsWidget(QWidget):
-    def __init__(self, parent_widget: TabViewWidget, widget_type: Literal["scrollable", "static"]):
-        super().__init__()
-        
-        layout = QVBoxLayout(self)
-        
-        self.container, self.main_layout = create_scrollable_widget(layout, QVBoxLayout) if widget_type == "scrollable" else (create_widget(layout, QVBoxLayout) if widget_type == "static" else None)
-        
-        self.parent_widget = parent_widget
-        
-        _, upper_layout = create_widget(self.main_layout, QHBoxLayout)
-        
-        cancel_button = QPushButton("×")
-        cancel_button.setFixedSize(30, 30)
-        cancel_button.setProperty("class", "cancel")
-        cancel_button.clicked.connect(self.finished)
-        
-        upper_layout.addStretch()
-        upper_layout.addWidget(cancel_button, Qt.AlignmentFlag.AlignRight)
-        
-        self.staff: Staff | None = None
-        self.staff_index: int | None = None
-    
-    def set_self(self, staff: Staff):
-        self.staff = staff
-    
-    def finished(self):
-        self.parent_widget.set_tab("Staff")
-        
-        self.staff = None
-        self.staff_index = None
-
-
 class BaseDataDisplayWidget(BaseScrollListWidget):
     def __init__(self):
         super().__init__()
@@ -296,91 +260,6 @@ class _CharacterNameWidget(QWidget):
         
         self.main_layout.addWidget(LabeledField("Names", widget_2_1, height_policy=QSizePolicy.Policy.Maximum))
 
-
-
-class BaseStaffListEntryWidget[_T](QWidget):
-    def __init__(self, parent_widget: TabViewWidget, staff: _T, comm_system: BaseCommSystem, card_scanner_widget: QWidget, staff_data_widget: QWidget):
-        super().__init__()
-        
-        self.staff = staff
-        self.comm_system = comm_system
-        
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        
-        self.container = QWidget()
-        self.main_layout = QVBoxLayout()
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
-        self.container.setLayout(self.main_layout)
-        
-        self.container.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        
-        layout.addWidget(self.container)
-        
-        self.staff_data_widget = staff_data_widget
-        self.card_scanner_widget = card_scanner_widget
-        
-        self.parent_widget = parent_widget
-        
-        _, main_info_layout = create_widget(self.main_layout, QHBoxLayout)
-        
-        image = Image(self.staff.img_path, parent=self.container, height=200)
-        
-        main_info_layout.addWidget(image, alignment=Qt.AlignmentFlag.AlignLeft)
-        main_info_layout.addStretch()
-        
-        self.name_label = QLabel(f"<b>{self.staff.name.full()}</b>")
-        
-        self.name_label.setStyleSheet("font-size: 50px")
-        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_info_layout.addWidget(self.name_label, Qt.AlignmentFlag.AlignRight)
-        
-        self.options_widget = BaseWidget()
-        options_option = IconToolBarOption(self.options_widget, "☰")
-        
-        self.options_widget.addWidget(iud_pb := QPushButton("Set IUD")) ; iud_pb.clicked.connect(self.set_iud)
-        self.options_widget.addWidget(vd_pb := QPushButton("View Data")) ; vd_pb.clicked.connect(self.view_data)
-        
-        main_info_layout.addWidget(options_option, alignment=Qt.AlignmentFlag.AlignTop)
-        
-        self.sub_info_widget = BaseWidget(QHBoxLayout)
-        self.sub_info_widget.setSpacing(30)
-        self.sub_info_widget.setContentsMargins(30, 5, 30, 5)
-        self.main_layout.addWidget(self.sub_info_widget)
-        
-        self.iud_label = QLabel(self.staff.IUD if self.staff.IUD is not None else "<i><b>NONE</b></i>")
-        self.iud_label.setStyleSheet("font-weight: bold;")
-        
-        self.sub_info_widget.addWidget(iud_lf := LabeledField("IUD", self.iud_label, height_policy=QSizePolicy.Policy.Maximum), alignment=Qt.AlignmentFlag.AlignCenter)
-        iud_lf.setMinimumWidth(120)
-    
-    def update_name(self):
-        self.name_label.setText(
-            f"<span style='font-weight: bold'>{"<br>".join(wrapify_text(self.staff.name.full(), 30))}</span>"
-            if self.staff.name.full() else
-            "<i><b style='font-size: larger;'>NONE</b></i>"
-        )
-    
-    def set_iud(self):
-        self.options_widget.hide()
-        
-        if not self.comm_system.connected:
-            QMessageBox.warning(self.parentWidget(), "SetIUDError", "No device connected")
-        else:
-            self.card_scanner_widget.set_self(self.staff, self.iud_label)
-            
-            self.parent_widget.stack.setCurrentWidget(self.card_scanner_widget)
-            self.comm_system.send_message("SCANNING")
-    
-    def view_data(self):
-        self.options_widget.hide()
-        
-        abbrev = self.staff.name.abbrev or ""
-        self.comm_system.send_message((" " * int(8 - (len(abbrev) / 2))) + f"{abbrev}'s_Performance Data")
-        
-        self.staff_data_widget.set_self(self.staff)
-        
-        self.parent_widget.stack.setCurrentWidget(self.staff_data_widget)
 
 class BaseAttendanceEntryWidget[_T](QWidget):
     def __init__(self, name: str, data: AttendanceEntry[_T], layout_type: type[QHBoxLayout] | type[QVBoxLayout] = QHBoxLayout):

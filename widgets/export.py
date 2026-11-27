@@ -10,7 +10,6 @@ from io import StringIO
 
 from utils import *
 from imports import *
-from AttendanceApp.extra_widgets import TabViewWidget
 
 from .base import *
 from .user_interface import *

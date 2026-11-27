@@ -3,7 +3,6 @@ from widgets.base import *
 
 from .functions_and_uncategorized import *
 from .imports import *
-from .communication import *
 
 
 class ScrollableCanvas(FigureCanvas):

@@ -5,7 +5,7 @@ from matplotlib.cbook import flatten
 from matplotlib.colors import get_named_colors_mapping
 
 from AttendanceApp.base_widgets import BaseDataDisplayWidget
-from AttendanceApp.communication import BaseCommSystem
+from communication import BaseCommSystem
 from AttendanceApp.data_display_widgets import BarWidget, GraphWidget
 from imports import *
 import shutil
@@ -128,14 +128,17 @@ class _Staff_CardScanScreen(BaseWidget):
     def __init__(self, entry: _T, parent: SettingsScreen, comm_system: BaseCommSystem):
         super().__init__()
         
+        GLOBAL_VARS.STAFF_IUD_REGISTRATION_ACTIVE = True
+        
         top_widget = BaseWidget(QHBoxLayout)
         
-        self.cancel_button = BaseWidget() ; self.cancel_button.addWidget(QLabel("<span style='font-size: 30px; font-weight: bold;'>×</span>"), alignment=Qt.AlignmentFlag.AlignCenter)
+        self.cancel_button = BaseWidget()
         self.cancel_button.setFixedSize(40, 40)
         self.cancel_button.setContentsMargins(0, 0, 0, 0)
-        self.cancel_button.setProperty("class", "CancelButton NoBG SpecialBG1Hover BorderRadiused")
         self.cancel_button.enableCursorPointing()
+        self.cancel_button.setProperty("class", "CancelButton NoBG SpecialBG1Hover BorderRadiused")
         self.cancel_button.clicked.connect(self.go_back)
+        self.cancel_button.addWidget(QLabel("<span style='font-size: 30px; font-weight: bold;'>×</span>"), alignment=Qt.AlignmentFlag.AlignCenter)
         
         top_widget.addStretch()
         top_widget.addWidget(self.cancel_button)
@@ -168,7 +171,9 @@ class _Staff_CardScanScreen(BaseWidget):
         self.comm_signal.connect(self.scanned)
         self.comm_system.set_data_point("IUD", self.comm_signal)
         
-        self.comm_system.connection_changed_signal.connect(self.connection_changed)
+        for device in self.comm_system.devices.all():
+            device.connection_changed.connect(self.connection_changed)
+        
         self.is_iud_changed = False
         
         for opt_info in self._parent.i_parent.window().option_buttons:
@@ -192,6 +197,8 @@ class _Staff_CardScanScreen(BaseWidget):
                 btn.clicked.disconnect(self.clean_up)
     
     def go_back(self):
+        GLOBAL_VARS.STAFF_IUD_REGISTRATION_ACTIVE = False
+        
         if self.is_iud_changed:
             self.comm_system.send_message("REGISTERED")
             
@@ -201,8 +208,8 @@ class _Staff_CardScanScreen(BaseWidget):
         self._parent.stack.setCurrentIndex(1)
         self.clean_up()
     
-    def connection_changed(self, state: bool):
-        if not state and self._parent.stack.indexOf(self) == self._parent.stack.currentIndex():
+    def connection_changed(self, connected: bool):
+        if not self.comm_system.devices.all() and not connected and self._parent.stack.indexOf(self) == self._parent.stack.currentIndex():
             self.go_back()
     
     def scanned(self, iud: str):
@@ -371,6 +378,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         self.card_scan_screen = None
         
         self.attendance_manager = attendance_manager
+        self.comm_system: BaseCommSystem = self.i_parent._window.comm_system
         
         super().__init__(i_parent, general_entry_name, extended_placeholders, custom_settings_format, entry, stack)
         
@@ -397,7 +405,7 @@ class StaffSettingEntry[_T](BaseSettingEntry[_T]):
         settings_screen = super().open_settings()
         
         def open_card_scan():
-            if not self.attendance_manager.comm_system.connected:
+            if not self.comm_system.devices.all():
                 QMessageBox.warning(self, "CardScannerError", "No device connected")
                 
                 return

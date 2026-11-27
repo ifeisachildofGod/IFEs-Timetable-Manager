@@ -11,8 +11,9 @@ from serial.tools.list_ports import comports
 
 # Parent Imports
 from imports import *
-
-from widgets.user_interface import LabeledField
+from core import *
+from widgets.base import *
+from widgets.user_interface import LabeledField, LabeledWidget
 from theme import THEME_MANAGER
 
 # Matplotlib Imports

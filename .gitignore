@@ -190,3 +190,5 @@ test.save/*.ttbl
 *.css
 bundle.py
 *.zip
+
+*test.py

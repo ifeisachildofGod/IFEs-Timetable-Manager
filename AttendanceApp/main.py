@@ -1,19 +1,104 @@
 import random
 from itertools import product
 
+from communication import BaseCommSystem
 from widgets.user_interface import *
 
-from ..base_widgets import *
-from ..data_display_widgets import *
+from .base_widgets import *
+from .data_display_widgets import *
 
-from .entry_widgets import *
-from .option_widgets import *
+
+class AttendancePrefectEntryWidget(BaseAttendanceEntryWidget[Prefect]):
+    def __init__(self, data: AttendanceEntry):
+        super().__init__("Prefect", data)
+        self.labeled_container.setProperty("class", "AttendancePrefectEntryWidget")
+        
+        info_sub_widget = BaseWidget()
+        
+        self.class_label = QLabel()
+        self.post_label = QLabel()
+        
+        info_sub_widget.addWidget(LabeledField("Class", self.class_label, height_policy=QSizePolicy.Policy.Maximum))
+        info_sub_widget.addWidget(LabeledField("Post Name", self.post_label, height_policy=QSizePolicy.Policy.Maximum))
+        
+        sub_main_info_widget = BaseWidget(QHBoxLayout)
+        
+        sub_main_info_widget.addWidget(info_sub_widget)
+        if data.is_check_in:
+            widget_1_3_1 = BaseScrollWidget()
+            
+            for index, duty in enumerate(self.staff.duties.get(self.data.period.day, [])):
+                widget_1_3_1.addWidget(QLabel(f"<b>{index + 1}.</b> <span style='font-weight: bold'>{"<br>&nbsp;&nbsp;&nbsp;&nbsp;".join(wrapify_text(duty, 50))}</span>"))
+            
+            sub_main_info_widget.addWidget(LabeledField("Duties", widget_1_3_1, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+        
+        self.main_info_widget.addWidget(sub_main_info_widget)
+        
+        self.update_class()
+        self.update_post()
+    
+    def update_class(self):
+        self.class_label.setText(
+            f"<b>{self.staff.cls.level.name.full()} {self.staff.cls.name}</b"
+            if self.staff.cls is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
+    
+    def update_post(self):
+        self.post_label.setText(
+            f"<span style='font-weight: bold'>{"<br>".join(wrapify_text(SCHOOL.posts[self.staff.post_id], 30))}</span>"
+            if self.staff.post_id is not None else
+            "<i><b style='font-size: larger;'>NONE</b></i>"
+        )
+class AttendanceTeacherEntryWidget(BaseAttendanceEntryWidget[Teacher]):
+    def __init__(self, data: AttendanceEntry):
+        super().__init__("Teacher", data)
+        self.labeled_container.setProperty("class", "AttendanceTeacherEntryWidget")
+        
+        if data.is_check_in:
+            self.main_info_widget.addWidget(LabeledField("Subjects", (widget_2_2_2 := BaseScrollWidget()), QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum))
+            widget_2_2_2.setFixedHeight(180)
+            
+            periods_data: dict[tuple[str, str], dict[tuple[str, str], list[int]]] = {}
+            
+            for subject in self.staff.subjects.values():
+                subject_periods = []
+                
+                for cls in subject.classes.values():
+                    for day, periods in cls.timetable.table.items():
+                        for i, s in enumerate(periods):
+                            if isinstance(s, Subject):
+                                if self.staff.id == s.teacher.id and day not in subject_periods:
+                                    subject_periods.append((cls.id, day, i + 1))
+                            elif isinstance(s, CombinedSubject):
+                                if next((True for s_s in s.subjects if s_s.id == subject.id and s_s.teacher is not None and s_s.teacher.id == self.staff.id), False):
+                                    subject_periods.append((cls.id, day, i + 1))
+                
+                for cls_id, day_name, period in subject_periods:
+                    if self.data.period.day == day_name:
+                        if periods_data.get(subject.id) is None:
+                            periods_data[subject.id] = {}
+                        if periods_data[subject.id].get(cls_id) is None:
+                            periods_data[subject.id][cls_id] = []
+                        periods_data[subject.id][cls_id].append(period)
+        
+            for subject_id, subject_data in periods_data.items():
+                widget_2_2_2_1, layout_2_2_2_1 = create_widget(None, QGridLayout)
+                
+                for index, (cls_id, periods) in enumerate(subject_data.items()):
+                    cls = SCHOOL.class_levels[cls_id.class_level_id].classes[cls_id]
+                    
+                    widget_2_2_2_1_1, layout_2_2_2_1_1 = create_widget(None, QVBoxLayout) ; layout_2_2_2_1_1.addStretch()
+                    for i, period in enumerate(periods):
+                        layout_2_2_2_1_1.insertWidget(i, QLabel(f"<b>{positionify(str(period))} period</b>"))
+                    layout_2_2_2_1.addWidget(LabeledField(f"{cls.level.name.full()} {cls.name}", widget_2_2_2_1_1), int(index / 3), index % 3)
+                widget_2_2_2.addWidget(LabeledField(SCHOOL.subjects[subject_id].name.full(), widget_2_2_2_1))
 
 
 class AttendanceWidget(BaseScrollListWidget):
     comm_signal = pySignal(str)
     
-    def __init__(self, parent_widget: TabViewWidget, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget):
+    def __init__(self, parent_widget: TabViewWidget, attendance_chart_widget: "AttendanceBarWidget", punctuality_graph_widget: "PunctualityGraphWidget", comm_system: BaseCommSystem):
         super().__init__()
         
         self.__init = True
@@ -49,7 +134,6 @@ class AttendanceWidget(BaseScrollListWidget):
         
         self.comm_system = comm_system
         self.parent_widget = parent_widget
-        self.card_scanner_widget = card_scanner_widget
         
         self.attendance_chart_widget = attendance_chart_widget
         self.punctuality_graph_widget = punctuality_graph_widget
@@ -502,7 +586,7 @@ class AttendanceWidget(BaseScrollListWidget):
         return False, None
     
     def add_new_attendance_log(self, IUD: str, period: Optional[Period] = None):
-        if not self.card_scanner_widget.just_scanned:
+        if not GLOBAL_VARS.STAFF_IUD_REGISTRATION_ACTIVE:
             staff = next((staff for staff in list(SCHOOL.prefects.values()) + list(SCHOOL.teachers.values()) if staff.IUD == IUD), None)
             
             if staff is None:
@@ -618,311 +702,11 @@ class AttendanceWidget(BaseScrollListWidget):
         
         return super().keyPressEvent(a0)
 
-class StaffListWidget(BaseScrollListWidget):
-    def __init__(self, parent_widget: TabViewWidget, comm_system: BaseCommSystem, card_scanner_widget: CardScanScreenWidget, staff_data_widget: StaffDataWidget, attendance_widget: AttendanceWidget):
-        super().__init__()
-        
-        self.parent_widget = parent_widget
-        self.comm_system = comm_system
-        self.card_scanner_widget = card_scanner_widget
-        self.staff_data_widget = staff_data_widget
-        self.attendance_widget = attendance_widget
-        
-        self.saved_state_changed = self.parent_widget.window().saved_state_changed
-        
-        time_settings_widget = BaseWidget(QHBoxLayout)
-        
-        teacher_time_settings_widget = BaseWidget(QHBoxLayout) ; teacher_time_settings_widget.setContentsMargins(0, 0, 0, 0)
-        prefect_time_settings_widget = BaseWidget(QHBoxLayout) ; prefect_time_settings_widget.setContentsMargins(0, 0, 0, 0)
-        
-        main_teacher_tsw, teacher_timeline_widget = self.timing_settings(SCHOOL.attendance.teacher_attendance_time_settings)
-        main_prefect_tsw, prefect_timeline_widget = self.timing_settings(SCHOOL.attendance.prefect_attendance_time_settings)
-        
-        teacher_time_settings_widget.addWidget(main_teacher_tsw) ; teacher_time_settings_widget.addWidget(teacher_timeline_widget)
-        prefect_time_settings_widget.addWidget(main_prefect_tsw) ; prefect_time_settings_widget.addWidget(prefect_timeline_widget)
-        
-        time_settings_widget.addWidget(LabeledField("Teacher", teacher_time_settings_widget))
-        time_settings_widget.addWidget(LabeledField("Prefect", prefect_time_settings_widget))
-        
-        self.addWidget(time_settings_widget)
-        
-        self.curr_filter = None
-        
-        prefects = lambda: sorted([(k, v) for k, v in SCHOOL.prefects.items()], key=lambda params: params[1].name.full())
-        teachers = lambda: sorted([(k, v) for k, v in SCHOOL.teachers.items()], key=lambda params: params[1].name.full())
-        boths = lambda: sorted(prefects() + teachers(), key=lambda params: params[1].name.full())
-        prefects_first = lambda: prefects() + teachers()
-        teachers_first = lambda: teachers() + prefects()
-        
-        self._filter_funcs: dict[str, Callable] = {}
-        self.filter_widgets: dict[str, BaseWidget] = {}
-        self.all_staff_widgets: dict[str, dict[str, StaffListPrefectEntryWidget | StaffListTeacherEntryWidget]] = {}
-        
-        both_func = lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else StaffListPrefectEntryWidget
-        
-        self.get_filtered_widgets("Default", boths, both_func)
-        self.get_filtered_widgets("Prefects Only", prefects, lambda staff: StaffListPrefectEntryWidget if isinstance(staff, Prefect) else None)
-        self.get_filtered_widgets("Teachers Only", teachers, lambda staff: StaffListTeacherEntryWidget if isinstance(staff, Teacher) else None)
-        self.get_filtered_widgets("Prefects First", prefects_first, both_func)
-        self.get_filtered_widgets("Teachers First", teachers_first, both_func)
-        
-        for i, staff_widget in enumerate(self.filter_widgets.copy().values()):
-            staff_widget.setVisible(i == 0)
-            self.addWidget(staff_widget)
-        
-        self.filter_widget = BaseWidget(QHBoxLayout)
-        
-        self.filter_cb = QComboBox()
-        self.filter_cb.addItems(list(self.filter_widgets))
-        self.filter_cb.currentIndexChanged.connect(self.filter)
-        
-        self.filter_widget.addStretch()
-        self.filter_widget.addWidget(self.filter_cb)
-        
-        self._layout.insertWidget(0, self.filter_widget)
-        
-        
-        self.filter(0)
-    
-    def timing_settings(self, staff_attendance_time_settings: StaffAttendanceTimeSettings):
-        main_widget = BaseWidget()
-        main_widget.setContentsMargins(0, 5, 0, 0)
-        
-        def _make_ct_changed_func(target_time: Time):
-            def func(time: QTime):
-                target_time.hour = time.hour()
-                target_time.minute = time.minute()
-                
-                _update_cot_sb_limit()
-                _update_cit_sb_limit()
-                
-                self.saved_state_changed.emit(True)
-            
-            return func
-        
-        def _update_cit_sb_limit():
-            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
-            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
-            
-            interval = cibim + cobim
-            
-            cit_editor.setMinimumTime(QTime(cibim // 60, cibim % 60))
-            cit_editor.setMaximumTime(QTime(staff_attendance_time_settings.check_out_time.hour - interval // 60, staff_attendance_time_settings.check_out_time.minute - interval % 60))
-        
-        def _update_cot_sb_limit():
-            cibim = staff_attendance_time_settings.check_in_border_interval_minutes
-            cobim = staff_attendance_time_settings.check_out_border_interval_minutes
-            
-            interval = cibim + cobim
-            
-            cot_editor.setMinimumTime(QTime(staff_attendance_time_settings.check_in_time.hour + interval // 60, staff_attendance_time_settings.check_in_time.minute + interval % 60))
-            cot_editor.setMaximumTime(QTime(24 - cobim // 60, 24 - cobim % 60))
-        
-        def cibm_changed_func(value: int):
-            staff_attendance_time_settings.check_in_border_interval_minutes = value
-            
-            _update_cit_sb_limit()
-            _update_cot_sb_limit()
-            
-            self.saved_state_changed.emit(True)
-        
-        def cobm_changed_func(value: int):
-            staff_attendance_time_settings.check_out_border_interval_minutes = value
-            
-            _update_cit_sb_limit()
-            _update_cot_sb_limit()
-            
-            self.saved_state_changed.emit(True)
-        
-        def add_timeline(timeline: Optional[tuple[Period, Period]] = None):
-            def remove_func():
-                timeline_widget.removeWidget(widget)
-                widget.deleteLater()
-                
-                staff_attendance_time_settings.timeline_dates.remove(timeline_periods)
-                
-                self.saved_state_changed.emit(True)
-            
-            timeline_periods = timeline
-            
-            if timeline_periods is None:
-                timeline_periods = Period.str_to_period(time.ctime()), Period.str_to_period(time.ctime())
-                staff_attendance_time_settings.timeline_dates.append(timeline_periods)
-            
-            widget = BaseWidget()
-            widget.setSpacing(0)
-            widget.setContentsMargins(8, 5, 8, 5)
-            widget.setProperty("class", "SpecialBG1 BorderRadiused")
-            
-            cancel_pb = QPushButton("×")
-            cancel_pb.setProperty("class", "SettingEntryClose")
-            cancel_pb.clicked.connect(remove_func)
-            
-            central_widget = BaseWidget(QHBoxLayout)
-            central_widget.setProperty("class", "NoBG")
-            
-            central_widget.addWidget(GeneralPeriodEditor(self.parent_widget.window(), timeline_periods[0], max_period=timeline_periods[1]), alignment=Qt.AlignmentFlag.AlignCenter)
-            central_widget.addSpacing(15)
-            central_widget.addWidget(GeneralPeriodEditor(self.parent_widget.window(), timeline_periods[1], min_period=timeline_periods[0]), alignment=Qt.AlignmentFlag.AlignCenter)
-            
-            widget.addWidget(cancel_pb, alignment=Qt.AlignmentFlag.AlignRight)
-            widget.addWidget(central_widget)
-            
-            timeline_widget.insertWidget(len(timeline_widget.getChildren()), widget)
-            timeline_widget.scroll_to(widget, 100)
-            
-            self.saved_state_changed.emit(False)
-
-        time_widget = BaseWidget(QHBoxLayout)
-        time_widget.setSpacing(10) ; time_widget.setContentsMargins(0, 0, 0, 0)
-        
-        cit_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_in_time.hour, staff_attendance_time_settings.check_in_time.minute))
-        cit_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_in_time))
-        cot_editor = QTimeEdit(QTime(staff_attendance_time_settings.check_out_time.hour, staff_attendance_time_settings.check_out_time.minute))
-        cot_editor.timeChanged.connect(_make_ct_changed_func(staff_attendance_time_settings.check_out_time))
-        
-        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Time</span>", cit_editor))
-        time_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Time</span>", cot_editor))
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        time_border_widget = BaseWidget(QHBoxLayout)
-        time_border_widget.setSpacing(10) ; time_border_widget.setContentsMargins(0, 0, 0, 0)
-        
-        citsi_sb = QSpinBox() ; citsi_sb.valueChanged.connect(cibm_changed_func)
-        citsi_sb.setSuffix("min")
-        citsi_sb.setValue(staff_attendance_time_settings.check_in_border_interval_minutes)
-        citsi_sb.setRange(0, 60 * 6)
-        cotsi_sb = QSpinBox() ; cotsi_sb.valueChanged.connect(cobm_changed_func)
-        cotsi_sb.setSuffix("min")
-        cotsi_sb.setValue(staff_attendance_time_settings.check_out_border_interval_minutes)
-        cotsi_sb.setRange(0, 60 * 6)
-        
-        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-In Window</span>", citsi_sb))
-        time_border_widget.addWidget(LabeledWidget("<span style='font-size: 12px;'>C-Out Window</span>", cotsi_sb))
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        timeline_editing_widget = BaseWidget()
-        timeline_editing_widget.setProperty("class", "SpecialBG2")
-        timeline_editing_widget.setContentsMargins(5, 3, 5, 3)
-        timeline_editing_widget.setFixedHeight(350)
-        
-        timeline_widget = BaseScrollWidget()
-        timeline_widget.setSpacing(15)
-        timeline_widget.setContentsMargins(5, 3, 5, 3)
-        timeline_widget.addStretch()
-        
-        add_timeline_pb = QPushButton("Add Timeline")
-        add_timeline_pb.clicked.connect(lambda: add_timeline())
-        
-        for timeline_date in staff_attendance_time_settings.timeline_dates:
-            add_timeline(timeline_date)
-        
-        timeline_editing_widget.addWidget(timeline_widget)
-        timeline_editing_widget.addWidget(add_timeline_pb, alignment=Qt.AlignmentFlag.AlignRight)
-        # -------------------------------------------------------------------------------------------------------------------------------------------------
-        
-        main_widget.addWidget(time_widget)
-        main_widget.addWidget(time_border_widget)
-        
-        return main_widget, IconToolBarOption(title=f"Timelines", content=timeline_editing_widget, default_bg=THEME_MANAGER.process_stylesheet("{pressed__bg3}"))
-    
-    def get_filtered_widgets(
-        self,
-        filter_key: str,
-        
-        staff_list_callback: Callable[[], list[tuple[str, Prefect | Teacher]]],
-        entry_type_callback: Callable[[Prefect | Teacher], type[StaffListTeacherEntryWidget] | type[StaffListTeacherEntryWidget]],
-    ):
-        widget = BaseWidget()
-        
-        self._filter_funcs[filter_key] = staff_list_callback, entry_type_callback
-        
-        if filter_key not in self.all_staff_widgets:
-            self.all_staff_widgets[filter_key] = {}
-        
-        self.filter_widgets[filter_key] = widget
-    
-    def search_goto(self, sw: StaffListPrefectEntryWidget | StaffListTeacherEntryWidget):
-        self.scroll_to(sw)
-    
-    def search_get_scope(self):
-        return (
-            sorted(
-                [
-                    (
-                        sw,
-                        sw.staff.name.full(),
-                        (
-                            sw.staff.name.abbrev,
-                            sw.staff.IUD,
-                            "Prefect" if isinstance(sw.staff, Prefect) else "Teacher"
-                            ),
-                        [
-                            sw.staff.name.third,
-                            SCHOOL.posts[sw.staff.post_id] if isinstance(sw.staff, Prefect) else None,
-                            f"{sw.staff.cls.level.name.full()} {sw.staff.cls.name}" if isinstance(sw.staff, Prefect) else None
-                            ] + (
-                                (list(set(flatten(sw.staff.duties.values()))) + list(sw.staff.duties))
-                                if isinstance(sw.staff, Prefect) else
-                                ([s.name.full() for s in sw.staff.subjects.values()] + [" ".join([f"{c.level.name.full()} {c.name}" for c in s.classes.values()]) for s in sw.staff.subjects.values()] + list(flatten([[d for t, d, _ in s.get_periods() if t.id == sw.staff.id] for s in sw.staff.subjects.values()])))
-                                )
-                        )
-                    for sw in
-                    self.all_staff_widgets[self.curr_filter].values()
-                    if (
-                        self.filter_cb.currentIndex() == 0 or
-                        (isinstance(sw.staff, Prefect) and self.filter_cb.currentIndex() == 1) or
-                        (sw.staff.id in SCHOOL.teachers and self.filter_cb.currentIndex() == 2)
-                        )
-                    ],
-                key=lambda params: params[1]
-                )
-            )
-    
-    def filter(self, index: int):
-        for i, (f_type, staff_widget) in enumerate(self.filter_widgets.items()):
-            staff_widget.setVisible(index == i)
-            
-            if index == i:
-                self.curr_filter = f_type
-    
-    def add_staff(self, staff: Prefect | Teacher):
-        for f_key, staff_maps in self.all_staff_widgets.items():
-            widget = self.filter_widgets[f_key]
-            staff_list_callback, entry_type_callback = self._filter_funcs[f_key]
-            
-            entry_type = entry_type_callback(staff)
-            
-            if entry_type is not None:
-                staff_widget = entry_type(
-                    self.parent_widget,
-                    staff,
-                    self.comm_system,
-                    self.card_scanner_widget,
-                    self.staff_data_widget
-                )
-                
-                index = next(i for i, (k, _) in enumerate(staff_list_callback()) if k == staff.id)
-                
-                widget.insertWidget(min(index, len(widget.getChildren())), staff_widget)
-                
-                _temp_maps = list(staff_maps.items())
-                _temp_maps.insert(index, (staff.id, staff_widget))
-                
-                staff_maps.clear()
-                staff_maps.update(dict(_temp_maps))
-    
-    def delete_staff(self, staff: Prefect | Teacher):
-        for f_key, staff_maps in self.all_staff_widgets.items():
-            if staff.id in staff_maps:
-                widget = staff_maps.pop(staff.id)
-                
-                self.filter_widgets[f_key].removeWidget(widget)
-                widget.deleteLater()
-
 class AttendanceBarWidget(BaseDataDisplayWidget):
-    def __init__(self, staff_data_widget: StaffDataWidget):
+    def __init__(self, parent_window: QMainWindow):
         super().__init__()
         
-        self.staff_data_widget = staff_data_widget
+        self.parent_window = parent_window
     
     def _get_filter_widgets(self):
         self.prefect_info_widget = BarWidget("Cummulative School Prefect Attendance", "School Prefects", "Yearly Attendance (%)")
@@ -998,17 +782,12 @@ class AttendanceBarWidget(BaseDataDisplayWidget):
                     widget.add_data(SCHOOL.subjects[subj_id].name.full(), list(get_named_colors_mapping().values())[index], t_data, False)
     
     def get_percentage_attendance(self, staff: Staff):
-        _, plot_data = self.staff_data_widget.get_staff_attendance_data(staff)
+        _, plot_data = self.parent_window.staff_widget.widgets[staff.id].get_staff_attendance_data()
         
         if plot_data:
             return sum(plot_data.values()) / len(plot_data)
 
 class PunctualityGraphWidget(BaseDataDisplayWidget):
-    def __init__(self, staff_data_widget: StaffDataWidget):
-        super().__init__()
-        
-        self.staff_data_widget = staff_data_widget
-    
     def _get_filter_widgets(self):
         self.prefect_info_widget = GraphWidget("Prefects Punctuality Graph", "Time Interval (Weeks)", "Punctuality (Hours)")
         self.dtd_widget = BaseWidget()

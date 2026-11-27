@@ -209,6 +209,93 @@ class MenuFrame(QFrame):
             self.move(self._pos)
             self.show()
 
+class TabViewWidget(BaseWidget):
+    def __init__(self, orientation: Qt.Orientation = Qt.Orientation.Horizontal):
+        self.orientation = orientation
+        
+        super().__init__(QVBoxLayout if self.orientation == Qt.Orientation.Horizontal else QHBoxLayout)
+        
+        self.tab_index = None
+        self.current_tab = None
+        
+        self.tab_src_changed_func_mapping = {}
+        
+        self.widgets: list[QWidget] = []
+        self.tab_buttons: list[QPushButton] = []
+        self.tab_name_index_mapping: dict[str] = {}
+        
+        self.tab_widget = BaseWidget(QHBoxLayout if self.orientation == Qt.Orientation.Horizontal else QVBoxLayout)
+        self.tab_widget.setSpacing(5)
+        self.tab_widget.setContentsMargins(0, 0, 0, 0)
+        
+        self.stack = QStackedWidget()
+        
+        if self.orientation == Qt.Orientation.Vertical:
+            self.tab_widget.addStretch()
+        
+        self.setContentsMargins(10, 10, 10, 10)
+        self.stack.setContentsMargins(0, 0, 0, 0)
+        
+        self.addWidget(self.tab_widget)
+        self.addWidget(self.stack)
+    
+    def add(self, tab_name: str, widget: QWidget, func: Callable[[int, ], None] = None):
+        tab_button = QPushButton(tab_name)
+        self.tab_buttons.append(tab_button)
+        
+        tab_button.setCheckable(True)
+        tab_button.clicked.connect(self._make_tab_clicked_func(tab_name, len(self.tab_buttons) - 1, func))
+        tab_button.setProperty("class", "TabViewHorizontalTab" if self.orientation == Qt.Orientation.Horizontal else "TabViewVerticalTab")
+        tab_button.setContentsMargins(0, 0, 0, 0)
+        
+        self.tab_widget.insertWidget(len(self.tab_buttons) - 1, tab_button)
+        self.stack.insertWidget(len(self.tab_buttons), widget)
+        widget.setContentsMargins(0, 0, 0, 0)
+        
+        self.widgets.append(widget)
+        
+        self.tab_buttons[0].click()
+    
+    def get(self, tab_name: str, default: Any = ...):
+        tab_widget: QWidget = (self.widgets + [default])[next((i for i, b in enumerate(self.tab_buttons) if b.text() == tab_name), -1)]
+        
+        if type(tab_widget) == type(Ellipsis):
+            raise KeyError(f'There is no tab named: "{tab_name}"')
+        
+        return tab_widget
+    
+    def index(self, widget: QWidget):
+        return next(i for i, w in enumerate(self.stack.children()) if w == widget)
+    
+    def set_tab(self, tab: int | str):
+        if isinstance(tab, int) and tab >= len(self.tab_buttons):
+            self.stack.setCurrentIndex(tab)
+        else:
+            self.tab_buttons[next(i for i, b in enumerate(self.tab_buttons) if b.text() == tab) if isinstance(tab, str) else tab].click()
+    
+    def _make_tab_clicked_func(self, tab_name: str, index: int, clicked_func: Callable[[int, ], None] | None):
+        self.tab_name_index_mapping[tab_name] = index
+        self.tab_src_changed_func_mapping[tab_name] = clicked_func
+        
+        def func():
+            for i, button in enumerate(self.tab_buttons):
+                button.setChecked(i == index)
+            
+            if self.tab_index != index:
+                if clicked_func is not None:
+                    clicked_func(index)
+                
+                self.stack.setCurrentIndex(index)
+                self.current_tab = tab_name
+                
+                child: QWidget = self.stack.children()[index]
+                if child.isWidgetType():
+                    child.setFocus()
+                
+                self.tab_index = self.stack.currentIndex()
+        
+        return func
+
 
 
 

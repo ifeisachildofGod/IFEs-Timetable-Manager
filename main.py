@@ -4,9 +4,11 @@ import traceback
 
 import threading
 
+from communication import BaseCommSystem, CommDevices, CommSetupDialog
 from utils import *
 from imports import *
 from widgets import *
+from widgets.settings import SubjectsMainWidget, StaffMainWidget, ClassLevelsMainWidget
 
 from AttendanceApp import AttendanceManager
 
@@ -130,6 +132,10 @@ class Window(QMainWindow):
         
         self.go_focus_index = 0
         
+        # Connection
+        self.comm_system = BaseCommSystem(self, CommDevices([], [], []), self.connection_error_func)
+        self.connection_screen = CommSetupDialog(self, self.comm_system)
+        
         # Make settings widgets
         subjects_btn = QPushButton("Subjects")
         staff_btn = QPushButton("Staff")
@@ -139,7 +145,7 @@ class Window(QMainWindow):
         
         self.page_tracker = [subjects_btn]
         
-        self.attendance_manager = AttendanceManager()
+        self.attendance_manager = AttendanceManager(self)
         self.timetable_widget = SchoolTimetableEditor()
         
         self.subjects_widget = SubjectsMainWidget(self, self.timetable_widget, self.attendance_manager, self.page_tracker, subjects_btn)
@@ -365,6 +371,15 @@ class Window(QMainWindow):
         
         return arg
     
+    def connection_error_func(self, e: Exception, conn_error: bool = True):
+        if conn_error:
+            response = QMessageBox.warning(None, type(e).__name__, str(e) + "\n\nTry again?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        else:
+            response = QMessageBox.warning(None, type(e).__name__, str(e))
+        
+        if not self.connection_screen.isActiveWindow() and response == QMessageBox.StandardButton.Yes:
+            self.connection_screen.exec()
+    
     def add_page_trace(self, button: BaseWidget | QPushButton):
         if self.is_option_sidebar_focused:
             self.go_focus_index += 1
@@ -565,7 +580,7 @@ class Window(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction("Find", "Ctrl+F", coming_soon)
         
-        attendance_menu.addAction("Connection", "Ctrl+Shift+A", lambda: self.attendance_manager.activate_connection_screen())
+        attendance_menu.addAction("Connection", "Ctrl+Shift+A", lambda: self.connection_screen.exec())
         
         self.go_back_action = go_menu.addAction("Back", self.go_back)
         self.go_forward_action = go_menu.addAction("Forward", self.go_forward)
@@ -663,7 +678,7 @@ class Window(QMainWindow):
             
             THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
             self.attendance_manager.THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
-            self.attendance_manager.connection_set_up_screen.THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
+            self.attendance_manager.connection_screen.THEME_MANAGER.apply_theme(SCHOOL.settings.THEME)
             
             for lvl_id, level_widgets in self.timetable_widget.timetable_widgets.items():
                 for cls_id, cls_ttbl in level_widgets.items():

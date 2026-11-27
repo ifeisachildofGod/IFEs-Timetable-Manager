@@ -11,32 +11,33 @@ FT_MAPPING = {
     TEMPLATE_EXTENSION_TYPE: "Template Files (*.frmwk)"
 } ; REV_FT_MAPPING = {v: k for k, v in FT_MAPPING.items()}
 
-
 class Thread(QThread):
     crashed = pySignal(Exception)
-    
-    def __init__(self, main_window: QMainWindow, func: Callable):
+
+    def __init__(self, func: Optional[Callable] = None,
+                 main_window: Optional[QMainWindow] = None):
         super().__init__()
         self.setParent(None)
-        
         self.main_window = main_window
-        
-        self.func = func is not None and func or (lambda: ())
-        main_window.close = self._window_closed()
-    
-    def _window_closed(self):
-        def window_closed_event(self):
-            self.exit(0)
-            super().close()
-        
-        return window_closed_event
-    
+        self.func = func or (lambda: None)
+
     def run(self):
         try:
             self.func()
-        except Exception as e:
-            self.main_window.crashed_signal.emit(e)
-            self.exit(-1)
+        except Exception as error:
+            self.crashed.emit(error)
+            if self.main_window is not None:
+                signal = getattr(self.main_window, "crashed_signal", None)
+                if signal is not None:
+                    signal.emit(error)
+
+    def stop(self, timeout: int = 2000) -> bool:
+        """Request cooperative shutdown and wait up to timeout milliseconds."""
+        if not self.isRunning():
+            return True
+        self.requestInterruption()
+        self.quit()
+        return self.wait(timeout)
 
 class FileManager:
     def __init__(self, parent: QWidget, export_parent: QWidget, path: Optional[str], file_filter: str):

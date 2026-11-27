@@ -1,6 +1,7 @@
 
 """Core framework backbone"""
 
+from enum import Enum
 import random
 from dataclasses import dataclass
 from typing import Optional, TypeVar
@@ -11,6 +12,11 @@ from core.timing_and_timetable import *
 
 _T = TypeVar("_T")
 
+
+class AttendanceDevice(Enum):
+    SERIAL = "Serial"
+    BLUETOOTH = "Bluetooth"
+    SERVER = "Server"
 
 @dataclass
 class AppData:
@@ -31,6 +37,9 @@ class AppData:
             f"\nTeacher Check-In and Check-Out times overlap:\n\nCheck-In upper border: {self.teacher_attendance_time_settings.check_in_time.in_minutes() + self.teacher_attendance_time_settings.check_in_border_interval_minutes}\nCheck-Out lower border: {self.teacher_attendance_time_settings.check_out_time.in_minutes() - self.teacher_attendance_time_settings.check_out_border_interval_minutes}"
 
 
+@dataclass
+class GlobalVariables:
+    STAFF_IUD_REGISTRATION_ACTIVE = False
 class Global(dict[ID, _T]):
     def __init__(self, school: "School | None" = None):
         super().__init__()
@@ -107,6 +116,11 @@ class Settings:
     ID_index: int
     auto_save: bool
 
+@dataclass
+class ConnectionManager:
+    device: Optional[AttendanceDevice] = None
+    
+    api_key_storage: Optional[str | bool] = None
 
 class School:
     def __init__(self):
@@ -160,6 +174,8 @@ class School:
         )
         
         self.posts: dict[ID, str] = {}
+        
+        self.connection = ConnectionManager()
         
         assert \
             self.attendance.prefect_attendance_time_settings.check_in_time.in_minutes() + self.attendance.prefect_attendance_time_settings.check_in_border_interval_minutes < self.attendance.prefect_attendance_time_settings.check_out_time.in_minutes() - self.attendance.prefect_attendance_time_settings.check_out_border_interval_minutes,\
@@ -352,7 +368,6 @@ class School:
         return school
 
 
-SCHOOL = School()
 
 def NEW_ID():
     SCHOOL.settings.ID_index += 1
@@ -367,3 +382,8 @@ def NEW_CLASS_ID(class_level_id: ID):
     _id.class_level_id = class_level_id
     
     return _id
+
+
+SCHOOL = School()
+GLOBAL_VARS = GlobalVariables()
+
